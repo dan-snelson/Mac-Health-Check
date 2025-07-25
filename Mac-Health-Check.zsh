@@ -74,6 +74,12 @@ kerberosRealm=""
 # Organization's Firewall Type [ socketfilterfw | pf ]
 organizationFirewall="socketfilterfw"
 
+# Organization's VPN client type [none | paloalto | cisco]
+vpnClientType="none"
+
+# Organization's VPN data type [basic | extended]
+vpnClientDataType="basic"
+
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
 
@@ -244,22 +250,75 @@ wiFiIpAddress=$( echo "$activeServices" | /usr/bin/sed '/^$/d' | head -n 1)
 
 
 
+####################################################################################################
+#
+# VPN Client Information
+#
+####################################################################################################
+if [[ "${vpnClientType}" == "none" ]]; then
+    vpnStatus="None"
+fi
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Palo Alto Networks GlobalProtect VPN IP address
+# Palo Alto Networks GlobalProtect VPN Information
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-globalProtectTest="/Applications/GlobalProtect.app"
+if [[ "${vpnClientType}" == "paloalto" ]]; then
+    vpnAppName="GlobalProtect VPN Client"
+    vpnStatus="GlobalProtect is NOT installed"
+    if [[ -d "/Applications/GlobalProtect.app" ]]; then
+        vpnStatus="GlobalProtect is Idle"
+        globalProtectVPNStatus=$(ifconfig gpd0 | awk '/<UP/ {print $2}')
+        globalProtectVPNIP=$(ifconfig gpd0 | awk '/broadcast/ {print $2}')
 
-if [[ -e "${globalProtectTest}" ]] ; then
-    interface=$( ifconfig | grep -B1 "10\." | grep -oE '10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | head -1 )
-    if [[ -z "$interface" ]]; then
-        globalProtectStatus="Inactive"
-    else
-        globalProtectIP=$( ifconfig | grep "inet ${interface}" | awk '{ print $2 }' )
-        globalProtectStatus="${globalProtectIP}"
+        if [[ ! -z "${globalProtectVPNStatus}" ]]; then
+            vpnStatus="${globalProtectVPNIP}"
+        fi
     fi
-else
-    globalProtectStatus="GlobalProtect is NOT installed"
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ ! -z "${globalProtectVPNStatus}" ]]; then
+        globalProtectStatus=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanGPS:disable-globalprotect" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
+        case "${globalProtectStatus}" in
+            0 ) globalProtectDisabled="GlobalProtect Running; " ;;
+            1 ) globalProtectDisabled="GlobalProtect Disabled; " ;;
+            * ) globalProtectDisabled="GlobalProtect Unknown; " ;;
+        esac
+        globalProtectUserResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
+        if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
+            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect; "
+        elif [[ ! -z "${globalProtectUserResult}" ]]; then
+            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect; "
+        fi
+        vpnExtendedStatus="${globalProtectDisabled}${globalProtectUserResult}"
+    fi
+fi
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Cisco VPN Information
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${vpnClientType}" == "cisco" ]]; then
+    vpnAppName="Cisco VPN Client"
+    vpnStatus="Cisco VPN is NOT installed"
+    if [[ -d "/Applications/Cisco/Cisco AnyConnect Secure Mobility Client.app" ]]; then
+        ciscoVPNStats=$(/opt/cisco/anyconnect/bin/vpn -s stats)
+    elif [[ -d "/Applications/Cisco/Cisco Secure Client.app" ]]; then
+        ciscoVPNStats=$(/opt/cisco/secureclient/bin/vpn -s stats)
+    fi
+    if [[ -n $ciscoVPNStats ]]; then
+        ciscoVPNStatus=$(echo "${ciscoVPNStats}" | grep -m1 'Connection State:' | awk '{print $3}')
+        ciscoVPNIP=$(echo "${ciscoVPNStats}" | grep -m1 'Client Address' | awk '{print $4}')
+        if [[ "${ciscoVPNStatus}" == "Connected" ]]; then
+            vpnStatus="${ciscoVPNIP}"
+        else
+            vpnStatus="Cisco VPN is Idle"
+        fi
+        if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${ciscoVPNStatus}" == "Connected" ]]; then
+            ciscoVPNServer=$(echo "${ciscoVPNStats}" | grep -m1 'Server Address:' | awk '{print $3}')
+            ciscoVPNDuration=$(echo "${ciscoVPNStats}" | grep -m1 'Duration:' | awk '{print $2}')
+            ciscoVPNSessionDisconnect=$(echo "${ciscoVPNStats}" | grep -m1 'Session Disconnect:' | awk '{print $3, $4, $5, $6, $7}')
+            vpnExtendedStatus="VPN Server Address: ${ciscoVPNServer} VPN Connection Duration: ${ciscoVPNDuration} VPN Session Disconnect: $ciscoVPNSessionDisconnect"
+        fi
+    fi
 fi
 
 
@@ -329,7 +388,7 @@ supportKBURL="[${supportKB}](${infobuttonaction})"
 # Help Message Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${wiFiIpAddress}<br>- **VPN IP:** ${globalProtectStatus}<br><br>**Jamf Pro Information:**<br>- **Site:** ${jamfProSiteName}"
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${wiFiIpAddress}<br>- **VPN IP:** ${vpnStatus}<br><br>**Jamf Pro Information:**<br>- **Site:** ${jamfProSiteName}"
 
 helpimage="qr=${infobuttonaction}"
 
@@ -383,7 +442,8 @@ dialogJSON='
         {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=15.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=16.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=17.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=18.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=18.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "VPN Client Check", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=19.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
     ]
 }
 '
@@ -659,7 +719,7 @@ function quitScript() {
 
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${wiFiIpAddress}; VPN IP: ${globalProtectStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${wiFiIpAddress}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
 
     if [[ -n "${overallHealth}" ]]; then
         dialogUpdate "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
@@ -1610,6 +1670,49 @@ function checkFileVault() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check VPN Installation
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkVPN() {
+
+    notice "Check ${vpnAppName} …"
+
+    dialogUpdate "icon: ${vpnAppPath}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining status of ${vpnAppName} …"
+
+    # sleep "${anticipationDuration}"
+
+    case ${vpnStatus} in
+
+        *"NOT installed"* )
+            dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+            errorOut "${vpnAppName} Failed"
+            overallHealth+="${vpnAppName}; "
+            ;;
+
+        *"Idle"* )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: Idle"
+            info "${vpnAppName} idle"
+            ;;
+            
+        "None" )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: No VPN"
+            info "No VPN"
+            ;;
+
+        * )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
+            info "${vpnAppName} connected"
+            ;;
+    esac
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check External Validation (where Parameter 2 represents the Jamf Pro Policy Custom Trigger)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -1808,6 +1911,7 @@ if [[ "${operationMode}" == "production" ]]; then
     checkExternal "15" "symvGlobalProtect" "/Applications/GlobalProtect.app"
     checkNetworkQuality "16"
     updateComputerInventory "17"
+    checkVPN "18"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
