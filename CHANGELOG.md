@@ -8,6 +8,7 @@
 - Add framework for different VPN clients and an internal VPN Client Check (Pull Request #16; thanks for another one, @HowardGMac!)
 - Addressed MHC does not show SF Symbols in the upper left corner - needs region check (Issue #21; thanks, @hbokh!)
 - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
+- Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
 
 ### 2.1.0 (24-Jul-2025)
 - Added an `operationMode` of "debug" to specifically enable swiftDialog debugging
