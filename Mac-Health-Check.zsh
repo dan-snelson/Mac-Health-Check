@@ -1779,20 +1779,20 @@ function checkExternal() {
 
     externalValidation=$( /usr/local/bin/jamf policy -event $trigger | grep "Script result:" )
 
-    case ${externalValidation} in
+case ${externalValidation:l} in
 
-        *"Failed"* )
+        *"failed"* )
             dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
             errorOut "${appDisplayName} Failed"
             overallHealth+="${appDisplayName}; "
             ;;
 
-        *"Running"* ) 
+        *"running"* ) 
             dialogUpdate "listitem: index: ${1}, status: success, statustext: Running"
             info "${appDisplayName} running"
             ;;
 
-        *"Error"* | * )
+        *"error"* | * )
             dialogUpdate "listitem: index: ${1}, status: error, statustext: Error"
             errorOut "${appDisplayName} Error"
             overallHealth+="${appDisplayName}; "
