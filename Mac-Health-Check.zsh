@@ -17,11 +17,12 @@
 #
 # HISTORY
 #
-# Version 2.2.0, 25-Jul-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.2.0, 12-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Improved the GlobalProtect VPN IP detection logic
 #   - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
 #   - Add framework for different VPN clients and an internal VPN Client Check (Pull Request #16; thanks for another one, @HowardGMac!)
 #   - Addressed MHC does not show SF Symbols in the upper left corner - needs region check (Issue #21; thanks, @hbokh!)
+#   - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
 #
 ####################################################################################################
 
@@ -36,7 +37,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.2.0b6"
+scriptVersion="2.2.0b7"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -45,7 +46,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 SECONDS="0"
 
 # Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"production"}"
+operationMode="${4:-"debug"}"
 
     # Enable `set -x` if operation mode is "test" or "debug" to help identify variable initialization issues (i.e., SSID)
     [[ "${operationMode}" == "test" || "${operationMode}" == "debug" ]] && set -x
