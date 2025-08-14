@@ -17,13 +17,14 @@
 #
 # HISTORY
 #
-# Version 2.2.0, 12-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.2.0, 14-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Improved the GlobalProtect VPN IP detection logic
 #   - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
 #   - Add framework for different VPN clients and an internal VPN Client Check (Pull Request #16; thanks for another one, @HowardGMac!)
 #   - Addressed MHC does not show SF Symbols in the upper left corner - needs region check (Issue #21; thanks, @hbokh!)
 #   - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
 #   - Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
+#   - Added Tailscale VPN check (thanks, Alex Finn)
 #
 ####################################################################################################
 
@@ -38,7 +39,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.2.0b8"
+scriptVersion="2.2.0b9"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -79,7 +80,7 @@ kerberosRealm=""
 # Organization's Firewall Type [ socketfilterfw | pf ]
 organizationFirewall="socketfilterfw"
 
-# Organization's VPN client type [ none | paloalto | cisco ]
+# Organization's VPN client type [ none | paloalto | cisco | tailscale ]
 vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
@@ -329,6 +330,75 @@ if [[ "${vpnClientVendor}" == "cisco" ]]; then
     fi
 fi
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Tailscale VPN Information
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${vpnClientVendor}" == "tailscale" ]]; then
+    vpnAppName="Tailscale VPN Client"
+    vpnAppPath="/Applications/Tailscale.app"
+    vpnStatus="Tailscale is NOT installed"
+    if [[ -d "${vpnAppPath}" ]]; then
+        vpnStatus="Tailscale is Idle"
+        if command -v tailscale >/dev/null 2>&1; then
+            tailscaleCLI="tailscale"
+        elif [[ -f "/Applications/Tailscale.app/Contents/MacOS/Tailscale" ]]; then
+            tailscaleCLI="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+        else
+            tailscaleCLI=""
+        fi
+        if [[ -n "${tailscaleCLI}" ]]; then
+            tailscaleStatusOutput=$("${tailscaleCLI}" status --json 2>/dev/null)
+            if [[ $? -eq 0 ]] && [[ -n "${tailscaleStatusOutput}" ]]; then
+                tailscaleBackendState=$(echo "${tailscaleStatusOutput}" | grep -o '"BackendState":"[^"]*' | cut -d'"' -f4)
+                tailscaleIP=$(echo "${tailscaleStatusOutput}" | grep -o '"TailscaleIPs":\["[^"]*' | cut -d'"' -f4)
+                case "${tailscaleBackendState}" in
+                    "Running" ) 
+                        if [[ -n "${tailscaleIP}" ]]; then
+                            vpnStatus="${tailscaleIP}"
+                        else
+                            vpnStatus="Tailscale Connected (No IP)"
+                        fi
+                        ;;
+                    "Stopped" ) vpnStatus="Tailscale is Stopped" ;;
+                    "Starting" ) vpnStatus="Tailscale is Starting" ;;
+                    "NeedsLogin" ) vpnStatus="Tailscale Needs Login" ;;
+                    * ) vpnStatus="Tailscale Status Unknown" ;;
+                esac
+            else
+                if pgrep -x "tailscaled" > /dev/null; then
+                    vpnStatus="Tailscale Running (Status Unknown)"
+                else
+                    vpnStatus="Tailscale is Idle"
+                fi
+            fi
+        fi
+    fi
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${tailscaleBackendState}" == "Running" ]]; then
+        if [[ -n "${tailscaleCLI}" ]]; then
+            tailscaleCurrentUser=$(echo "${tailscaleStatusOutput}" | grep -o '"CurrentTailnet":{"Name":"[^"]*' | cut -d'"' -f6)
+            tailscaleHostname=$(echo "${tailscaleStatusOutput}" | grep -o '"Self":{"ID":"[^"]*","PublicKey":"[^"]*","HostName":"[^"]*' | cut -d'"' -f8)
+            tailscaleExitNode=$(echo "${tailscaleStatusOutput}" | grep -o '"ExitNodeStatus":{"ID":"[^"]*' | cut -d'"' -f4)
+            vpnExtendedStatus=""
+            if [[ -n "${tailscaleCurrentUser}" ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Tailnet: ${tailscaleCurrentUser}; "
+            fi
+            if [[ -n "${tailscaleHostname}" ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Hostname: ${tailscaleHostname}; "
+            fi
+            if [[ -n "${tailscaleExitNode}" ]] && [[ "${tailscaleExitNode}" != "null" ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Using Exit Node; "
+            else
+                vpnExtendedStatus="${vpnExtendedStatus}Direct Connection; "
+            fi
+            tailscalePeerCount=$(echo "${tailscaleStatusOutput}" | grep -c '"Online":true')
+            if [[ -n "${tailscalePeerCount}" ]] && [[ "${tailscalePeerCount}" -gt 0 ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Connected Peers: ${tailscalePeerCount}; "
+            fi
+        fi
+    fi
+fi
+
 
 
 ####################################################################################################
@@ -446,7 +516,7 @@ dialogJSON='
         {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "1Password", "subtitle" : "1Password gives you the ability to enforce stringent security standards.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
@@ -1953,7 +2023,7 @@ if [[ "${operationMode}" == "production" ]]; then
     checkAPNs "10"
     checkJamfProCheckIn "11"
     checkJamfProInventory "12"
-    checkInternal "13" "/Applications/1Password.app" "/Applications/1Password.app" "1Password"
+    checkInternal "13" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
     checkExternal "14" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
     checkExternal "15" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
     checkExternal "16" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
