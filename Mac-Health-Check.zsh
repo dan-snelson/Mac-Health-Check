@@ -25,6 +25,7 @@
 #   - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
 #   - Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
 #   - Added Tailscale VPN check (thanks, Alex Finn)
+#   - Change zsh logic flag for Dialog check / installation from `-e` to `-x` to make sure file exists and is executable (Pull Request #26; thanks, @ScottEKendall!)
 #
 ####################################################################################################
 
@@ -39,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.2.0b9"
+scriptVersion="2.2.0b10"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
