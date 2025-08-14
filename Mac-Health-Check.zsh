@@ -993,7 +993,7 @@ function dialogInstall() {
 function dialogCheck() {
 
     # Check for Dialog and install if not found
-    if [ ! -e "/Library/Application Support/Dialog/Dialog.app" ]; then
+    if [ ! -x "/Library/Application Support/Dialog/Dialog.app" ]; then
 
         preFlight "swiftDialog not found. Installing..."
         dialogInstall
