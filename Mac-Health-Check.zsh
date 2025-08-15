@@ -1410,7 +1410,7 @@ function checkJssCertificateExpiration() {
 
     sleep "${anticipationDuration}"
 
-    identities=( $( security find-identity -v /Library/Keychains/System.keychain | awk '{print $3}' | tr -d '"' | head -n 1 ) )
+    identities=( $( security find-identity -v /Library/Keychains/System.keychain | grep -v "$serialNumber" | awk '{print $3}' | tr -d '"' | head -n 1 ) )
     now_seconds=$( date +%s )
 
     if [[ "${identities}" != "identities" ]]; then
