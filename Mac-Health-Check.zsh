@@ -19,6 +19,7 @@
 #
 # Version 2.3.0, 15-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
+#   - Adjusted GlobalProtect VPN check for IPv6
 #
 ####################################################################################################
 
@@ -33,7 +34,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b1"
+scriptVersion="2.3.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -271,7 +272,7 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
         globalProtectInterface=$( netstat -nr | grep utun | head -1 | awk '{ print $4 }' )
-        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet / {print $2}' )
+        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet/ {print $2}' )
 
         if [[ -n "${globalProtectVPNStatus}" ]]; then
             vpnStatus="${globalProtectVPNStatus}"

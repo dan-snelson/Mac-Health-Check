@@ -4,6 +4,7 @@
 
 ### 2.3.0 (15-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
+- Adjusted GlobalProtect VPN check for IPv6
 
 ### 2.2.0 (15-Aug-2025)
 - Improved the GlobalProtect VPN IP detection logic
