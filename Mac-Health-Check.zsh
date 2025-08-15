@@ -272,7 +272,7 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
         globalProtectInterface=$( netstat -nr | grep utun | head -1 | awk '{ print $4 }' )
-        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet/ {print $2}' )
+        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet/ {split($2, a, "%"); print a[1]}' )
 
         if [[ -n "${globalProtectVPNStatus}" ]]; then
             vpnStatus="${globalProtectVPNStatus}"
