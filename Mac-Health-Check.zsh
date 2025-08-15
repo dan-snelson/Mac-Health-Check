@@ -17,16 +17,15 @@
 #
 # HISTORY
 #
-# Version 2.1.0, 24-Jul-2025, Dan K. Snelson (@dan-snelson)
-#   - Added an `operationMode` of "debug" to specifically enable swiftDialog debugging
-#   - Improved error handling for malformed `plistFilepath` variables (Addresses Issue #2)
-#   - Updated overlayicon to be MDM-agnostic (Addresses Issue #3)
-#   - Added Secure Token status check to `helpmessage` (Addresses Issue #4)
-#   - Addition of Packet Firewall status check option (Pull Request #5; thanks, @HowardGMac!)
-#   - Updated MHC_icon.png
-#   - Update Firewall Cases to include one for State 2 (Pull Request #8; thanks, @mam5hs!)
-#   - Fix for Free Disk Space comparison bug (Addresses Issue #10). (Pull Request #11; thanks again, @HowardGMac!)
-#   - Added bootstrap token status
+# Version 2.2.0, 15-Aug-2025, Dan K. Snelson (@dan-snelson)
+#   - Improved the GlobalProtect VPN IP detection logic
+#   - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
+#   - Add framework for different VPN clients and an internal VPN Client Check (Pull Request #16; thanks for another one, @HowardGMac!)
+#   - Addressed MHC does not show SF Symbols in the upper left corner - needs region check (Issue #21; thanks, @hbokh!)
+#   - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
+#   - Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
+#   - Added Tailscale VPN check (thanks, @alexfinn!)
+#   - Change zsh logic flag for Dialog check / installation from `-e` to `-x` to make sure file exists and is executable (Pull Request #26; thanks, @ScottEKendall!)
 #
 ####################################################################################################
 
@@ -41,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.1.0"
+scriptVersion="2.2.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -79,8 +78,14 @@ organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
 
-# Organization's Firewall Type [socketfilterfw | pf]
+# Organization's Firewall Type [ socketfilterfw | pf ]
 organizationFirewall="socketfilterfw"
+
+# Organization's VPN client type [ none | paloalto | cisco | tailscale ]
+vpnClientVendor="paloalto"
+
+# Organization's VPN data type [ basic | extended ]
+vpnClientDataType="extended"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
@@ -233,41 +238,166 @@ fi
 ####################################################################################################
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Wi-Fi IP Address
+# Active IP Address
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 networkServices=$( networksetup -listallnetworkservices | grep -v asterisk )
 
-while IFS= read aService
-do
-    activePort=$( /usr/sbin/networksetup -getinfo "$aService" | /usr/bin/grep "IP address" | /usr/bin/grep -v "IPv6" )
+while IFS= read -r aService; do
+    activePort=$( networksetup -getinfo "$aService" | grep "IP address" | grep -v "IPv6" )
+    activePort=${activePort/IP address: /}
     if [ "$activePort" != "" ] && [ "$activeServices" != "" ]; then
-        activeServices="$activeServices\n$aService $activePort"
+        activeServices="$activeServices\n**$aService IP:** $activePort"
     elif [ "$activePort" != "" ] && [ "$activeServices" = "" ]; then
-        activeServices="$aService $activePort"
+        activeServices="**$aService IP:** $activePort"
     fi
 done <<< "$networkServices"
 
-wiFiIpAddress=$( echo "$activeServices" | /usr/bin/sed '/^$/d' | head -n 1)
+activeIPAddress=$( echo "$activeServices" | sed '/^$/d' | head -n 1 )
 
 
+
+####################################################################################################
+#
+# VPN Client Information
+#
+####################################################################################################
+
+if [[ "${vpnClientVendor}" == "none" ]]; then
+    vpnStatus="None"
+fi
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Palo Alto Networks GlobalProtect VPN IP address
+# Palo Alto Networks GlobalProtect VPN Information
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-globalProtectTest="/Applications/GlobalProtect.app"
+if [[ "${vpnClientVendor}" == "paloalto" ]]; then
+    vpnAppName="GlobalProtect VPN Client"
+    vpnAppPath="/Applications/GlobalProtect.app"
+    vpnStatus="GlobalProtect is NOT installed"
+    if [[ -d "${vpnAppPath}" ]]; then
+        vpnStatus="GlobalProtect is Idle"
+        globalProtectInterface=$( netstat -nr | grep utun | head -1 | awk '{ print $4 }' )
+        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet / {print $2}' )
 
-if [[ -e "${globalProtectTest}" ]] ; then
-    interface=$( ifconfig | grep -B1 "10\." | grep -oE '10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | head -1 )
-    if [[ -z "$interface" ]]; then
-        globalProtectStatus="Inactive"
-    else
-        globalProtectIP=$( ifconfig | grep "inet ${interface}" | awk '{ print $2 }' )
-        globalProtectStatus="${globalProtectIP}"
+        if [[ -n "${globalProtectVPNStatus}" ]]; then
+            vpnStatus="${globalProtectVPNStatus}"
+        fi
     fi
-else
-    globalProtectStatus="GlobalProtect is NOT installed"
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ -n "${globalProtectVPNStatus}" ]]; then
+        globalProtectStatus=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanGPS:disable-globalprotect" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
+        case "${globalProtectStatus}" in
+            0 ) globalProtectDisabled="GlobalProtect Running; " ;;
+            1 ) globalProtectDisabled="GlobalProtect Disabled; " ;;
+            * ) globalProtectDisabled="GlobalProtect Unknown; " ;;
+        esac
+        globalProtectUserResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
+        if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
+            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect; "
+        elif [[ ! -z "${globalProtectUserResult}" ]]; then
+            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect; "
+        fi
+        vpnExtendedStatus="${globalProtectDisabled}${globalProtectUserResult}"
+    fi
+fi
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Cisco VPN Information
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${vpnClientVendor}" == "cisco" ]]; then
+    vpnAppName="Cisco VPN Client"
+    vpnAppPath="/Applications/Cisco/Cisco AnyConnect Secure Mobility Client.app"
+    vpnStatus="Cisco VPN is NOT installed"
+    if [[ -d "${vpnAppPath}" ]]; then
+        ciscoVPNStats=$(/opt/cisco/anyconnect/bin/vpn -s stats)
+    elif [[ -d "/Applications/Cisco/Cisco Secure Client.app" ]]; then
+        ciscoVPNStats=$(/opt/cisco/secureclient/bin/vpn -s stats)
+    fi
+    if [[ -n $ciscoVPNStats ]]; then
+        ciscoVPNStatus=$(echo "${ciscoVPNStats}" | grep -m1 'Connection State:' | awk '{print $3}')
+        ciscoVPNIP=$(echo "${ciscoVPNStats}" | grep -m1 'Client Address' | awk '{print $4}')
+        if [[ "${ciscoVPNStatus}" == "Connected" ]]; then
+            vpnStatus="${ciscoVPNIP}"
+        else
+            vpnStatus="Cisco VPN is Idle"
+        fi
+        if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${ciscoVPNStatus}" == "Connected" ]]; then
+            ciscoVPNServer=$(echo "${ciscoVPNStats}" | grep -m1 'Server Address:' | awk '{print $3}')
+            ciscoVPNDuration=$(echo "${ciscoVPNStats}" | grep -m1 'Duration:' | awk '{print $2}')
+            ciscoVPNSessionDisconnect=$(echo "${ciscoVPNStats}" | grep -m1 'Session Disconnect:' | awk '{print $3, $4, $5, $6, $7}')
+            vpnExtendedStatus="VPN Server Address: ${ciscoVPNServer} VPN Connection Duration: ${ciscoVPNDuration} VPN Session Disconnect: $ciscoVPNSessionDisconnect"
+        fi
+    fi
+fi
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Tailscale VPN Information
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${vpnClientVendor}" == "tailscale" ]]; then
+    vpnAppName="Tailscale VPN Client"
+    vpnAppPath="/Applications/Tailscale.app"
+    vpnStatus="Tailscale is NOT installed"
+    if [[ -d "${vpnAppPath}" ]]; then
+        vpnStatus="Tailscale is Idle"
+        if command -v tailscale >/dev/null 2>&1; then
+            tailscaleCLI="tailscale"
+        elif [[ -f "/Applications/Tailscale.app/Contents/MacOS/Tailscale" ]]; then
+            tailscaleCLI="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+        else
+            tailscaleCLI=""
+        fi
+        if [[ -n "${tailscaleCLI}" ]]; then
+            tailscaleStatusOutput=$("${tailscaleCLI}" status --json 2>/dev/null)
+            if [[ $? -eq 0 ]] && [[ -n "${tailscaleStatusOutput}" ]]; then
+                tailscaleBackendState=$(echo "${tailscaleStatusOutput}" | grep -o '"BackendState":"[^"]*' | cut -d'"' -f4)
+                tailscaleIP=$(echo "${tailscaleStatusOutput}" | grep -o '"TailscaleIPs":\["[^"]*' | cut -d'"' -f4)
+                case "${tailscaleBackendState}" in
+                    "Running" ) 
+                        if [[ -n "${tailscaleIP}" ]]; then
+                            vpnStatus="${tailscaleIP}"
+                        else
+                            vpnStatus="Tailscale Connected (No IP)"
+                        fi
+                        ;;
+                    "Stopped" ) vpnStatus="Tailscale is Stopped" ;;
+                    "Starting" ) vpnStatus="Tailscale is Starting" ;;
+                    "NeedsLogin" ) vpnStatus="Tailscale Needs Login" ;;
+                    * ) vpnStatus="Tailscale Status Unknown" ;;
+                esac
+            else
+                if pgrep -x "tailscaled" > /dev/null; then
+                    vpnStatus="Tailscale Running (Status Unknown)"
+                else
+                    vpnStatus="Tailscale is Idle"
+                fi
+            fi
+        fi
+    fi
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${tailscaleBackendState}" == "Running" ]]; then
+        if [[ -n "${tailscaleCLI}" ]]; then
+            tailscaleCurrentUser=$(echo "${tailscaleStatusOutput}" | grep -o '"CurrentTailnet":{"Name":"[^"]*' | cut -d'"' -f6)
+            tailscaleHostname=$(echo "${tailscaleStatusOutput}" | grep -o '"Self":{"ID":"[^"]*","PublicKey":"[^"]*","HostName":"[^"]*' | cut -d'"' -f8)
+            tailscaleExitNode=$(echo "${tailscaleStatusOutput}" | grep -o '"ExitNodeStatus":{"ID":"[^"]*' | cut -d'"' -f4)
+            vpnExtendedStatus=""
+            if [[ -n "${tailscaleCurrentUser}" ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Tailnet: ${tailscaleCurrentUser}; "
+            fi
+            if [[ -n "${tailscaleHostname}" ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Hostname: ${tailscaleHostname}; "
+            fi
+            if [[ -n "${tailscaleExitNode}" ]] && [[ "${tailscaleExitNode}" != "null" ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Using Exit Node; "
+            else
+                vpnExtendedStatus="${vpnExtendedStatus}Direct Connection; "
+            fi
+            tailscalePeerCount=$(echo "${tailscaleStatusOutput}" | grep -c '"Online":true')
+            if [[ -n "${tailscalePeerCount}" ]] && [[ "${tailscalePeerCount}" -gt 0 ]]; then
+                vpnExtendedStatus="${vpnExtendedStatus}Connected Peers: ${tailscalePeerCount}; "
+            fi
+        fi
+    fi
 fi
 
 
@@ -298,7 +428,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar, plus two (i.e., "progress: increment")
-progressSteps="20"
+progressSteps="21"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -337,7 +467,7 @@ supportKBURL="[${supportKB}](${infobuttonaction})"
 # Help Message Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${wiFiIpAddress}<br>- **VPN IP:** ${globalProtectStatus}<br><br>**Jamf Pro Information:**<br>- **Site:** ${jamfProSiteName}"
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}<br><br>**Jamf Pro Information:**<br>- **Site:** ${jamfProSiteName}"
 
 helpimage="qr=${infobuttonaction}"
 
@@ -358,7 +488,7 @@ dialogJSON='
     "icon" : "'"${icon}"'",
     "overlayicon" : "'"${overlayicon}"'",
     "message" : "none",
-    "iconsize" : "198.0",
+    "iconsize" : "198",
     "infobox" : "**User:** '"{userfullname}"'<br><br>**Computer Model:** '"{computermodel}"'<br><br>**Serial Number:** '"{serialnumber}"' ",
     "infobuttontext" : "'"${supportKB}"'",
     "infobuttonaction" : "'"${infobuttonaction}"'",
@@ -374,24 +504,26 @@ dialogJSON='
     "messagefont" : "size=14",
     "titlefont" : "shadow=true, size=24",
     "listitem" : [
-        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=04.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=05.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=06.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=07.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=08.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=09.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=10.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=11.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=12.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=13.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=14.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=15.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=16.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=17.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=18.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
     ]
 }
 '
@@ -667,10 +799,10 @@ function quitScript() {
 
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${wiFiIpAddress}; VPN IP: ${globalProtectStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
 
     if [[ -n "${overallHealth}" ]]; then
-        dialogUpdate "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
+        dialogUpdate "icon: SF=xmark.circle,weight=bold,colour1=#BB1717,colour2=#F31F1F"
         dialogUpdate "title: Computer Unhealthy (as of $( date '+%Y-%m-%d-%H%M%S' ))"
         if [[ -n "${webhookURL}" ]]; then
             info "Sending webhook message"
@@ -680,7 +812,7 @@ function quitScript() {
         errorOut "${overallHealth%%; }"
         exitCode="1"
     else
-        dialogUpdate "icon: SF=checkmark.circle.fill,weight=bold,colour1=#00ff44,colour2=#075c1e"
+        dialogUpdate "icon: SF=checkmark.circle,weight=bold,colour1=#00ff44,colour2=#075c1e"
         dialogUpdate "title: Computer Healthy (as of $( date '+%Y-%m-%d-%H%M%S' ))"
     fi
 
@@ -862,7 +994,7 @@ function dialogInstall() {
 function dialogCheck() {
 
     # Check for Dialog and install if not found
-    if [ ! -e "/Library/Application Support/Dialog/Dialog.app" ]; then
+    if [ ! -x "/Library/Application Support/Dialog/Dialog.app" ]; then
 
         preFlight "swiftDialog not found. Installing..."
         dialogInstall
@@ -1366,7 +1498,7 @@ function checkAPNs() {
     local humanReadableCheckName="Apple Push Notification service"
     notice "Check ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=wave.3.up.circle.fill,${organizationColorScheme}"
+    dialogUpdate "icon: SF=wave.3.up.circle,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
@@ -1618,6 +1750,87 @@ function checkFileVault() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Internal Validation — Parameter 2: Target File; Parameter 3: Icon; Parameter 4: Display Name
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkInternal() {
+
+    checkInternalTargetFile="${2}"
+    checkInternalTargetFileIcon="${3}"
+    checkInternalTargetFileDisplayName="${4}"
+
+    notice "Internal Check: ${checkInternalTargetFile} …"
+
+    dialogUpdate "icon: ${checkInternalTargetFileIcon}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining status of ${checkInternalTargetFileDisplayName} …"
+
+    sleep "${anticipationDuration}"
+
+    if [[ -e "${checkInternalTargetFile}" ]]; then
+
+        dialogUpdate "listitem: index: ${1}, status: success, statustext: Installed"
+        info "${checkInternalTargetFileDisplayName} installed"
+        
+    else
+
+        dialogUpdate "listitem: index: ${1}, status: fail, statustext: NOT Installed"
+        errorOut "${checkInternalTargetFileDisplayName} NOT Installed"
+        overallHealth+="${checkInternalTargetFileDisplayName}; "
+
+    fi
+
+    sleep "${anticipationDuration}"
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check VPN Installation
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkVPN() {
+
+    notice "Check ${vpnAppName} …"
+
+    dialogUpdate "icon: ${vpnAppPath}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining status of ${vpnAppName} …"
+
+    # sleep "${anticipationDuration}"
+
+    case ${vpnStatus} in
+
+        *"NOT installed"* )
+            dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+            errorOut "${vpnAppName} Failed"
+            overallHealth+="${vpnAppName}; "
+            ;;
+
+        *"Idle"* )
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Idle"
+            info "${vpnAppName} idle"
+            ;;
+            
+        "None" )
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: No VPN"
+            info "No VPN"
+            ;;
+
+        * )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
+            info "${vpnAppName} connected"
+            ;;
+    esac
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check External Validation (where Parameter 2 represents the Jamf Pro Policy Custom Trigger)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -1638,20 +1851,20 @@ function checkExternal() {
 
     externalValidation=$( /usr/local/bin/jamf policy -event $trigger | grep "Script result:" )
 
-    case ${externalValidation} in
+case ${externalValidation:l} in
 
-        *"Failed"* )
+        *"failed"* )
             dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
             errorOut "${appDisplayName} Failed"
             overallHealth+="${appDisplayName}; "
             ;;
 
-        *"Running"* ) 
+        *"running"* ) 
             dialogUpdate "listitem: index: ${1}, status: success, statustext: Running"
             info "${appDisplayName} running"
             ;;
 
-        *"Error"* | * )
+        *"error"* | * )
             dialogUpdate "listitem: index: ${1}, status: error, statustext: Error"
             errorOut "${appDisplayName} Error"
             overallHealth+="${appDisplayName}; "
@@ -1803,19 +2016,21 @@ if [[ "${operationMode}" == "production" ]]; then
     checkSIP "2"
     checkFirewall "3"
     checkFileVault "4"
-    checkUptime "5"
-    checkFreeDiskSpace "6"
-    checkJamfProMdmProfile "7"
-    checkJssCertificateExpiration "8"
-    checkAPNs "9"
-    checkJamfProCheckIn "10"
-    checkJamfProInventory "11"
-    checkExternal "12" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
-    checkExternal "13" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "14" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
-    checkExternal "15" "symvGlobalProtect" "/Applications/GlobalProtect.app"
-    checkNetworkQuality "16"
-    updateComputerInventory "17"
+    checkVPN "5"
+    checkUptime "6"
+    checkFreeDiskSpace "7"
+    checkJamfProMdmProfile "8"
+    checkJssCertificateExpiration "9"
+    checkAPNs "10"
+    checkJamfProCheckIn "11"
+    checkJamfProInventory "12"
+    checkInternal "13" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+    checkExternal "14" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
+    checkExternal "15" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "16" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
+    checkExternal "17" "symvGlobalProtect" "/Applications/GlobalProtect.app"
+    checkNetworkQuality "18"
+    updateComputerInventory "19"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"

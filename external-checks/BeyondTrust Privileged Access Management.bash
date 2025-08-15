@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 ####################################################################################################
 #
 # ABOUT
@@ -18,6 +18,9 @@
 #   Version 0.0.3, 10-Mar-2025, Dan K. Snelson (@dan-snelson)
 #       Updates for BT PMfM 25.2
 #
+#   Version 0.0.4, 14-Aug-2025, Dan K. Snelson (@dan-snelson)
+#       Updates for BT PMfM 25.4.2.2
+#
 ####################################################################################################
 
 
@@ -28,7 +31,7 @@
 #
 ####################################################################################################
 
-scriptVersion="0.0.3"
+scriptVersion="0.0.4"
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 
@@ -71,8 +74,8 @@ function procesStatus() {
 systemExtensionTest=$( systemextensionsctl list | awk -F"[][]" '/com.beyondtrust.endpointsecurity/ {print $2}' )
 
 case "${systemExtensionTest}" in
-    "activated enabled" ) processCheckResult="'System Extension' Running; " ;;
-    *                   ) processCheckResult="'System Extension' Failed; " ;;
+    *"activated enabled"* ) processCheckResult="'System Extension' Running; " ;;
+    *                     ) processCheckResult="'System Extension' Failed; " ;;
 esac
 
 # Validate various BT PMfM Processes
