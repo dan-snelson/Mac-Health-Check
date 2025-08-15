@@ -17,15 +17,8 @@
 #
 # HISTORY
 #
-# Version 2.2.0, 15-Aug-2025, Dan K. Snelson (@dan-snelson)
-#   - Improved the GlobalProtect VPN IP detection logic
-#   - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
-#   - Add framework for different VPN clients and an internal VPN Client Check (Pull Request #16; thanks for another one, @HowardGMac!)
-#   - Addressed MHC does not show SF Symbols in the upper left corner - needs region check (Issue #21; thanks, @hbokh!)
-#   - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
-#   - Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
-#   - Added Tailscale VPN check (thanks, @alexfinn!)
-#   - Change zsh logic flag for Dialog check / installation from `-e` to `-x` to make sure file exists and is executable (Pull Request #26; thanks, @ScottEKendall!)
+# Version 2.3.0, 15-Aug-2025, Dan K. Snelson (@dan-snelson)
+#   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #
 ####################################################################################################
 
@@ -40,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.2.0"
+scriptVersion="2.3.0b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -416,7 +409,7 @@ fi
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" == "debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+[[ "${operationMode}" != "production" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
@@ -1962,7 +1955,7 @@ function updateComputerInventory() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Updating Computer Inventory …"
 
-    if [[ "${operationMode}" == "production" ]]; then
+    if [[ "${operationMode}" != "test" ]]; then
 
         jamf recon # -verbose
 
@@ -2007,7 +2000,7 @@ dialogUpdate "list: show"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-if [[ "${operationMode}" == "production" ]]; then
+if [[ "${operationMode}" != "test" ]]; then
 
     # Production Mode
 

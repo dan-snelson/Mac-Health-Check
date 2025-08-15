@@ -2,6 +2,9 @@
 
 ## CHANGELOG
 
+### 2.3.0 (15-Aug-2025)
+- Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
+
 ### 2.2.0 (15-Aug-2025)
 - Improved the GlobalProtect VPN IP detection logic
 - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
