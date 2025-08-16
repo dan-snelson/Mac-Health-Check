@@ -17,9 +17,10 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 15-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.3.0, 16-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #   - Adjusted GlobalProtect VPN check for IPv6
+#   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
 #
 ####################################################################################################
 
@@ -34,7 +35,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b2"
+scriptVersion="2.3.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
