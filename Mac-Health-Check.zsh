@@ -45,7 +45,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 SECONDS="0"
 
 # Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"production"}"
+operationMode="${4:-"debug"}"
 
     # Enable `set -x` if operation mode is "test" or "debug" to help identify variable initialization issues (i.e., SSID)
     [[ "${operationMode}" == "test" || "${operationMode}" == "debug" ]] && set -x
