@@ -36,7 +36,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b4"
+scriptVersion="2.3.0b5"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -64,6 +64,9 @@ humanReadableScriptName="Mac Health Check"
 
 # Organization's Script Name
 organizationScriptName="MHC"
+
+# Organization's Branding Banner URL
+organizationBrandingBannerURL="https://img.freepik.com/free-photo/liquid-purple-art-painting-abstract-colorful-background-with-color-splash-paints-modern-art_1258-102943.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
 
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
@@ -1714,7 +1717,7 @@ function checkJssCertificateExpiration() {
 
     sleep "${anticipationDuration}"
 
-    identities=( $( security find-identity -v /Library/Keychains/System.keychain | grep -v "$serialNumber" | awk '{print $3}' | tr -d '"' | head -n 1 ) )
+    identities=( $( security find-identity -v /Library/Keychains/System.keychain | grep -v "$serialNumber" | grep -v "Jamf" | awk '{print $3}' | tr -d '"' | head -n 1 ) )
     now_seconds=$( date +%s )
 
     if [[ "${identities}" != "identities" ]]; then
@@ -2023,7 +2026,7 @@ function checkExternal() {
 
     externalValidation=$( /usr/local/bin/jamf policy -event $trigger | grep "Script result:" )
 
-case ${externalValidation:l} in
+    case ${externalValidation:l} in
 
         *"failed"* )
             dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
