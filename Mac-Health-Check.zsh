@@ -423,7 +423,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar, plus two (i.e., "progress: increment")
-progressSteps="21"
+progressSteps="26"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -512,13 +512,18 @@ dialogJSON='
         {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title":"Device Management","subtitle":"Test connectivity to Apple device enrollment & MDM services","icon":"SF=14.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title":"Software & Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=15.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title":"Certificate Validation","subtitle":"Test connectivity to Apple certificate & OCSP services","icon":"SF=16.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title":"Identity & Content Services","subtitle":"Test connectivity to Apple Account & content delivery services","icon":"SF=17.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title":"Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud & on-prem endpoints","icon":"SF=18.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
     ]
 }
 '
@@ -1519,6 +1524,171 @@ function checkAPNs() {
 
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Extended Network Checks (thanks, @tonyyo11!)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# -- Jamf Environment Connectivity Checks --
+# Network timeout for all nc-based tests (in seconds)
+networkTimeout=5
+
+# Push Notification Services (combines APNs and on-prem Jamf push)
+pushHosts=(
+  "courier.push.apple.com,5223"
+  "courier.push.apple.com,443"
+  "gateway.push.apple.com,2195"
+  "feedback.push.apple.com,2196"
+  "api.push.apple.com,443"
+  "api.push.apple.com,2197"
+)
+
+# Device Management (combines Device Setup & MDM enrollment/services)
+deviceMgmtHosts=(
+  "albert.apple.com,443"
+  "captive.apple.com,80"
+  "captive.apple.com,443"
+  "gs.apple.com,443"
+  "humb.apple.com,443"
+  "static.ips.apple.com,80"
+  "static.ips.apple.com,443"
+  "sq-device.apple.com,443"
+  "tbsc.apple.com,443"
+  "time-ios.apple.com,123,UDP"
+  "time.apple.com,123,UDP"
+  "time-macos.apple.com,123,UDP"
+  "deviceenrollment.apple.com,443"
+  "deviceservices-external.apple.com,443"
+  "gdmf.apple.com,443"
+  "identity.apple.com,443"
+  "iprofiles.apple.com,443"
+  "mdmenrollment.apple.com,443"
+  "setup.icloud.com,443"
+  "vpp.itunes.apple.com,443"
+)
+
+# Software & Carrier Updates
+updateHosts=(
+  "appldnld.apple.com,80"
+  "configuration.apple.com,443"
+  "gdmf.apple.com,443"
+  "gg.apple.com,80"
+  "gg.apple.com,443"
+  "gs.apple.com,80"
+  "gs.apple.com,443"
+  "ig.apple.com,443"
+  "mesu.apple.com,80"
+  "mesu.apple.com,443"
+  "oscdn.apple.com,80"
+  "oscdn.apple.com,443"
+  "osrecovery.apple.com,80"
+  "osrecovery.apple.com,443"
+  "skl.apple.com,443"
+  "swcdn.apple.com,80"
+  "swdist.apple.com,443"
+  "swdownload.apple.com,80"
+  "appldnld.apple.com.edgesuite.net,80"
+  "itunes.com,80"
+  "itunes.apple.com,443"
+  "updates-http.cdn-apple.com,80"
+  "updates.cdn-apple.com,443"
+)
+
+# Certificate Validation Hosts
+certHosts=(
+  "certs.apple.com,80"
+  "certs.apple.com,443"
+  "crl.apple.com,80"
+  "crl.entrust.net,80"
+  "crl3.digicert.com,80"
+  "crl4.digicert.com,80"
+  "ocsp.apple.com,80"
+  "ocsp.digicert.cn,80"
+  "ocsp.digicert.com,80"
+  "ocsp.entrust.net,80"
+  "ocsp2.apple.com,443"
+  "valid.apple.com,443"
+)
+
+# Identity & Content Services (Apple ID, Associated Domains, Additional Content)
+idAssocHosts=(
+  "appleid.apple.com,443"
+  "appleid.cdn-apple.com,443"
+  "idmsa.apple.com,443"
+  "gsa.apple.com,443"
+  "app-site-association.cdn-apple.com,443"
+  "app-site-association.networking.apple,443"
+  "audiocontentdownload.apple.com,80"
+  "audiocontentdownload.apple.com,443"
+  "devimages-cdn.apple.com,80"
+  "devimages-cdn.apple.com,443"
+  "download.developer.apple.com,80"
+  "download.developer.apple.com,443"
+  "playgrounds-assets-cdn.apple.com,443"
+  "playgrounds-cdn.apple.com,443"
+  "sylvan.apple.com,80"
+  "sylvan.apple.com,443"
+)
+
+# Jamf Pro Cloud & On-prem Endpoints
+jamfHosts=(
+  "jamf.com,443"
+  "test.jamfcloud.com,443"
+  "use1-jcdsdownloads.services.jamfcloud.com,443"
+  "use1-jcds.services.jamfcloud.com,443"
+  "euc1-jcdsdownloads.services.jamfcloud.com,443"
+  "euc1-jcds.services.jamfcloud.com,443"
+  "euw2-jcdsdownloads.services.jamfcloud.com,443"
+  "euw2-jcds.services.jamfcloud.com,443"
+  "apse2-jcdsdownloads.services.jamfcloud.com,443"
+  "apse2-jcds.services.jamfcloud.com,443"
+  "apne1-jcdsdownloads.services.jamfcloud.com,443"
+  "apne1-jcds.services.jamfcloud.com,443"
+)
+
+# -------------------------------------------------------------------------------------------------
+# Generic network-host tester; uses nc to probe host:port and updates swiftDialog
+function checkNetworkHosts() {
+  local index="$1"
+  local name="$2"
+  shift 2
+  local hosts=("$@")
+
+  notice "Check ${name} …"
+  dialogUpdate "icon: SF=network,${organizationColorScheme}"
+  dialogUpdate "listitem: index: ${index},status: wait,statustext: Checking …"
+  dialogUpdate "progress: increment"
+  dialogUpdate "progresstext: Determining ${name} connectivity …"
+  sleep "${anticipationDuration}"
+
+  local allOK=true
+  local results=""
+
+  for entry in "${hosts[@]}"; do
+    IFS=',' read -r host port proto <<< "${entry}"
+    # Default to TCP if protocol not specified
+    if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
+      ncFlags=( -u -z -w "${networkTimeout}" )
+    else
+      ncFlags=( -z -w "${networkTimeout}" )
+    fi
+
+    if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
+      results+="${host}:${port} OK; "
+    else
+      results+="${host}:${port} FAIL; "
+      allOK=false
+    fi
+  done
+
+  if [[ "${allOK}" == true ]]; then
+    dialogUpdate "listitem: index: ${index},status: success,statustext: OK"
+    info "${name}: ${results%;; }"
+  else
+    dialogUpdate "listitem: index: ${index},status: fail,statustext: Failed"
+    errorOut "${name}: ${results%;; }"
+    overallHealth+="${name}; "
+  fi
+}
+
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -2019,13 +2189,18 @@ if [[ "${operationMode}" != "test" ]]; then
     checkAPNs "10"
     checkJamfProCheckIn "11"
     checkJamfProInventory "12"
-    checkInternal "13" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-    checkExternal "14" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
-    checkExternal "15" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "16" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
-    checkExternal "17" "symvGlobalProtect" "/Applications/GlobalProtect.app"
-    checkNetworkQuality "18"
-    updateComputerInventory "19"
+    checkNetworkHosts  "13" "Device Management"           "${deviceMgmtHosts[@]}"
+    checkNetworkHosts  "14" "Software & Carrier Updates"  "${updateHosts[@]}"
+    checkNetworkHosts  "15" "Certificate Validation"      "${certHosts[@]}"
+    checkNetworkHosts  "16" "Identity & Content Services" "${idAssocHosts[@]}"
+    checkNetworkHosts  "17" "Jamf Hosts"                  "${jamfHosts[@]}"
+    checkInternal "18" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+    checkExternal "19" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
+    checkExternal "20" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "21" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
+    checkExternal "22" "symvGlobalProtect" "/Applications/GlobalProtect.app"
+    checkNetworkQuality "23"
+    updateComputerInventory "24"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
