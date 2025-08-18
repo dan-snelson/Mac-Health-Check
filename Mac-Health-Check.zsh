@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 16-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.3.0, 18-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #   - Adjusted GlobalProtect VPN check for IPv6
 #   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
