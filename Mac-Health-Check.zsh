@@ -21,6 +21,7 @@
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #   - Adjusted GlobalProtect VPN check for IPv6
 #   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
+#   - Extended Network Checks (Pull Request #31; thanks big bunches, @tonyyo11!)
 #
 ####################################################################################################
 
@@ -35,7 +36,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b3"
+scriptVersion="2.3.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -44,7 +45,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 SECONDS="0"
 
 # Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"debug"}"
+operationMode="${4:-"production"}"
 
     # Enable `set -x` if operation mode is "test" or "debug" to help identify variable initialization issues (i.e., SSID)
     [[ "${operationMode}" == "test" || "${operationMode}" == "debug" ]] && set -x
@@ -423,7 +424,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar, plus two (i.e., "progress: increment")
-progressSteps="26"
+progressSteps="27"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -512,18 +513,19 @@ dialogJSON='
         {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title":"Device Management","subtitle":"Test connectivity to Apple device enrollment & MDM services","icon":"SF=14.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title":"Software & Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=15.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title":"Certificate Validation","subtitle":"Test connectivity to Apple certificate & OCSP services","icon":"SF=16.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title":"Identity & Content Services","subtitle":"Test connectivity to Apple Account & content delivery services","icon":"SF=17.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title":"Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud & on-prem endpoints","icon":"SF=18.circle.fill,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=14.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Jamf Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=15.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Jamf Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=16.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Jamf Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Jamf Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
     ]
 }
 '
@@ -1525,21 +1527,27 @@ function checkAPNs() {
 }
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Extended Network Checks (thanks, @tonyyo11!)
+# Jamf Extended Network Checks (thanks, @tonyyo11!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# -- Jamf Environment Connectivity Checks --
-# Network timeout for all nc-based tests (in seconds)
+
+# Network timeout (in seconds) for all Jamf Extended Network Checks tests 
 networkTimeout=5
 
-# Push Notification Services (combines APNs and on-prem Jamf push)
+# Push Notification (combines APNs and on-prem Jamf push)
 pushHosts=(
   "courier.push.apple.com,5223"
   "courier.push.apple.com,443"
-  "gateway.push.apple.com,2195"
-  "feedback.push.apple.com,2196"
   "api.push.apple.com,443"
   "api.push.apple.com,2197"
 )
+
+# NOTE: The following Push Notification checks are purposely skipped …
+#   "feedback.push.apple.com,2196"
+#   "gateway.push.apple.com,2195"
+# … due to the following:
+#   nc -u -z -w 5 gateway.push.apple.com 2195
+#   nc -u -z -w 5 feedback.push.apple.com 2196
+#   nc: getaddrinfo: nodename nor servname provided, or not known 
 
 # Device Management (combines Device Setup & MDM enrollment/services)
 deviceMgmtHosts=(
@@ -1644,7 +1652,6 @@ jamfHosts=(
   "apne1-jcds.services.jamfcloud.com,443"
 )
 
-# -------------------------------------------------------------------------------------------------
 # Generic network-host tester; uses nc to probe host:port and updates swiftDialog
 function checkNetworkHosts() {
   local index="$1"
@@ -1672,7 +1679,7 @@ function checkNetworkHosts() {
     fi
 
     if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
-      results+="${host}:${port} OK; "
+      results+="${host}:${port} PASS; "
     else
       results+="${host}:${port} FAIL; "
       allOK=false
@@ -1680,7 +1687,7 @@ function checkNetworkHosts() {
   done
 
   if [[ "${allOK}" == true ]]; then
-    dialogUpdate "listitem: index: ${index},status: success,statustext: OK"
+    dialogUpdate "listitem: index: ${index},status: success,statustext: Passed"
     info "${name}: ${results%;; }"
   else
     dialogUpdate "listitem: index: ${index},status: fail,statustext: Failed"
@@ -2189,18 +2196,19 @@ if [[ "${operationMode}" != "test" ]]; then
     checkAPNs "10"
     checkJamfProCheckIn "11"
     checkJamfProInventory "12"
-    checkNetworkHosts  "13" "Device Management"           "${deviceMgmtHosts[@]}"
-    checkNetworkHosts  "14" "Software & Carrier Updates"  "${updateHosts[@]}"
-    checkNetworkHosts  "15" "Certificate Validation"      "${certHosts[@]}"
-    checkNetworkHosts  "16" "Identity & Content Services" "${idAssocHosts[@]}"
-    checkNetworkHosts  "17" "Jamf Hosts"                  "${jamfHosts[@]}"
-    checkInternal "18" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-    checkExternal "19" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
-    checkExternal "20" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "21" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
-    checkExternal "22" "symvGlobalProtect" "/Applications/GlobalProtect.app"
-    checkNetworkQuality "23"
-    updateComputerInventory "24"
+    checkNetworkHosts  "13" "Apple Push Notification Hosts"     "${pushHosts[@]}"
+    checkNetworkHosts  "14" "Jamf Device Management"            "${deviceMgmtHosts[@]}"
+    checkNetworkHosts  "15" "Jamf Software and Carrier Updates"   "${updateHosts[@]}"
+    checkNetworkHosts  "16" "Jamf Certificate Validation"       "${certHosts[@]}"
+    checkNetworkHosts  "17" "Jamf Identity and Content Services"  "${idAssocHosts[@]}"
+    checkNetworkHosts  "18" "Jamf Hosts"                        "${jamfHosts[@]}"
+    checkInternal "19" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+    checkExternal "20" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
+    checkExternal "21" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "22" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
+    checkExternal "23" "symvGlobalProtect" "/Applications/GlobalProtect.app"
+    checkNetworkQuality "24"
+    updateComputerInventory "25"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"

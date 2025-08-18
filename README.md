@@ -59,6 +59,13 @@ The following health checks and information reporting are included and the scrip
 1. Apple Push Notification service
 1. Jamf Pro Check-in
 1. Jamf Pro Inventory
+1. Extended Network Checks
+    - Apple Push Notification Hosts
+    - Jamf Device Management
+    - Jamf Software and Carrier Updates
+    - Jamf Certificate Validation
+    - Jamf Identity and Content Services
+    - Jamf Hosts
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*

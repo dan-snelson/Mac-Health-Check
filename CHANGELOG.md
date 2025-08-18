@@ -6,6 +6,7 @@
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 - Adjusted GlobalProtect VPN check for IPv6
 - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
+- Extended Network Checks (Pull Request #31; thanks big bunches, @tonyyo11!)
 
 ### 2.2.0 (15-Aug-2025)
 - Improved the GlobalProtect VPN IP detection logic
