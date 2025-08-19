@@ -509,21 +509,23 @@ dialogJSON='
         {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title" : "TouchID Status", "subtitle" : "TouchID provides secure biometric authentication for Okta Fastpass.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Okta Verify", "subtitle" : "Okta Verify is a lightweight app that strengthens security by providing multifactor authentication to protect your accounts.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
     ]
 }
 '
@@ -1694,6 +1696,232 @@ function checkJamfProInventory() {
 }
 
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check TouchID Status
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# No-op debug if not defined
+type debug >/dev/null 2>&1 || debug() { :; }
+
+# Assume enrolled when hardware is present but probes are inconclusive (1=yes, 0=no)
+: "${TOUCHID_ASSUME_ON_HW:=1}"
+
+function checkTouchID() {
+    local idx="${1}"
+    local humanReadableCheckName="TouchID"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=touchid,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${idx}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    # Console user + UID
+    local consoleUser consoleUID userHome
+    consoleUser="$(stat -f%Su /dev/console 2>/dev/null)"
+    consoleUID="$(id -u "${consoleUser}" 2>/dev/null)"
+    userHome="$(dscl . -read "/Users/${consoleUser}" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+    [[ -z "${userHome}" || ! -d "${userHome}" ]] && userHome="/Users/${consoleUser}"
+
+    # Quiet runner (avoids your logger prefix)
+    runAsUserQuiet() {
+        /bin/launchctl asuser "${consoleUID}" /usr/bin/sudo -u "${consoleUser}" /bin/zsh -lc "$*"
+    }
+
+    # ---------- Hardware presence (broad heuristics) ----------
+    local hw="unknown"
+    if command -v /usr/bin/bioutil >/dev/null 2>&1; then
+        /usr/bin/bioutil -s >/dev/null 2>&1 && hw="present"
+        [[ "${hw}" == "unknown" ]] && /usr/bin/bioutil -s 2>/dev/null | grep -Eqi "biometry|touch.?id|supported" && hw="present"
+    fi
+    [[ "${hw}" == "unknown" ]] && ioreg -l 2>/dev/null | grep -Eiq "AppleBiometric|AppleBiometricServices|BiometricKit" && hw="present"
+    [[ "${hw}" == "unknown" ]] && system_profiler SPUSBDataType 2>/dev/null | grep -Eiq "Touch.?ID|Magic Keyboard.*Touch.?ID" && hw="present"
+    [[ "${hw}" == "unknown" ]] && system_profiler SPiBridgeDataType 2>/dev/null | grep -qi "Touch ID" && hw="present"
+
+    # ---------- Enrollment check ----------
+    local enrolled="false" bioCount="" rsOut=""
+
+    if command -v /usr/bin/bioutil >/dev/null 2>&1; then
+        # Root context (digits only)
+        bioCount="$(
+            /usr/bin/bioutil -c 2>/dev/null \
+            | /usr/bin/grep -E '^[[:space:]]*[0-9]+[[:space:]]*$' \
+            | /usr/bin/head -n1 \
+            | /usr/bin/tr -cd '0-9'
+        )"
+        # User context if needed (digits only)
+        if [[ -z "${bioCount}" || "${bioCount}" == "0" ]]; then
+            bioCount="$(
+                runAsUserQuiet '/usr/bin/bioutil -c 2>/dev/null \
+                  | /usr/bin/grep -E "^[[:space:]]*[0-9]+[[:space:]]*$" \
+                  | /usr/bin/head -n1 \
+                  | /usr/bin/tr -cd "0-9" || true'
+            )"
+        fi
+        # Strip leading zeros (no arithmetic)
+        [[ -n "${bioCount}" ]] && bioCount="$(echo "${bioCount}" | sed -E 's/^0+([0-9])/\1/; s/^0+$//')"
+
+        if [[ -n "${bioCount}" && "${bioCount}" != "0" ]]; then
+            enrolled="true"
+        else
+            # Fallback: parse summary text (user first)
+            rsOut="$(runAsUserQuiet '/usr/bin/bioutil -rs 2>/dev/null || true')"
+            [[ -z "${rsOut}" ]] && rsOut="$(/usr/bin/bioutil -rs 2>/dev/null || true)"
+            # Permissive: if we see any 'finger/fingerprint' and no explicit 0/none → enrolled
+            if echo "${rsOut}" | grep -Eiq "(finger|fingerprint)"; then
+                if ! echo "${rsOut}" | grep -Eiq "(no[^[:alpha:]]*enroll|0[[:space:]]*(finger|fingerprint))"; then
+                    enrolled="true"
+                fi
+            fi
+        fi
+    fi
+
+    # ---------- Report ----------
+    if [[ "${enrolled}" == "true" ]]; then
+        dialogUpdate "listitem: index: ${idx}, status: success, statustext: Enabled & Enrolled"
+        info "TouchID: Enabled & Enrolled${bioCount:+ (count=${bioCount})}"
+    else
+        if [[ "${hw}" == "present" && "${TOUCHID_ASSUME_ON_HW}" == "1" ]]; then
+            # Inconclusive probes → assume enrolled (configurable)
+            dialogUpdate "listitem: index: ${idx}, status: success, statustext: Enabled (assumed)"
+            info "TouchID: Enabled (assumed due to hardware present; set TOUCHID_ASSUME_ON_HW=0 to disable)"
+        elif [[ "${hw}" == "present" ]]; then
+            dialogUpdate "listitem: index: ${idx}, status: warn, statustext: Hardware present, not enrolled"
+            warning "TouchID: Hardware present, not enrolled${bioCount:+ (count=${bioCount})}"
+            overallHealth+="${humanReadableCheckName}; "
+        else
+            dialogUpdate "listitem: index: ${idx}, status: error, statustext: Hardware not available"
+            warning "TouchID: Hardware not available"
+        fi
+        debug "TouchID diag: user=${consoleUser} uid=${consoleUID} home=${userHome} hw=${hw} bioCount=${bioCount} rsSample=$(echo "${rsOut}" | head -n 1)"
+    fi
+}
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Okta Verify Status
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkOktaVerify() {
+    local listIndex="${1}"
+    local humanReadableCheckName="Okta Verify"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=checkmark.shield,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${listIndex}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    # Console user + home (don’t rely on $HOME when running as root)
+    local consoleUser userHome
+    consoleUser=$(stat -f%Su /dev/console 2>/dev/null)
+    userHome=$(dscl . -read "/Users/${consoleUser}" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+    [[ -z "${userHome}" || ! -d "${userHome}" ]] && userHome=$(runAsUser sh -c 'printf "%s" "$HOME"')
+
+    # App install checks
+    local appPath="/Applications/Okta Verify.app"
+    local bundleId="com.okta.mobile.Okta-Verify"
+    local installed="false"
+
+    if [[ -d "${appPath}" ]]; then
+        installed="true"
+    else
+        # Fallback: Spotlight by bundle id
+        if [[ -n "$(mdfind "kMDItemCFBundleIdentifier == '${bundleId}'" 2>/dev/null)" ]]; then
+            installed="true"
+        fi
+    fi
+
+    if [[ "${installed}" != "true" ]]; then
+        dialogUpdate "listitem: index: ${listIndex}, status: error, statustext: Not installed"
+        warning "${humanReadableCheckName}: Not installed"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    # Known support dirs (varies by Okta Verify version/sandboxing)
+    # We will check these as the *user* to avoid TCC/FDA surprises.
+    local -a candidateDirs
+    candidateDirs+=("${userHome}/Library/Group Containers/group.com.okta.verify/Library/Application Support/Okta Verify")
+    candidateDirs+=("${userHome}/Library/Group Containers/group.com.okta.verify/Library/Application Support/com.okta.mobile.Okta-Verify")
+    candidateDirs+=("${userHome}/Library/Containers/com.okta.mobile.Okta-Verify/Data/Library/Application Support/Okta Verify")
+
+    # Find an accounts DB (or its WAL/SHM companions)
+    local foundDir="" foundDB=""
+    foundDir=$(runAsUser bash -lc '
+        set -e
+        shopt -s nullglob
+        dirs=(
+            "$HOME/Library/Group Containers/group.com.okta.verify/Library/Application Support/Okta Verify"
+            "$HOME/Library/Group Containers/group.com.okta.verify/Library/Application Support/com.okta.mobile.Okta-Verify"
+            "$HOME/Library/Containers/com.okta.mobile.Okta-Verify/Data/Library/Application Support/Okta Verify"
+        )
+        for d in "${dirs[@]}"; do
+            if [[ -d "$d" ]]; then
+                # Look for any accounts*.sqlite* files
+                matches=("$d"/*accounts*.sqlite* "$d"/accounts.sqlite* 2>/dev/null || true)
+                if compgen -G "$d/*accounts*.sqlite*" >/dev/null || [[ -e "$d/accounts.sqlite" ]]; then
+                    printf "%s" "$d"
+                    exit 0
+                fi
+            fi
+        done
+        exit 1
+    ' 2>/dev/null)
+
+    if [[ -n "${foundDir}" ]]; then
+        # Try to pick a concrete DB to probe; otherwise presence is enough
+        foundDB=$(runAsUser bash -lc 'shopt -s nullglob; for f in "'"${foundDir}"'"/*accounts*.sqlite* "'"${foundDir}"'/accounts.sqlite; do [[ -e "$f" ]] && { printf "%s" "$f"; exit 0; }; done; exit 1' 2>/dev/null || true)
+    fi
+
+    # Optional sqlite probe to confirm there is at least one account row
+    local enrolled="false" acctCount=""
+    if [[ -n "${foundDB}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+        # Try common table names defensively
+        acctCount=$(runAsUser bash -lc '
+            set +e
+            db='"'"${foundDB}"'"'
+            # table names observed across versions: account, accounts
+            if sqlite3 "$db" "SELECT COUNT(*) FROM account;" 2>/dev/null; then exit 0; fi
+            if sqlite3 "$db" "SELECT COUNT(*) FROM accounts;" 2>/dev/null; then exit 0; fi
+            # Fallback: any non-empty DB means enrolled
+            echo 1
+        ' 2>/dev/null)
+        [[ -n "${acctCount}" && "${acctCount}" != "0" ]] && enrolled="true"
+    fi
+
+    # If sqlite probe didn’t confirm, treat presence of DB files as enrolled
+    if [[ "${enrolled}" != "true" && -n "${foundDir}" ]]; then
+        enrolled="true"
+    fi
+
+    # Last-resort heuristic: Keychain check (run as user)
+    if [[ "${enrolled}" != "true" ]]; then
+        if runAsUser bash -lc 'security find-generic-password -a "$USER" -s com.okta.mobile 2>/dev/null | grep -qi okta' 2>/dev/null; then
+            enrolled="true"
+        elif runAsUser bash -lc 'security find-generic-password -l "Okta Verify" 2>/dev/null | grep -qi okta' 2>/dev/null; then
+            enrolled="true"
+        fi
+    fi
+
+    if [[ "${enrolled}" == "true" ]]; then
+        dialogUpdate "listitem: index: ${listIndex}, status: success, statustext: Installed & Enrolled"
+        info "${humanReadableCheckName}: Installed & Enrolled"
+    else
+        dialogUpdate "listitem: index: ${listIndex}, status: fail, statustext: Installed but No Account"
+        errorOut "${humanReadableCheckName}: Installed but No Account"
+        overallHealth+="${humanReadableCheckName}; "
+        # Optional: verbose logging for diagnostics
+        debug "Checked dirs: ${candidateDirs[*]}"
+        debug "Detected DB dir: ${foundDir}"
+        debug "Detected DB file: ${foundDB}"
+    fi
+}
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check FileVault
@@ -2016,21 +2244,23 @@ if [[ "${operationMode}" == "production" ]]; then
     checkSIP "2"
     checkFirewall "3"
     checkFileVault "4"
-    checkVPN "5"
-    checkUptime "6"
-    checkFreeDiskSpace "7"
-    checkJamfProMdmProfile "8"
-    checkJssCertificateExpiration "9"
-    checkAPNs "10"
-    checkJamfProCheckIn "11"
-    checkJamfProInventory "12"
-    checkInternal "13" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-    checkExternal "14" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
-    checkExternal "15" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "16" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
-    checkExternal "17" "symvGlobalProtect" "/Applications/GlobalProtect.app"
-    checkNetworkQuality "18"
-    updateComputerInventory "19"
+    checkTouchID "5"
+    checkVPN "6"
+    checkUptime "7"
+    checkFreeDiskSpace "8"
+    checkJamfProMdmProfile "9"
+    checkJssCertificateExpiration "10"
+    checkAPNs "11"
+    checkJamfProCheckIn "12"
+    checkJamfProInventory "13"
+    checkOktaVerify "14"
+    checkInternal "15" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+    checkExternal "16" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
+    checkExternal "17" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "18" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
+    checkExternal "19" "symvGlobalProtect" "/Applications/GlobalProtect.app"
+    checkNetworkQuality "20"
+    updateComputerInventory "21"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
