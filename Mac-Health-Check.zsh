@@ -17,11 +17,12 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 18-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.3.0, 19-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #   - Adjusted GlobalProtect VPN check for IPv6
 #   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
 #   - Extended Network Checks (Pull Request #31 addresses Issue #23; thanks big bunches, @tonyyo11!)
+#   - Added `organizationBrandingBannerURL` (thanks for the inspiration, @ScottEKendall!)
 #
 ####################################################################################################
 
@@ -36,7 +37,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b5"
+scriptVersion="2.3.0b6"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -66,7 +67,7 @@ humanReadableScriptName="Mac Health Check"
 organizationScriptName="MHC"
 
 # Organization's Branding Banner URL
-organizationBrandingBannerURL="https://img.freepik.com/free-photo/liquid-purple-art-painting-abstract-colorful-background-with-color-splash-paints-modern-art_1258-102943.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
+organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smooth-orange-background-layout-designstudioroom-web-template-business-report-with-smooth-c_1258-54783.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
 
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
@@ -479,11 +480,14 @@ helpimage="qr=${infobuttonaction}"
 dialogJSON='
 {
     "commandfile" : "'"${dialogCommandFile}"'",
+    "bannerimage" : "'"${organizationBrandingBannerURL}"'",
+    "bannertext" : "'"${humanReadableScriptName} (${scriptVersion})"'",
+    "title" : "'"${humanReadableScriptName} (${scriptVersion})"'",
+    "titlefont" : "shadow=true, size=36, colour=#FFFDF4",
     "ontop" : true,
     "moveable" : true,
     "windowbuttons" : "min",
     "quitkey" : "k",
-    "title" : "'"${humanReadableScriptName} (${scriptVersion})"'",
     "icon" : "'"${icon}"'",
     "overlayicon" : "'"${overlayicon}"'",
     "message" : "none",
