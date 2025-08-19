@@ -1138,7 +1138,7 @@ function checkOS() {
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
             result "$osResult"
-            dialogUpdate "listitem: index: 1, status: fail, statustext: $osResult"
+            dialogUpdate "listitem: index: ${1}, status: fail, statustext: $osResult"
             # return 1
         fi
 
