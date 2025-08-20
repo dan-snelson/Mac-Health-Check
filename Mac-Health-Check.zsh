@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 19-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 20-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b12"
+scriptVersion="3.0.0b13"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -327,27 +327,29 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     vpnStatus="GlobalProtect is NOT installed"
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
-        globalProtectInterface=$( netstat -nr | grep utun | head -1 | awk '{ print $4 }' )
-        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet/ {split($2, a, "%"); print a[1]}' )
-
-        if [[ -n "${globalProtectVPNStatus}" ]]; then
-            vpnStatus="${globalProtectVPNStatus}"
-        fi
-    fi
-    if [[ "${vpnClientDataType}" == "extended" ]] && [[ -n "${globalProtectVPNStatus}" ]]; then
-        globalProtectStatus=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanGPS:disable-globalprotect" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-        case "${globalProtectStatus}" in
-            0 ) globalProtectDisabled="GlobalProtect Running; " ;;
-            1 ) globalProtectDisabled="GlobalProtect Disabled; " ;;
-            * ) globalProtectDisabled="GlobalProtect Unknown; " ;;
+        globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
+        case "$globalProtectTunnelStatus" in
+            "connected"* )
+                globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
+                vpnStatus="Connected ${globalProtectVpnIP}"
+                ;;
+            "disconnected" )
+                vpnStatus="Disconnected"
+                ;;
+            *)
+                vpnStatus="Unknown"
+                ;;
         esac
+    fi
+
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${globalProtectTunnelStatus}" == "connected"* ]]; then
         globalProtectUserResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
         if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect; "
+            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect"
         elif [[ ! -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect; "
+            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect"
         fi
-        vpnExtendedStatus="${globalProtectDisabled}${globalProtectUserResult}"
+        vpnExtendedStatus="${globalProtectUserResult}"
     fi
 fi
 
@@ -1069,7 +1071,7 @@ function quitScript() {
 
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${wiFiIpAddress}; VPN IP: ${globalProtectStatus}; ${networkTimeServer}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}"
 
     case ${mdmVendor} in
 
@@ -2362,16 +2364,27 @@ function checkVPN() {
             dialogUpdate "listitem: index: ${1}, status: error, statustext: Idle"
             info "${vpnAppName} idle"
             ;;
-            
+
+        "Connected"* )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
+            info "${vpnAppName} Connected"
+            ;;
+
+        "Disconnected" )
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Disconnected"
+            info "${vpnAppName} Disconnected"
+            ;;
+
         "None" )
             dialogUpdate "listitem: index: ${1}, status: error, statustext: No VPN"
             info "No VPN"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
-            info "${vpnAppName} connected"
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Unknown"
+            info "${vpnAppName} Unknown"
             ;;
+
     esac
 
 }
