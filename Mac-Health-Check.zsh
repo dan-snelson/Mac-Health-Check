@@ -23,6 +23,9 @@
 #   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
 #   - Extended Network Checks (Pull Request #31 addresses Issue #23; thanks big bunches, @tonyyo11!)
 #   - Added `organizationBrandingBannerURL` (thanks for the inspiration, @ScottEKendall!)
+#   - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
+#   - Added "Connected" and "Disconnected" options to `checkVPN` function
+#   - Adjusted Palo Alto Networks GlobalProtect VPN Information
 #
 ####################################################################################################
 
@@ -37,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b6"
+scriptVersion="2.3.0b7"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -277,27 +280,29 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     vpnStatus="GlobalProtect is NOT installed"
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
-        globalProtectInterface=$( netstat -nr | grep utun | head -1 | awk '{ print $4 }' )
-        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet/ {split($2, a, "%"); print a[1]}' )
-
-        if [[ -n "${globalProtectVPNStatus}" ]]; then
-            vpnStatus="${globalProtectVPNStatus}"
-        fi
-    fi
-    if [[ "${vpnClientDataType}" == "extended" ]] && [[ -n "${globalProtectVPNStatus}" ]]; then
-        globalProtectStatus=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanGPS:disable-globalprotect" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-        case "${globalProtectStatus}" in
-            0 ) globalProtectDisabled="GlobalProtect Running; " ;;
-            1 ) globalProtectDisabled="GlobalProtect Disabled; " ;;
-            * ) globalProtectDisabled="GlobalProtect Unknown; " ;;
+        globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
+        case "$globalProtectTunnelStatus" in
+            "connected"* )
+                globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
+                vpnStatus="Connected ${globalProtectVpnIP}"
+                ;;
+            "disconnected" )
+                vpnStatus="Disconnected"
+                ;;
+            *)
+                vpnStatus="Unknown"
+                ;;
         esac
+    fi
+
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${globalProtectTunnelStatus}" == "connected"* ]]; then
         globalProtectUserResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
         if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect; "
+            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect"
         elif [[ ! -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect; "
+            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect"
         fi
-        vpnExtendedStatus="${globalProtectDisabled}${globalProtectUserResult}"
+        vpnExtendedStatus="${globalProtectUserResult}"
     fi
 fi
 
@@ -1993,16 +1998,27 @@ function checkVPN() {
             dialogUpdate "listitem: index: ${1}, status: error, statustext: Idle"
             info "${vpnAppName} idle"
             ;;
-            
+
+        "Connected"* )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
+            info "${vpnAppName} Connected"
+            ;;
+
+        "Disconnected" )
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Disconnected"
+            info "${vpnAppName} Disconnected"
+            ;;
+
         "None" )
             dialogUpdate "listitem: index: ${1}, status: error, statustext: No VPN"
             info "No VPN"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
-            info "${vpnAppName} connected"
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Unknown"
+            info "${vpnAppName} Unknown"
             ;;
+
     esac
 
 }
