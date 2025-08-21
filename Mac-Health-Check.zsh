@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 19-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.3.0, 21-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #   - Adjusted GlobalProtect VPN check for IPv6
 #   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
@@ -26,6 +26,7 @@
 #   - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
 #   - Added "Connected" and "Disconnected" options to `checkVPN` function
 #   - Adjusted Palo Alto Networks GlobalProtect VPN Information
+#   - Fallback to a list o' preferred wireless networks when SSID is redacted
 #
 ####################################################################################################
 
@@ -40,7 +41,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b7"
+scriptVersion="2.3.0b8"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -154,13 +155,17 @@ computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
 batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | /usr/bin/grep '"CycleCount" = ' | /usr/bin/awk '{ print $3 }' | /usr/bin/sed s/\"//g )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
-ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
 locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/com.apple.locationd LocationServicesEnabled )
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
+ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
+if [[ "${ssid}" == "<redacted>" ]]; then
+    wirelessInterface=$( networksetup -listnetworkserviceorder | /usr/bin/sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
+    ssid=$( networksetup -listpreferredwirelessnetworks "$wirelessInterface" | awk 'NR>1 { sub(/^[[:space:]]*/,""); a[++n]=$0 } END { for (i=1;i<=n;i++) printf "%s%s", a[i], (i<n?", ":"") }' )
+fi
 
 
 
@@ -526,10 +531,10 @@ dialogJSON='
         {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=14.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Jamf Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=15.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Jamf Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=16.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Jamf Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Jamf Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=15.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=16.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
         {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
         {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
@@ -2219,17 +2224,17 @@ if [[ "${operationMode}" != "test" ]]; then
     checkAPNs "10"
     checkJamfProCheckIn "11"
     checkJamfProInventory "12"
-    checkNetworkHosts  "13" "Apple Push Notification Hosts"     "${pushHosts[@]}"
-    checkNetworkHosts  "14" "Jamf Device Management"            "${deviceMgmtHosts[@]}"
-    checkNetworkHosts  "15" "Jamf Software and Carrier Updates"   "${updateHosts[@]}"
-    checkNetworkHosts  "16" "Jamf Certificate Validation"       "${certHosts[@]}"
-    checkNetworkHosts  "17" "Jamf Identity and Content Services"  "${idAssocHosts[@]}"
-    checkNetworkHosts  "18" "Jamf Hosts"                        "${jamfHosts[@]}"
-    checkInternal "19" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-    checkExternal "20" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
-    checkExternal "21" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "22" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
-    checkExternal "23" "symvGlobalProtect" "/Applications/GlobalProtect.app"
+    checkNetworkHosts  "13" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+    checkNetworkHosts  "14" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+    checkNetworkHosts  "15" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+    checkNetworkHosts  "16" "Apple Certificate Validation"          "${certHosts[@]}"
+    checkNetworkHosts  "17" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+    checkNetworkHosts  "18" "Jamf Hosts"                            "${jamfHosts[@]}"
+    checkInternal "19" "/Applications/Microsoft Teams.app"  "/Applications/Microsoft Teams.app"             "Microsoft Teams"
+    checkExternal "20" "symvBeyondTrustPMfM"                "/Applications/PrivilegeManagement.app"
+    checkExternal "21" "symvCiscoUmbrella"                  "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "22" "symvCrowdStrikeFalcon"              "/Applications/Falcon.app"
+    checkExternal "23" "symvGlobalProtect"                  "/Applications/GlobalProtect.app"
     checkNetworkQuality "24"
     updateComputerInventory "25"
 

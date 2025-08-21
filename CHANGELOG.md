@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.3.0 (20-Aug-2025)
+### 2.3.0 (21-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 - Adjusted GlobalProtect VPN check for IPv6
 - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
@@ -11,6 +11,7 @@
 - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
 - Added "Connected" and "Disconnected" options to `checkVPN` function
 - Adjusted Palo Alto Networks GlobalProtect VPN Information
+- Fallback to a list o' preferred wireless networks when SSID is redacted
 
 ### 2.2.0 (15-Aug-2025)
 - Improved the GlobalProtect VPN IP detection logic
