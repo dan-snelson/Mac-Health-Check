@@ -26,7 +26,7 @@
 #   - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
 #   - Added "Connected" and "Disconnected" options to `checkVPN` function
 #   - Adjusted Palo Alto Networks GlobalProtect VPN Information
-#   - Fallback to a list o' preferred wireless networks when SSID is redacted
+#   - Fallback to a list o' preferred wireless networks when SSID is redacted (leverages a new space-separated list of SSIDs, `organizationSSID`)
 #
 ####################################################################################################
 
@@ -41,13 +41,22 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b9"
+scriptVersion="2.3.0b10"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Elapsed Time
 SECONDS="0"
+
+# Load is-at-least for version comparison
+autoload -Uz is-at-least
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Jamf Pro Script Paramters
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Paramter 4: Operation Mode [ test | debug | production ]
 operationMode="${4:-"debug"}"
@@ -90,6 +99,9 @@ vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
 vpnClientDataType="extended"
+
+# Organization's SSIDs (space-delimited)
+organizationSSID="MoeHoward LarryFine CurlyHoward"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
@@ -161,11 +173,26 @@ locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/c
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
-ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
-if [[ "${ssid}" == "<redacted>" ]]; then
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# SSID
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# "Guess" SSID (with macOS 15.7 and later)
+if is-at-least 15.7 "${osVersion}"; then
     wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
-    ssid=$( networksetup -listpreferredwirelessnetworks "$wirelessInterface" | awk 'NR>1 { sub(/^[[:space:]]*/,""); a[++n]=$0 } END { for (i=1;i<=n;i++) printf "%s%s", a[i], (i<n?", ":"") }' )
+    preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
+    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${enterpriseSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' )
+
+# Determine SSID (with macOS 15.6.1 and earlier)
+else
+    ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
 fi
+
+# If no enterprise SSIDs were found, set a default message
+[[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found"
 
 
 
@@ -287,7 +314,7 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
         vpnStatus="GlobalProtect is Idle"
         globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
         case "$globalProtectTunnelStatus" in
-            "connected"* )
+            "connected"* | "internal" )
                 globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
                 vpnStatus="Connected ${globalProtectVpnIP}"
                 ;;
