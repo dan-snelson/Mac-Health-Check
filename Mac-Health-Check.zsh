@@ -185,6 +185,7 @@ if is-at-least 15.7 "${osVersion}"; then
     wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
     preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
     ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' )
+    ssid="${ssid} (preferred)"
 
 # Determine SSID (with macOS 15.6.1 and earlier)
 else
