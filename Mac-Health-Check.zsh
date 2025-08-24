@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 20-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 24-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b13"
+scriptVersion="3.0.0b14"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -41,8 +41,17 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 # Elapsed Time
 SECONDS="0"
 
+# Load is-at-least for version comparison
+autoload -Uz is-at-least
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Script Paramters
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
 # Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"production"}"
+operationMode="${4:-"debug"}"
 
     # Enable `set -x` if operation mode is "test" or "debug" to help identify variable initialization issues (i.e., SSID)
     [[ "${operationMode}" == "test" || "${operationMode}" == "debug" ]] && set -x
@@ -82,6 +91,9 @@ vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
 vpnClientDataType="extended"
+
+# Organization's SSIDs (space-delimited)
+organizationSSID="MoeHoward LarryFine CurlyHoward"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
@@ -165,24 +177,26 @@ esac
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Jamf Pro Configuration Profile Variables
+# Configuration Profile Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Organization's Client-side Jamf Pro Variables
-jamfProVariables="org.churchofjesuschrist.jamfprovariables.plist"
+case ${mdmVendor} in
 
-# Property List File
-plistFilepath="/Library/Managed Preferences/${jamfProVariables}"
+    "Jamf Pro" )
 
-if [[ -e "${plistFilepath}" ]]; then
+        # Organization's Client-side Jamf Pro Variables
+        jamfProVariables="org.churchofjesuschrist.jamfprovariables.plist"
 
-    # Jamf Pro ID
-    jamfProID=$( defaults read "${plistFilepath}" "Jamf Pro ID" 2>/dev/null )
+        # Property List File
+        plistFilepath="/Library/Managed Preferences/${jamfProVariables}"
 
-    # Site Name
-    jamfProSiteName=$( defaults read "${plistFilepath}" "Site Name" 2>/dev/null )
+        if [[ -e "${plistFilepath}" ]]; then
+            jamfProID=$( defaults read "${plistFilepath}" "Jamf Pro ID" 2>/dev/null )
+            jamfProSiteName=$( defaults read "${plistFilepath}" "Site Name" 2>/dev/null )
+        fi
+        ;;
 
-fi
+esac
 
 
 
@@ -196,18 +210,38 @@ osBuild=$( sw_vers -buildVersion )
 osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
 if [[ -n $osVersionExtra ]] && [[ "${osMajorVersion}" -ge 13 ]]; then osVersion="${osVersion} ${osVersionExtra}"; fi
 serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSerialNumber/{print $4}' )
-computerName=$( scutil --get ComputerName | /usr/bin/sed 's/’//' )
+computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
-batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | /usr/bin/grep '"CycleCount" = ' | /usr/bin/awk '{ print $3 }' | /usr/bin/sed s/\"//g )
+batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
-ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
 locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/com.apple.locationd LocationServicesEnabled )
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# SSID
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# "Guess" SSID (with macOS 15.7 and later)
+if is-at-least 15.7 "${osVersion}"; then
+    wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
+    preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
+    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' )
+    ssid="${ssid} (preferred)"
+
+# Determine SSID (with macOS 15.6.1 and earlier)
+else
+    ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
+fi
+
+# If no enterprise SSIDs were found, set a default message
+[[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found"
 
 
 
@@ -233,7 +267,7 @@ esac
 
 # Kerberos Single Sign-on Extension
 if [[ -n "${kerberosRealm}" ]]; then
-    /usr/bin/su \- "${loggedInUser}" -c "/usr/bin/app-sso -i ${kerberosRealm}" > /var/tmp/app-sso.plist
+    su \- "${loggedInUser}" -c "app-sso -i ${kerberosRealm}" > /var/tmp/app-sso.plist
     ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
     if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
         kerberosSSOeResult="${loggedInUser} NOT logged in"
@@ -329,7 +363,7 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
         vpnStatus="GlobalProtect is Idle"
         globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
         case "$globalProtectTunnelStatus" in
-            "connected"* )
+            "connected"* | "internal" )
                 globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
                 vpnStatus="Connected ${globalProtectVpnIP}"
                 ;;
@@ -343,7 +377,7 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     fi
 
     if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${globalProtectTunnelStatus}" == "connected"* ]]; then
-        globalProtectUserResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
+        globalProtectUserResult=$( defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
         if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
             globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect"
         elif [[ ! -z "${globalProtectUserResult}" ]]; then
@@ -944,7 +978,7 @@ EOF
         info "${webHookdata}"
         
         # Submit the data to Slack
-        /usr/bin/curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
+        curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
         
         webhookResult="$?"
         info "Slack Webhook Result: ${webhookResult}"
@@ -1241,11 +1275,11 @@ function dialogInstall() {
     preFlight "Installing swiftDialog..."
 
     # Create temporary working directory
-    workDirectory=$( /usr/bin/basename "$0" )
-    tempDirectory=$( /usr/bin/mktemp -d "/private/tmp/$workDirectory.XXXXXX" )
+    workDirectory=$( basename "$0" )
+    tempDirectory=$( mktemp -d "/private/tmp/$workDirectory.XXXXXX" )
 
     # Download the installer package
-    /usr/bin/curl --location --silent "$dialogURL" -o "$tempDirectory/Dialog.pkg"
+    curl --location --silent "$dialogURL" -o "$tempDirectory/Dialog.pkg"
 
     # Verify the download
     teamID=$(spctl -a -vv -t install "$tempDirectory/Dialog.pkg" 2>&1 | awk '/origin=/ {print $NF }' | tr -d '()')
@@ -1374,7 +1408,7 @@ function checkOS() {
         if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
             # logComment "e-tag stored, will download only if e-tag doesn’t match"
             etag_old=$(/bin/cat "$etag_cache")
-            /usr/bin/curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
+            curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
             etag_new=$(/bin/cat "$etag_cache")
             if [[ "$etag_old" == "$etag_new" ]]; then
                 # logComment "Cached ETag matched online ETag - cached json file is up to date"
@@ -1383,7 +1417,7 @@ function checkOS() {
             fi
         else
             # logComment "No e-tag cached, proceeding to download SOFA json file"
-            /usr/bin/curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
+            curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
         fi
 
         # 1. Get model (DeviceID)
@@ -1399,7 +1433,7 @@ function checkOS() {
         fi
 
         # 2. Get current system OS
-        system_version=$( /usr/bin/sw_vers -productVersion )
+        system_version=$( sw_vers -productVersion )
         system_os=$(cut -d. -f1 <<< "$system_version")
         # system_version="15.3"
         # logComment "System Version: $system_version"
@@ -1418,7 +1452,7 @@ function checkOS() {
         fi
 
         # 3. Identify latest compatible major OS
-        latest_compatible_os=$(/usr/bin/plutil -extract "Models.$model.SupportedOS.0" raw -expect string "$json_cache" | /usr/bin/head -n 1)
+        latest_compatible_os=$(plutil -extract "Models.$model.SupportedOS.0" raw -expect string "$json_cache" | head -n 1)
         # logComment "Latest Compatible macOS: $latest_compatible_os"
 
         # 4. Get OSVersions.Latest.ProductVersion
@@ -1427,26 +1461,26 @@ function checkOS() {
         n_rule=false
 
         for i in {0..3}; do
-            os_version=$(/usr/bin/plutil -extract "OSVersions.$i.OSVersion" raw "$json_cache" | /usr/bin/head -n 1)
+            os_version=$(plutil -extract "OSVersions.$i.OSVersion" raw "$json_cache" | head -n 1)
 
             if [[ -z "$os_version" ]]; then
                 break
             fi
 
-            latest_product_version=$(/usr/bin/plutil -extract "OSVersions.$i.Latest.ProductVersion" raw "$json_cache" | /usr/bin/head -n 1)
+            latest_product_version=$(plutil -extract "OSVersions.$i.Latest.ProductVersion" raw "$json_cache" | head -n 1)
 
             if [[ "$latest_product_version" == "$system_version" ]]; then
                 latest_version_match=true
                 break
             fi
 
-            num_security_releases=$(/usr/bin/plutil -extract "OSVersions.$i.SecurityReleases" raw "$json_cache" | xargs | awk '{ print $1}' )
+            num_security_releases=$(plutil -extract "OSVersions.$i.SecurityReleases" raw "$json_cache" | xargs | awk '{ print $1}' )
 
             if [[ -n "$num_security_releases" ]]; then
                 for ((j=0; j<num_security_releases; j++)); do
-                    security_release_product_version=$(/usr/bin/plutil -extract "OSVersions.$i.SecurityReleases.$j.ProductVersion" raw "$json_cache" | /usr/bin/head -n 1)
+                    security_release_product_version=$(plutil -extract "OSVersions.$i.SecurityReleases.$j.ProductVersion" raw "$json_cache" | head -n 1)
                     if [[ "${system_version}" == "${security_release_product_version}" ]]; then
-                        security_release_date=$(/usr/bin/plutil -extract "OSVersions.$i.SecurityReleases.$j.ReleaseDate" raw "$json_cache" | /usr/bin/head -n 1)
+                        security_release_date=$(plutil -extract "OSVersions.$i.SecurityReleases.$j.ReleaseDate" raw "$json_cache" | head -n 1)
                         security_release_date_epoch=$(date -jf "%Y-%m-%dT%H:%M:%SZ" "$security_release_date" +%s)
                         days_ago_30=$(date -v-30d +%s)
 
