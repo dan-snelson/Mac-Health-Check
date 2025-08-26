@@ -2,6 +2,17 @@
 
 ## CHANGELOG
 
+### 2.3.0 (22-Aug-2025)
+- Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
+- Adjusted GlobalProtect VPN check for IPv6
+- Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
+- Extended Network Checks (Pull Request #31 addresses Issue #23; thanks big bunches, @tonyyo11!)
+- Added `organizationBrandingBannerURL` (thanks for the inspiration, @ScottEKendall!) [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
+- Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
+- Added "Connected" and "Disconnected" options to `checkVPN` function
+- Adjusted Palo Alto Networks GlobalProtect VPN Information
+- Fallback to a list o' preferred wireless networks when SSID is redacted (leverages a new space-separated list of SSIDs, `organizationSSID`)
+
 ### 2.2.0 (15-Aug-2025)
 - Improved the GlobalProtect VPN IP detection logic
 - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)

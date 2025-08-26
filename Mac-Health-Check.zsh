@@ -17,15 +17,16 @@
 #
 # HISTORY
 #
-# Version 2.2.0, 15-Aug-2025, Dan K. Snelson (@dan-snelson)
-#   - Improved the GlobalProtect VPN IP detection logic
-#   - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
-#   - Add framework for different VPN clients and an internal VPN Client Check (Pull Request #16; thanks for another one, @HowardGMac!)
-#   - Addressed MHC does not show SF Symbols in the upper left corner - needs region check (Issue #21; thanks, @hbokh!)
-#   - Active IP Address section changes (Pull Request #24; thanks, Obi-@HowardGMac!)
-#   - Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
-#   - Added Tailscale VPN check (thanks, @alexfinn!)
-#   - Change zsh logic flag for Dialog check / installation from `-e` to `-x` to make sure file exists and is executable (Pull Request #26; thanks, @ScottEKendall!)
+# Version 2.3.0, 21-Aug-2025, Dan K. Snelson (@dan-snelson)
+#   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
+#   - Adjusted GlobalProtect VPN check for IPv6
+#   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
+#   - Extended Network Checks (Pull Request #31 addresses Issue #23; thanks big bunches, @tonyyo11!)
+#   - Added `organizationBrandingBannerURL` (thanks for the inspiration, @ScottEKendall!)
+#   - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
+#   - Added "Connected" and "Disconnected" options to `checkVPN` function
+#   - Adjusted Palo Alto Networks GlobalProtect VPN Information
+#   - Fallback to a list o' preferred wireless networks when SSID is redacted (leverages a new space-separated list of SSIDs, `organizationSSID`)
 #
 ####################################################################################################
 
@@ -40,13 +41,22 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.2.0"
+scriptVersion="2.3.0b10"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Elapsed Time
 SECONDS="0"
+
+# Load is-at-least for version comparison
+autoload -Uz is-at-least
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Jamf Pro Script Paramters
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Paramter 4: Operation Mode [ test | debug | production ]
 operationMode="${4:-"debug"}"
@@ -69,6 +79,9 @@ humanReadableScriptName="Mac Health Check"
 # Organization's Script Name
 organizationScriptName="MHC"
 
+# Organization's Branding Banner URL
+organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smooth-orange-background-layout-designstudioroom-web-template-business-report-with-smooth-c_1258-54783.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
+
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
 
@@ -86,6 +99,9 @@ vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
 vpnClientDataType="extended"
+
+# Organization's SSIDs (space-delimited)
+organizationSSID="MoeHoward LarryFine CurlyHoward"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
@@ -146,18 +162,38 @@ osBuild=$( sw_vers -buildVersion )
 osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
 if [[ -n $osVersionExtra ]] && [[ "${osMajorVersion}" -ge 13 ]]; then osVersion="${osVersion} ${osVersionExtra}"; fi
 serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSerialNumber/{print $4}' )
-computerName=$( scutil --get ComputerName | /usr/bin/sed 's/’//' )
+computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
-batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | /usr/bin/grep '"CycleCount" = ' | /usr/bin/awk '{ print $3 }' | /usr/bin/sed s/\"//g )
+batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
-ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
 locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/com.apple.locationd LocationServicesEnabled )
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# SSID
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# "Guess" SSID (with macOS 15.7 and later)
+if is-at-least 15.7 "${osVersion}"; then
+    wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
+    preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
+    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' )
+    ssid="${ssid} (preferred)"
+
+# Determine SSID (with macOS 15.6.1 and earlier)
+else
+    ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
+fi
+
+# If no enterprise SSIDs were found, set a default message
+[[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found"
 
 
 
@@ -183,7 +219,7 @@ esac
 
 # Kerberos Single Sign-on Extension
 if [[ -n "${kerberosRealm}" ]]; then
-    /usr/bin/su \- "${loggedInUser}" -c "/usr/bin/app-sso -i ${kerberosRealm}" > /var/tmp/app-sso.plist
+    su \- "${loggedInUser}" -c "app-sso -i ${kerberosRealm}" > /var/tmp/app-sso.plist
     ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
     if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
         kerberosSSOeResult="${loggedInUser} NOT logged in"
@@ -277,27 +313,29 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     vpnStatus="GlobalProtect is NOT installed"
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
-        globalProtectInterface=$( netstat -nr | grep utun | head -1 | awk '{ print $4 }' )
-        globalProtectVPNStatus=$( ifconfig $globalProtectInterface | awk '/inet / {print $2}' )
-
-        if [[ -n "${globalProtectVPNStatus}" ]]; then
-            vpnStatus="${globalProtectVPNStatus}"
-        fi
-    fi
-    if [[ "${vpnClientDataType}" == "extended" ]] && [[ -n "${globalProtectVPNStatus}" ]]; then
-        globalProtectStatus=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanGPS:disable-globalprotect" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-        case "${globalProtectStatus}" in
-            0 ) globalProtectDisabled="GlobalProtect Running; " ;;
-            1 ) globalProtectDisabled="GlobalProtect Disabled; " ;;
-            * ) globalProtectDisabled="GlobalProtect Unknown; " ;;
+        globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
+        case "$globalProtectTunnelStatus" in
+            "connected"* | "internal" )
+                globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
+                vpnStatus="Connected ${globalProtectVpnIP}"
+                ;;
+            "disconnected" )
+                vpnStatus="Disconnected"
+                ;;
+            *)
+                vpnStatus="Unknown"
+                ;;
         esac
-        globalProtectUserResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
+    fi
+
+    if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${globalProtectTunnelStatus}" == "connected"* ]]; then
+        globalProtectUserResult=$( defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
         if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect; "
+            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect"
         elif [[ ! -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect; "
+            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect"
         fi
-        vpnExtendedStatus="${globalProtectDisabled}${globalProtectUserResult}"
+        vpnExtendedStatus="${globalProtectUserResult}"
     fi
 fi
 
@@ -416,7 +454,7 @@ fi
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" == "debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+[[ "${operationMode}" != "production" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
@@ -428,7 +466,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar, plus two (i.e., "progress: increment")
-progressSteps="21"
+progressSteps="27"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -480,11 +518,14 @@ helpimage="qr=${infobuttonaction}"
 dialogJSON='
 {
     "commandfile" : "'"${dialogCommandFile}"'",
+    "bannerimage" : "'"${organizationBrandingBannerURL}"'",
+    "bannertext" : "'"${humanReadableScriptName} (${scriptVersion})"'",
+    "title" : "'"${humanReadableScriptName} (${scriptVersion})"'",
+    "titlefont" : "shadow=true, size=36, colour=#FFFDF4",
     "ontop" : true,
     "moveable" : true,
     "windowbuttons" : "min",
     "quitkey" : "k",
-    "title" : "'"${humanReadableScriptName} (${scriptVersion})"'",
     "icon" : "'"${icon}"'",
     "overlayicon" : "'"${overlayicon}"'",
     "message" : "none",
@@ -517,13 +558,19 @@ dialogJSON='
         {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=14.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=15.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=16.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
     ]
 }
 '
@@ -600,7 +647,7 @@ function get_json_value() {
 
 function webHookMessage() {
 
-    jamfProURL=$(/usr/bin/defaults read /Library/Preferences/com.jamfsoftware.jamf.plist jss_url)
+    jamfProURL=$(defaults read /Library/Preferences/com.jamfsoftware.jamf.plist jss_url)
 
     jamfProComputerURL="${jamfProURL}computers.html?query=${serialNumber}&queryType=COMPUTERS"
 
@@ -672,7 +719,7 @@ EOF
         info "${webHookdata}"
         
         # Submit the data to Slack
-        /usr/bin/curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
+        curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
         
         webhookResult="$?"
         info "Slack Webhook Result: ${webhookResult}"
@@ -957,11 +1004,11 @@ function dialogInstall() {
     preFlight "Installing swiftDialog..."
 
     # Create temporary working directory
-    workDirectory=$( /usr/bin/basename "$0" )
-    tempDirectory=$( /usr/bin/mktemp -d "/private/tmp/$workDirectory.XXXXXX" )
+    workDirectory=$( basename "$0" )
+    tempDirectory=$( mktemp -d "/private/tmp/$workDirectory.XXXXXX" )
 
     # Download the installer package
-    /usr/bin/curl --location --silent "$dialogURL" -o "$tempDirectory/Dialog.pkg"
+    curl --location --silent "$dialogURL" -o "$tempDirectory/Dialog.pkg"
 
     # Verify the download
     teamID=$(spctl -a -vv -t install "$tempDirectory/Dialog.pkg" 2>&1 | awk '/origin=/ {print $NF }' | tr -d '()')
@@ -1090,7 +1137,7 @@ function checkOS() {
         if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
             # logComment "e-tag stored, will download only if e-tag doesn’t match"
             etag_old=$(/bin/cat "$etag_cache")
-            /usr/bin/curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
+            curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
             etag_new=$(/bin/cat "$etag_cache")
             if [[ "$etag_old" == "$etag_new" ]]; then
                 # logComment "Cached ETag matched online ETag - cached json file is up to date"
@@ -1099,7 +1146,7 @@ function checkOS() {
             fi
         else
             # logComment "No e-tag cached, proceeding to download SOFA json file"
-            /usr/bin/curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
+            curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
         fi
 
         # 1. Get model (DeviceID)
@@ -1115,7 +1162,7 @@ function checkOS() {
         fi
 
         # 2. Get current system OS
-        system_version=$( /usr/bin/sw_vers -productVersion )
+        system_version=$( sw_vers -productVersion )
         system_os=$(cut -d. -f1 <<< "$system_version")
         # system_version="15.3"
         # logComment "System Version: $system_version"
@@ -1129,12 +1176,12 @@ function checkOS() {
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
             result "$osResult"
-            dialogUpdate "listitem: index: 1, status: fail, statustext: $osResult"
+            dialogUpdate "listitem: index: ${1}, status: fail, statustext: $osResult"
             # return 1
         fi
 
         # 3. Identify latest compatible major OS
-        latest_compatible_os=$(/usr/bin/plutil -extract "Models.$model.SupportedOS.0" raw -expect string "$json_cache" | /usr/bin/head -n 1)
+        latest_compatible_os=$(plutil -extract "Models.$model.SupportedOS.0" raw -expect string "$json_cache" | head -n 1)
         # logComment "Latest Compatible macOS: $latest_compatible_os"
 
         # 4. Get OSVersions.Latest.ProductVersion
@@ -1143,26 +1190,26 @@ function checkOS() {
         n_rule=false
 
         for i in {0..3}; do
-            os_version=$(/usr/bin/plutil -extract "OSVersions.$i.OSVersion" raw "$json_cache" | /usr/bin/head -n 1)
+            os_version=$(plutil -extract "OSVersions.$i.OSVersion" raw "$json_cache" | head -n 1)
 
             if [[ -z "$os_version" ]]; then
                 break
             fi
 
-            latest_product_version=$(/usr/bin/plutil -extract "OSVersions.$i.Latest.ProductVersion" raw "$json_cache" | /usr/bin/head -n 1)
+            latest_product_version=$(plutil -extract "OSVersions.$i.Latest.ProductVersion" raw "$json_cache" | head -n 1)
 
             if [[ "$latest_product_version" == "$system_version" ]]; then
                 latest_version_match=true
                 break
             fi
 
-            num_security_releases=$(/usr/bin/plutil -extract "OSVersions.$i.SecurityReleases" raw "$json_cache" | xargs | awk '{ print $1}' )
+            num_security_releases=$(plutil -extract "OSVersions.$i.SecurityReleases" raw "$json_cache" | xargs | awk '{ print $1}' )
 
             if [[ -n "$num_security_releases" ]]; then
                 for ((j=0; j<num_security_releases; j++)); do
-                    security_release_product_version=$(/usr/bin/plutil -extract "OSVersions.$i.SecurityReleases.$j.ProductVersion" raw "$json_cache" | /usr/bin/head -n 1)
+                    security_release_product_version=$(plutil -extract "OSVersions.$i.SecurityReleases.$j.ProductVersion" raw "$json_cache" | head -n 1)
                     if [[ "${system_version}" == "${security_release_product_version}" ]]; then
-                        security_release_date=$(/usr/bin/plutil -extract "OSVersions.$i.SecurityReleases.$j.ReleaseDate" raw "$json_cache" | /usr/bin/head -n 1)
+                        security_release_date=$(plutil -extract "OSVersions.$i.SecurityReleases.$j.ReleaseDate" raw "$json_cache" | head -n 1)
                         security_release_date_epoch=$(date -jf "%Y-%m-%dT%H:%M:%SZ" "$security_release_date" +%s)
                         days_ago_30=$(date -v-30d +%s)
 
@@ -1524,6 +1571,176 @@ function checkAPNs() {
 
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Jamf Extended Network Checks (thanks, @tonyyo11!)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# Network timeout (in seconds) for all Jamf Extended Network Checks tests 
+networkTimeout=5
+
+# Push Notification (combines APNs and on-prem Jamf push)
+pushHosts=(
+  "courier.push.apple.com,5223"
+  "courier.push.apple.com,443"
+  "api.push.apple.com,443"
+  "api.push.apple.com,2197"
+)
+
+# NOTE: The following Push Notification checks are purposely skipped …
+#   "feedback.push.apple.com,2196"
+#   "gateway.push.apple.com,2195"
+# … due to the following:
+#   nc -u -z -w 5 gateway.push.apple.com 2195
+#   nc -u -z -w 5 feedback.push.apple.com 2196
+#   nc: getaddrinfo: nodename nor servname provided, or not known 
+
+# Device Management (combines Device Setup & MDM enrollment/services)
+deviceMgmtHosts=(
+  "albert.apple.com,443"
+  "captive.apple.com,80"
+  "captive.apple.com,443"
+  "gs.apple.com,443"
+  "humb.apple.com,443"
+  "static.ips.apple.com,80"
+  "static.ips.apple.com,443"
+  "sq-device.apple.com,443"
+  "tbsc.apple.com,443"
+  "time-ios.apple.com,123,UDP"
+  "time.apple.com,123,UDP"
+  "time-macos.apple.com,123,UDP"
+  "deviceenrollment.apple.com,443"
+  "deviceservices-external.apple.com,443"
+  "gdmf.apple.com,443"
+  "identity.apple.com,443"
+  "iprofiles.apple.com,443"
+  "mdmenrollment.apple.com,443"
+  "setup.icloud.com,443"
+  "vpp.itunes.apple.com,443"
+)
+
+# Software & Carrier Updates
+updateHosts=(
+  "appldnld.apple.com,80"
+  "configuration.apple.com,443"
+  "gdmf.apple.com,443"
+  "gg.apple.com,80"
+  "gg.apple.com,443"
+  "gs.apple.com,80"
+  "gs.apple.com,443"
+  "ig.apple.com,443"
+  "mesu.apple.com,80"
+  "mesu.apple.com,443"
+  "oscdn.apple.com,80"
+  "oscdn.apple.com,443"
+  "osrecovery.apple.com,80"
+  "osrecovery.apple.com,443"
+  "skl.apple.com,443"
+  "swcdn.apple.com,80"
+  "swdist.apple.com,443"
+  "swdownload.apple.com,80"
+  "appldnld.apple.com.edgesuite.net,80"
+  "itunes.com,80"
+  "itunes.apple.com,443"
+  "updates-http.cdn-apple.com,80"
+  "updates.cdn-apple.com,443"
+)
+
+# Certificate Validation Hosts
+certHosts=(
+  "certs.apple.com,80"
+  "certs.apple.com,443"
+  "crl.apple.com,80"
+  "crl.entrust.net,80"
+  "crl3.digicert.com,80"
+  "crl4.digicert.com,80"
+  "ocsp.apple.com,80"
+  "ocsp.digicert.cn,80"
+  "ocsp.digicert.com,80"
+  "ocsp.entrust.net,80"
+  "ocsp2.apple.com,443"
+  "valid.apple.com,443"
+)
+
+# Identity & Content Services (Apple ID, Associated Domains, Additional Content)
+idAssocHosts=(
+  "appleid.apple.com,443"
+  "appleid.cdn-apple.com,443"
+  "idmsa.apple.com,443"
+  "gsa.apple.com,443"
+  "app-site-association.cdn-apple.com,443"
+  "app-site-association.networking.apple,443"
+  "audiocontentdownload.apple.com,80"
+  "audiocontentdownload.apple.com,443"
+  "devimages-cdn.apple.com,80"
+  "devimages-cdn.apple.com,443"
+  "download.developer.apple.com,80"
+  "download.developer.apple.com,443"
+  "playgrounds-assets-cdn.apple.com,443"
+  "playgrounds-cdn.apple.com,443"
+  "sylvan.apple.com,80"
+  "sylvan.apple.com,443"
+)
+
+# Jamf Pro Cloud & On-prem Endpoints
+jamfHosts=(
+  "jamf.com,443"
+  "test.jamfcloud.com,443"
+  "use1-jcdsdownloads.services.jamfcloud.com,443"
+  "use1-jcds.services.jamfcloud.com,443"
+  "euc1-jcdsdownloads.services.jamfcloud.com,443"
+  "euc1-jcds.services.jamfcloud.com,443"
+  "euw2-jcdsdownloads.services.jamfcloud.com,443"
+  "euw2-jcds.services.jamfcloud.com,443"
+  "apse2-jcdsdownloads.services.jamfcloud.com,443"
+  "apse2-jcds.services.jamfcloud.com,443"
+  "apne1-jcdsdownloads.services.jamfcloud.com,443"
+  "apne1-jcds.services.jamfcloud.com,443"
+)
+
+# Generic network-host tester; uses nc to probe host:port and updates swiftDialog
+function checkNetworkHosts() {
+  local index="$1"
+  local name="$2"
+  shift 2
+  local hosts=("$@")
+
+  notice "Check ${name} …"
+  dialogUpdate "icon: SF=network,${organizationColorScheme}"
+  dialogUpdate "listitem: index: ${index},status: wait,statustext: Checking …"
+  dialogUpdate "progress: increment"
+  dialogUpdate "progresstext: Determining ${name} connectivity …"
+  sleep "${anticipationDuration}"
+
+  local allOK=true
+  local results=""
+
+  for entry in "${hosts[@]}"; do
+    IFS=',' read -r host port proto <<< "${entry}"
+    # Default to TCP if protocol not specified
+    if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
+      ncFlags=( -u -z -w "${networkTimeout}" )
+    else
+      ncFlags=( -z -w "${networkTimeout}" )
+    fi
+
+    if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
+      results+="${host}:${port} PASS; "
+    else
+      results+="${host}:${port} FAIL; "
+      allOK=false
+    fi
+  done
+
+  if [[ "${allOK}" == true ]]; then
+    dialogUpdate "listitem: index: ${index},status: success,statustext: Passed"
+    info "${name}: ${results%;; }"
+  else
+    dialogUpdate "listitem: index: ${index},status: fail,statustext: Failed"
+    errorOut "${name}: ${results%;; }"
+    overallHealth+="${name}; "
+  fi
+}
+
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -1542,7 +1759,7 @@ function checkJssCertificateExpiration() {
 
     sleep "${anticipationDuration}"
 
-    identities=( $( security find-identity -v /Library/Keychains/System.keychain | awk '{print $3}' | tr -d '"' | head -n 1 ) )
+    identities=( $( security find-identity -v /Library/Keychains/System.keychain | grep -v "$serialNumber" | grep -v "Jamf" | awk '{print $3}' | tr -d '"' | head -n 1 ) )
     now_seconds=$( date +%s )
 
     if [[ "${identities}" != "identities" ]]; then
@@ -1814,16 +2031,27 @@ function checkVPN() {
             dialogUpdate "listitem: index: ${1}, status: error, statustext: Idle"
             info "${vpnAppName} idle"
             ;;
-            
+
+        "Connected"* )
+            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
+            info "${vpnAppName} Connected"
+            ;;
+
+        "Disconnected" )
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Disconnected"
+            info "${vpnAppName} Disconnected"
+            ;;
+
         "None" )
             dialogUpdate "listitem: index: ${1}, status: error, statustext: No VPN"
             info "No VPN"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
-            info "${vpnAppName} connected"
+            dialogUpdate "listitem: index: ${1}, status: error, statustext: Unknown"
+            info "${vpnAppName} Unknown"
             ;;
+
     esac
 
 }
@@ -1851,7 +2079,7 @@ function checkExternal() {
 
     externalValidation=$( /usr/local/bin/jamf policy -event $trigger | grep "Script result:" )
 
-case ${externalValidation:l} in
+    case ${externalValidation:l} in
 
         *"failed"* )
             dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
@@ -1962,7 +2190,7 @@ function updateComputerInventory() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Updating Computer Inventory …"
 
-    if [[ "${operationMode}" == "production" ]]; then
+    if [[ "${operationMode}" != "test" ]]; then
 
         jamf recon # -verbose
 
@@ -2007,7 +2235,7 @@ dialogUpdate "list: show"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-if [[ "${operationMode}" == "production" ]]; then
+if [[ "${operationMode}" != "test" ]]; then
 
     # Production Mode
 
@@ -2024,13 +2252,19 @@ if [[ "${operationMode}" == "production" ]]; then
     checkAPNs "10"
     checkJamfProCheckIn "11"
     checkJamfProInventory "12"
-    checkInternal "13" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-    checkExternal "14" "symvBeyondTrustPMfM" "/Applications/PrivilegeManagement.app"
-    checkExternal "15" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "16" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
-    checkExternal "17" "symvGlobalProtect" "/Applications/GlobalProtect.app"
-    checkNetworkQuality "18"
-    updateComputerInventory "19"
+    checkNetworkHosts  "13" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+    checkNetworkHosts  "14" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+    checkNetworkHosts  "15" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+    checkNetworkHosts  "16" "Apple Certificate Validation"          "${certHosts[@]}"
+    checkNetworkHosts  "17" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+    checkNetworkHosts  "18" "Jamf Hosts"                            "${jamfHosts[@]}"
+    checkInternal "19" "/Applications/Microsoft Teams.app"  "/Applications/Microsoft Teams.app"             "Microsoft Teams"
+    checkExternal "20" "symvBeyondTrustPMfM"                "/Applications/PrivilegeManagement.app"
+    checkExternal "21" "symvCiscoUmbrella"                  "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "22" "symvCrowdStrikeFalcon"              "/Applications/Falcon.app"
+    checkExternal "23" "symvGlobalProtect"                  "/Applications/GlobalProtect.app"
+    checkNetworkQuality "24"
+    updateComputerInventory "25"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
