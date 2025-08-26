@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 21-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.3.0, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 #   - Adjusted GlobalProtect VPN check for IPv6
 #   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
@@ -41,7 +41,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0b10"
+scriptVersion="2.3.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -177,23 +177,17 @@ sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# SSID
+# SSID ("Guess" SSID with macOS 15.7 and later; Determine SSID with macOS 15.6.1 and earlier)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# "Guess" SSID (with macOS 15.7 and later)
 if is-at-least 15.7 "${osVersion}"; then
     wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
     preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
-    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' )
-    ssid="${ssid} (preferred)"
-
-# Determine SSID (with macOS 15.6.1 and earlier)
+    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' ) 
+    [[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found" || ssid="${ssid} (preferred)"
 else
     ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
 fi
-
-# If no enterprise SSIDs were found, set a default message
-[[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found"
 
 
 
@@ -318,6 +312,15 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
             "connected"* | "internal" )
                 globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
                 vpnStatus="Connected ${globalProtectVpnIP}"
+                if [[ "${vpnClientDataType}" == "extended" ]]; then
+                    globalProtectUserResult=$( defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
+                    if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
+                        globalProtectUserResult="${loggedInUser} NOT logged-in"
+                    elif [[ ! -z "${globalProtectUserResult}" ]]; then
+                        globalProtectUserResult="\"${loggedInUser}\" logged-in"
+                    fi
+                    vpnExtendedStatus="${globalProtectUserResult}"
+                fi
                 ;;
             "disconnected" )
                 vpnStatus="Disconnected"
@@ -326,16 +329,6 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
                 vpnStatus="Unknown"
                 ;;
         esac
-    fi
-
-    if [[ "${vpnClientDataType}" == "extended" ]] && [[ "${globalProtectTunnelStatus}" == "connected"* ]]; then
-        globalProtectUserResult=$( defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
-        if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="${loggedInUser} NOT logged-in to GlobalProtect"
-        elif [[ ! -z "${globalProtectUserResult}" ]]; then
-            globalProtectUserResult="\"${loggedInUser}\" logged-in to GlobalProtect"
-        fi
-        vpnExtendedStatus="${globalProtectUserResult}"
     fi
 fi
 
@@ -2237,7 +2230,7 @@ dialogUpdate "list: show"
 
 if [[ "${operationMode}" != "test" ]]; then
 
-    # Production Mode
+    # Production and Debug Mode
 
     checkOS "0"
     checkAvailableSoftwareUpdates "1"
@@ -2273,7 +2266,7 @@ if [[ "${operationMode}" != "test" ]]; then
 
 else
 
-    # Non-production Mode
+    # Test Mode
 
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion}) [Operation Mode: ${operationMode}]"
 
@@ -2289,22 +2282,6 @@ else
         dialogUpdate "progresstext: [Operation Mode: ${operationMode}] • Item No. ${i} …"
 
         # sleep "${anticipationDuration}"
-
-        ###
-        #
-        # START EXAMPLE
-        #
-        #   Check-specific
-        #
-        #   code
-        #
-        #   goes
-        #
-        #   here
-        #
-        # END EXAMPLE
-        #
-        ###
 
         dialogUpdate "listitem: index: ${i}, status: success, statustext: ${operationMode}"
 

@@ -61,10 +61,10 @@ The following health checks and information reporting are included and the scrip
 1. Jamf Pro Inventory
 1. Extended Network Checks
     - Apple Push Notification Hosts
-    - Jamf Device Management
-    - Jamf Software and Carrier Updates
-    - Jamf Certificate Validation
-    - Jamf Identity and Content Services
+    - Apple Device Management
+    - Apple Software and Carrier Updates
+    - Apple Certificate Validation
+    - Apple Identity and Content Services
     - Jamf Hosts
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
@@ -112,7 +112,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (2.3.0): 2025-08-15 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (2.3.0): 2025-08-26 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
