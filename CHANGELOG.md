@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.3.0 (22-Aug-2025)
+### 2.3.0 (26-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
 - Adjusted GlobalProtect VPN check for IPv6
 - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
