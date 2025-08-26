@@ -12,51 +12,40 @@
 #   Version 0.0.1, 14-Dec-2022, Dan K. Snelson (@dan-snelson)
 #   - Original Version
 #
+#   Version 0.0.2, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
+#   - Updated based on Mac Health Check (2.3.0)
+#
 ###########################################################################################
 
 loggedInUser=$( /bin/echo "show State:/Users/ConsoleUser" | /usr/sbin/scutil | /usr/bin/awk '/Name :/ && ! /loginwindow/ { print $3 }' )
-appResult="Not Installed"
-userResult="\"${loggedInUser}\" not Logged-in"
-globalProtectDisabled="Disabled"
+vpnAppPath="/Applications/GlobalProtect.app"
+vpnStatus="GlobalProtect is NOT installed"
 
-if [[ -d /Applications/GlobalProtect.app ]]; then # GlobalProtect.app found in /Applications
-
-    # Read GlobalProtect's version number 
-    appResult=$( /usr/bin/defaults read /Applications/GlobalProtect.app/Contents/Info.plist CFBundleShortVersionString )
-    appResult="GlobalProtect ${appResult} installed; "
-
-    # Read `disable-globalprotect` value
-    globalProtectStatus=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanGPS:disable-globalprotect" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-    case "${globalProtectStatus}" in
-        0 ) globalProtectDisabled="GlobalProtect Running; " ;;
-        1 ) globalProtectDisabled="GlobalProtect Disabled; " ;;
-        * ) globalProtectDisabled="GlobalProtect Unknown; " ;;
-    esac
-
-    # Read the logged-in user's `User`
-    userResult=$( /usr/bin/defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
-    if [[ "${userResult}"  == *"Does Not Exist" || -z "${userResult}" ]]; then
-        userResult="${loggedInUser} NOT logged-in to GlobalProtect; "
-    elif [[ ! -z "${userResult}" ]]; then
-        userResult="\"${loggedInUser}\" logged-in to GlobalProtect; "
+if [[ -d "${vpnAppPath}" ]]; then
+    vpnStatus="Running: Installed"
+    if [[ $(find /var/db/.AppleSetupDone -mmin +60) ]]; then
+        globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
+        case "$globalProtectTunnelStatus" in
+            "connected"* | "internal" )
+                globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
+                vpnStatus="Running: ${globalProtectVpnIP}; "
+                globalProtectUserResult=$( defaults read /Users/"${loggedInUser}"/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
+                if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
+                    globalProtectUserResult="${loggedInUser} NOT logged-in"
+                elif [[ ! -z "${globalProtectUserResult}" ]]; then
+                    globalProtectUserResult="\"${loggedInUser}\" logged-in"
+                fi
+                ;;
+            "disconnected" )
+                vpnStatus="Failed: Disconnected"
+                ;;
+            *)
+                vpnStatus="Error: Unknown"
+                ;;
+        esac
     fi
-
-    # Read `Portal`
-    companyPortal=$( /usr/libexec/PlistBuddy -c "print :Palo\ Alto\ Networks:GlobalProtect:PanSetup:Portal" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-
-    # Read `default-gateway-name`
-    gatewayResult=$( /usr/libexec/PlistBuddy -c "print :${companyPortal}:default-gateway-name" /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client.plist 2>&1 )
-    if [[ "${gatewayResult}" == *"Does Not Exist" ]]; then
-        gatewayResult="No default gateway specified"
-    elif [[ ! -z "${gatewayResult}" ]]; then
-        gatewayResult="\"${loggedInUser}\" selected \"${gatewayResult}\" as default gateway"
-    fi
-
-else # GlobalProtect.app NOT found in /Applications; clear other variables
-    userResult=""
-    globalProtectDisabled=""
-    gatewayResult=""
-
 fi
 
-/bin/echo "<result>${appResult}${globalProtectDisabled}${userResult}</result>"
+/bin/echo "<result>${vpnStatus}${globalProtectUserResult}</result>"
+
+exit 0
