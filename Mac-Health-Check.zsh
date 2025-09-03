@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 03-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b15"
+scriptVersion="3.0.0b16"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -72,13 +72,13 @@ humanReadableScriptName="Mac Health Check"
 organizationScriptName="MHC"
 
 # Organization's Branding Banner URL
-organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smooth-orange-background-layout-designstudioroom-web-template-business-report-with-smooth-c_1258-54783.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
+organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-textured-backgound_1258-30469.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
 
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
 
 # Organization's Color Scheme
-organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+organizationColorScheme="weight=semibold,colour1=#4BA7EE,colour2=#295B96"
 
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
@@ -1149,18 +1149,18 @@ function quitScript() {
 
     # Remove the dialog JSON file
     if [[ "${operationMode}" == "production" ]]; then
-        rm -rf "${dialogJSONFile}"
+        rm -f /var/tmp/dialogJSONFile_*
     else
         notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
     fi
 
     # Remove overlay icon
     if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Finder.app" ]]; then
-        rm -rf "${overlayicon}"
+        rm -f "${overlayicon}"
     fi
 
     # Remove default dialog.log
-    rm -rf /var/tmp/dialog.log
+    rm -f /var/tmp/dialog.log
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 

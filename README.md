@@ -75,7 +75,7 @@ The following health checks and information reporting are included and the scrip
 1. Update Computer Inventory**
 
 *Requires [external check](/external-checks/README.md)
-**Required Jamf Pro
+**Requires Jamf Pro
 
 ### Information Reporting
 
@@ -112,7 +112,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2025-08-26 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2025-09-03 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
