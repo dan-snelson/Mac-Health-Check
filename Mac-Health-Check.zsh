@@ -165,6 +165,15 @@ serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSer
 computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
+systemMemory="$(expr $(sysctl -n hw.memsize) / $((1024**3))) GB"
+rawStorage=$(diskutil info /|grep "Container Total Space"|awk '{print $4}')
+if [[ $rawStorage -ge 1000 ]]; then
+    systemStorage="$(echo "scale=0; ( ( ($rawStorage +999) /1000 * 1000)/1000)" | bc) TB"
+elif [[ $rawStorage -lt 300 ]]; then
+    systemStorage="$(echo "scale=0; ( ($rawStorage +9) /10 * 10)" | bc) GB"
+else
+    systemStorage="$(echo "scale=0; ( ($rawStorage +99) /100 * 100)" | bc) GB"
+fi
 batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
@@ -523,7 +532,7 @@ dialogJSON='
     "overlayicon" : "'"${overlayicon}"'",
     "message" : "none",
     "iconsize" : "198",
-    "infobox" : "**User:** '"{userfullname}"'<br><br>**Computer Model:** '"{computermodel}"'<br><br>**Serial Number:** '"{serialnumber}"' ",
+    "infobox" : "**User:** '"{userfullname}"'<br><br>**Computer Model:** '"{computermodel}"'<br><br>**Serial Number:** '"{serialnumber}"'<br><br>**System Memory:** '"${systemMemory}"'<br><br>**System Storage:** '"${systemStorage}"' ",
     "infobuttontext" : "'"${supportKB}"'",
     "infobuttonaction" : "'"${infobuttonaction}"'",
     "button1text" : "Wait",
