@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 03-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 05-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b16"
+scriptVersion="3.0.0b17"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -214,8 +214,8 @@ computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
 systemMemory="$(expr $(sysctl -n hw.memsize) / $((1024**3))) GB"
-rawStorage=$(diskutil info /|grep "Container Total Space"|awk '{print $4}')
-if [[ $rawStorage -ge 1000 ]]; then
+rawStorage=$( diskutil info / | grep "Container Total Space" | awk '{print $4}' )
+if [[ $rawStorage -ge 994 ]]; then
     systemStorage="$(echo "scale=0; ( ( ($rawStorage +999) /1000 * 1000)/1000)" | bc) TB"
 elif [[ $rawStorage -lt 300 ]]; then
     systemStorage="$(echo "scale=0; ( ($rawStorage +9) /10 * 10)" | bc) GB"

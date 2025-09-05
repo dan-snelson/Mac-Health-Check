@@ -2,8 +2,9 @@
 
 ## CHANGELOG
 
-### 3.0.0 (03-Sep-2025)
+### 3.0.0 (05-Sep-2025)
 - First (attempt at a) MDM-agnostic release
+- Add System Memory and System Storage capacity information (Pull Request #36; thanks again, @HowardGMac!)
 
 ### 2.3.0 (26-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
