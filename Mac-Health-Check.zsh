@@ -17,16 +17,9 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
-#   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
-#   - Adjusted GlobalProtect VPN check for IPv6
-#   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
-#   - Extended Network Checks (Pull Request #31 addresses Issue #23; thanks big bunches, @tonyyo11!)
-#   - Added `organizationBrandingBannerURL` (thanks for the inspiration, @ScottEKendall!)
-#   - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
-#   - Added "Connected" and "Disconnected" options to `checkVPN` function
-#   - Adjusted Palo Alto Networks GlobalProtect VPN Information
-#   - Fallback to a list o' preferred wireless networks when SSID is redacted (leverages a new space-separated list of SSIDs, `organizationSSID`)
+# Version 2.4.0, 11-Sep-2025, Dan K. Snelson (@dan-snelson)
+#   - Updated SSID code (thanks, ZP!)
+#   - Added troubleshooting code for common JSON issues
 #
 ####################################################################################################
 
@@ -41,16 +34,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0"
+scriptVersion="2.4.0b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Elapsed Time
 SECONDS="0"
-
-# Load is-at-least for version comparison
-autoload -Uz is-at-least
 
 
 
@@ -177,17 +167,13 @@ sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# SSID ("Guess" SSID with macOS 15.7 and later; Determine SSID with macOS 15.6.1 and earlier)
+# SSID (thanks, ZP!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-if is-at-least 15.7 "${osVersion}"; then
-    wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
-    preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
-    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' ) 
-    [[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found" || ssid="${ssid} (preferred)"
-else
-    ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
-fi
+wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
+ipconfig setverbose 1
+ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
+ipconfig setverbose 0
 
 
 
@@ -881,7 +867,11 @@ function quitScript() {
     rm -rf "${dialogCommandFile}"
 
     # Remove the dialog JSON file
-    rm -rf "${dialogJSONFile}"
+    if [[ "${operationMode}" == "production" ]]; then
+        rm -f /var/tmp/dialogJSONFile_*
+    else
+        notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
+    fi
 
     # Remove overlay icon
     if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Finder.app" ]]; then
