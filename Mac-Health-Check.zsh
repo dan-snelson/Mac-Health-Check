@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 05-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 11-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b17"
+scriptVersion="3.0.0b18"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -91,9 +91,6 @@ vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
 vpnClientDataType="extended"
-
-# Organization's SSIDs (space-delimited)
-organizationSSID="MoeHoward LarryFine CurlyHoward"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
@@ -234,14 +231,14 @@ sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# SSID ("Guess" SSID with macOS 15.7 and later; Determine SSID with macOS 15.6.1 and earlier)
+# SSID
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 if is-at-least 15.7 "${osVersion}"; then
     wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
-    preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
-    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' ) 
-    [[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found" || ssid="${ssid} (preferred)"
+    ipconfig setverbose 1
+    ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
+    ipconfig setverbose 0
 else
     ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
 fi
