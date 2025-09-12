@@ -520,7 +520,6 @@ dialogJSON='
     "height" : "750",
     "width" : "900",
     "messagefont" : "size=14",
-    "titlefont" : "shadow=true, size=24",
     "listitem" : [
         {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
         {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
