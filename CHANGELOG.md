@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.4.0 (11-Sep-2025)
+### 2.4.0 (12-Sep-2025)
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
 

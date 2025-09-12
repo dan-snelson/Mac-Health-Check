@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.4.0, 11-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.4.0, 12-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - Updated SSID code (thanks, ZP!)
 #   - Added troubleshooting code for common JSON issues
 #
@@ -34,7 +34,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.4.0b1"
+scriptVersion="2.4.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -89,9 +89,6 @@ vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
 vpnClientDataType="extended"
-
-# Organization's SSIDs (space-delimited)
-organizationSSID="MoeHoward LarryFine CurlyHoward"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
