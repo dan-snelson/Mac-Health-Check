@@ -20,6 +20,7 @@
 # Version 2.4.0, 12-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - Updated SSID code (thanks, ZP!)
 #   - Added troubleshooting code for common JSON issues
+#   - Additional troubleshooting tweaks
 #
 ####################################################################################################
 
@@ -34,7 +35,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.4.0b2"
+scriptVersion="2.4.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -49,10 +50,10 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"debug"}"
+operationMode="${4:-"test"}"
 
-    # Enable `set -x` if operation mode is "test" or "debug" to help identify variable initialization issues (i.e., SSID)
-    [[ "${operationMode}" == "test" || "${operationMode}" == "debug" ]] && set -x
+    # Enable `set -x` if operation mode is "debug" to help identify variable initialization issues (i.e., SSID)
+    [[ "${operationMode}" == "debug" ]] && set -x
 
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
@@ -430,7 +431,7 @@ fi
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" != "production" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+[[ "${operationMode}" == "debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
