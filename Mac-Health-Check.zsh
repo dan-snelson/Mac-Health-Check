@@ -1441,7 +1441,7 @@ function checkUptime() {
     
     else
     
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour1=#00ff44,colour2=#075c1e, iconalpha: 0.5, status: success, statustext: ${uptimeHumanReadable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${uptimeHumanReadable}"
         info "${humanReadableCheckName}: ${uptimeHumanReadable}"
     
     fi
@@ -1482,7 +1482,7 @@ function checkFreeDiskSpace() {
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour1=#00ff44,colour2=#075c1e, iconalpha: 0.5, status: success, statustext: ${diskSpace}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${diskSpace}"
         info "${humanReadableCheckName}: ${diskSpace}"
 
     fi
