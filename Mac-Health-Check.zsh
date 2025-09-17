@@ -24,6 +24,7 @@
 #   - Updates to leverage new features of swiftDialog 3.0.0
 #   - Updated listitem icon colour to reflect status
 #   - Updated checkOS function
+#   - Visually enchanced listitem error and failure statuses
 #
 ####################################################################################################
 
@@ -38,7 +39,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.4.0b8"
+scriptVersion="2.4.0b9"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -1101,7 +1102,7 @@ function checkOS() {
 
         logComment "OS Build, ${osBuild}, ends with a letter; skipping"
         osResult="Beta macOS ${osVersion} (${osBuild})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
         warning "${osResult}"
     
     else
@@ -1166,7 +1167,7 @@ function checkOS() {
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
             result "$osResult"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
             # return 1
         fi
 
@@ -1220,7 +1221,7 @@ function checkOS() {
             info "${osResult}"
         else
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
             errorOut "${osResult}"
             overallHealth+="${humanReadableCheckName}; "
         fi
@@ -1262,21 +1263,21 @@ function checkAvailableSoftwareUpdates() {
 
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
 
             *"The operation couldn’t be completed."* )
                 availableSoftwareUpdates="The operation couldn’t be completed."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
 
             *"Deferred: YES"* )
                 availableSoftwareUpdates="Deferred software available."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
 
@@ -1289,7 +1290,7 @@ function checkAvailableSoftwareUpdates() {
             * )
                 SUList=$( echo "${SUListRaw}" | grep "*" | sed "s/\* Label: //g" | sed "s/,*$//g" )
                 availableSoftwareUpdates="${SUList}"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
 
@@ -1333,7 +1334,7 @@ function checkSIP() {
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -1374,7 +1375,7 @@ function checkFirewall() {
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName}: Failed"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -1427,12 +1428,12 @@ function checkUptime() {
         case ${excessiveUptimeAlertStyle} in
 
             "warning" ) 
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${uptimeHumanReadable}"
                 warning "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 ;;
 
             "error" | * )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${uptimeHumanReadable}"
                 errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -1476,7 +1477,7 @@ function checkFreeDiskSpace() {
 
     if (( $( echo ${freePercentage}'<'${allowedMinimumFreeDiskPercentage} | bc -l ) )); then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${diskSpace}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${diskSpace}"
         errorOut "${humanReadableCheckName}: ${diskSpace}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1516,7 +1517,7 @@ function checkJamfProMdmProfile() {
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1546,7 +1547,7 @@ function checkAPNs() {
 
     if [[ "${apnsCheck}" == *"Timestamp"* ]] || [[ -z "${apnsCheck}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1}): ${apnsCheck}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1727,7 +1728,7 @@ function checkNetworkHosts() {
         dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Passed"
         info "${name}: ${results%;; }"
     else
-        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${name}: ${results%;; }"
         overallHealth+="${name}; "
     fi
@@ -1766,7 +1767,7 @@ function checkJssCertificateExpiration() {
                     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${expirationDateFormatted}"
                     info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
                 else
-                    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
+                    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
                     errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
                     overallHealth+="${humanReadableCheckName}; "
                 fi
@@ -1776,7 +1777,7 @@ function checkJssCertificateExpiration() {
     else
 
         expirationDateFormatted="NOT Installed"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
         errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1827,12 +1828,12 @@ function checkJamfProCheckIn() {
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
         errorOut "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
         warning "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
@@ -1887,12 +1888,12 @@ function checkJamfProInventory() {
     #set status indicator for last inventory
     if [ ${time_since_inventory_epoch} -ge ${inventory_time_old} ]; then
         # inventory_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_reable}"
         errorOut "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -ge ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_reable}"
         warning "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
@@ -1940,7 +1941,7 @@ function checkFileVault() {
                 ;;
 
             *  )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
                 errorOut "${humanReadableCheckName} (${1})"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -1949,7 +1950,7 @@ function checkFileVault() {
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1985,7 +1986,7 @@ function checkInternal() {
         
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
         errorOut "${checkInternalTargetFileDisplayName} NOT Installed"
         overallHealth+="${checkInternalTargetFileDisplayName}; "
 
@@ -2015,13 +2016,13 @@ function checkVPN() {
     case ${vpnStatus} in
 
         *"NOT installed"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${vpnAppName} Failed"
             overallHealth+="${vpnAppName}; "
             ;;
 
         *"Idle"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Idle"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Idle"
             info "${vpnAppName} idle"
             ;;
 
@@ -2031,17 +2032,17 @@ function checkVPN() {
             ;;
 
         "Disconnected" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Disconnected"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Disconnected"
             info "${vpnAppName} Disconnected"
             ;;
 
         "None" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: No VPN"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: No VPN"
             info "No VPN"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unknown"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unknown"
             info "${vpnAppName} Unknown"
             ;;
 
@@ -2075,7 +2076,7 @@ function checkExternal() {
     case ${externalValidation:l} in
 
         *"failed"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${appDisplayName} Failed"
             overallHealth+="${appDisplayName}; "
             ;;
@@ -2086,7 +2087,7 @@ function checkExternal() {
             ;;
 
         *"error"* | * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Error"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Error"
             errorOut "${appDisplayName} Error"
             overallHealth+="${appDisplayName}; "
             ;;

@@ -7,8 +7,9 @@
 - Added troubleshooting code for common JSON issues
 - Additional troubleshooting tweaks
 - Updates to leverage new features of swiftDialog 3.0.0
-- Updated listitem icon colour to reflect status
-- Updated checkOS function
+- Updated `listitem` icon colour to reflect status
+- Updated `checkOS` function
+- Visually enchanced `listitem` error and failure statuses
 
 ### 2.3.0 (26-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
