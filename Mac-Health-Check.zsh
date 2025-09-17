@@ -23,6 +23,7 @@
 #   - Additional troubleshooting tweaks
 #   - Updates to leverage new features of swiftDialog 3.0.0
 #   - Updated listitem icon colour to reflect status
+#   - Updated checkOS function
 #
 ####################################################################################################
 
@@ -37,7 +38,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.4.0b6"
+scriptVersion="2.4.0b7"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -880,6 +881,13 @@ function quitScript() {
     # Remove default dialog.log
     rm -f /var/tmp/dialog.log
 
+    # Remove SOFA JSON cache directory
+    if [[ "${operationMode}" == "production" ]]; then
+        rm -Rf "${json_cache_dir}"
+    else
+        notice "${operationMode} mode: NOT deleting json_cache_dir ${json_cache_dir}"
+    fi
+
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
     quitOut "Goodbye!"
@@ -1105,10 +1113,10 @@ function checkOS() {
 
         # URL to the online JSON data
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
-        user_agent="SOFA-Jamf-EA-macOSVersionCheck/1.0"
+        user_agent="Mac-Health-Check-checkOS/2.4.0"
 
         # local store
-        json_cache_dir="/private/tmp/sofa"
+        json_cache_dir="/var/tmp/sofa"
         json_cache="$json_cache_dir/macos_data_feed.json"
         etag_cache="$json_cache_dir/macos_data_feed_etag.txt"
 
@@ -1149,10 +1157,10 @@ function checkOS() {
         # system_version="15.3"
         # logComment "System Version: $system_version"
 
-        if [[ $system_version == *".0" ]]; then
-            system_version=${system_version%.0}
-            logComment "Corrected System Version: $system_version"
-        fi
+        # if [[ $system_version == *".0" ]]; then
+        #     system_version=${system_version%.0}
+        #     logComment "Corrected System Version: $system_version"
+        # fi
 
         # exit if less than macOS 12
         if [[ "$system_os" -lt 12 ]]; then
