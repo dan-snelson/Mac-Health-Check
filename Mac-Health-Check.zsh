@@ -1698,7 +1698,7 @@ function checkNetworkHosts() {
 
     notice "Check ${name} …"
     dialogUpdate "icon: SF=network,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${name} connectivity …"
     sleep "${anticipationDuration}"
