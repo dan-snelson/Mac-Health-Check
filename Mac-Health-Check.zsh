@@ -85,8 +85,11 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smoot
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
 
-# Organization's Color Scheme
-organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+# Organization's Color Scheme (Light or Dark Modes)
+# Dark Mode
+organizationColorSchemeDark="weight=semibold,colour1=#FFFFFF"
+# Light Mode
+organizationColorSchemeLight="weight=semibold,colour1=#ef7951"
 
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
@@ -259,6 +262,22 @@ else
     fi
 fi
 
+####################################################################################################
+#
+# Determine light or dark mode for macOS
+#
+####################################################################################################
+
+# macOS Color Mode
+os_color_mode=$(launchctl asuser "$uid" defaults read /Users/$loggedInUser/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null)
+
+if [ "$os_color_mode" = "Dark" ]; then
+    echo "OS Color Mode set to DARK"
+	organizationColorScheme=$organizationColorSchemeDark
+else
+    echo "OS Color Mode set to LIGHT"
+	organizationColorScheme=$organizationColorSchemeLight
+fi
 
 
 ####################################################################################################
