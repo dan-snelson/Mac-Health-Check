@@ -2,10 +2,16 @@
 
 ## CHANGELOG
 
-### 3.0.0 (11-Sep-2025)
+### 3.0.0 (18-Sep-2025)
 - First (attempt at a) MDM-agnostic release
-- Add System Memory and System Storage capacity information (Pull Request #36; thanks again, @HowardGMac!)
-- Updated SSID (thanks, ZP!)
+
+### 2.4.0 (18-Sep-2025)
+- Updated SSID code (thanks, ZP!)
+- Added troubleshooting code for common JSON issues
+- Additional troubleshooting tweaks
+- Updates to leverage new features of [swiftDialog 3.0.0](https://github.com/swiftDialog/swiftDialog/releases/tag/v3.0.0Preview2)
+- Updated `listitem` icon colour to reflect status
+- Added Organization's Color Schemes based on light or dark mode (Pull Request #37; thanks, @AndrewMBarnett!)
 
 ### 2.3.0 (26-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
