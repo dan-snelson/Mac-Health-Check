@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.4.0 (17-Sep-2025)
+### 2.4.0 (18-Sep-2025)
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
 - Additional troubleshooting tweaks
@@ -10,6 +10,7 @@
 - Updated `listitem` icon colour to reflect status
 - Updated `checkOS` function
 - Visually enchanced `listitem` error and failure statuses
+- Added Organization's Color Schemes based on light or dark mode (Pull Request #37; thanks, @AndrewMBarnett!)
 
 ### 2.3.0 (26-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)

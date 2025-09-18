@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.4.0, 17-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.4.0, 18-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - Updated SSID code (thanks, ZP!)
 #   - Added troubleshooting code for common JSON issues
 #   - Additional troubleshooting tweaks
@@ -25,6 +25,7 @@
 #   - Updated listitem icon colour to reflect status
 #   - Updated checkOS function
 #   - Visually enchanced listitem error and failure statuses
+#   - Added Organization's Color Schemes based on light or dark mode (Pull Request #37; thanks, @AndrewMBarnett!)
 #
 ####################################################################################################
 
@@ -39,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.4.0b9"
+scriptVersion="2.4.0b10"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -80,11 +81,14 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smoot
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
 
-# Organization's Color Scheme (Light or Dark Modes)
-# Dark Mode
-organizationColorSchemeDark="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
-# Light Mode
-organizationColorSchemeLight="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+# Organization's Color Scheme
+if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
+    # Dark Mode
+    organizationColorScheme="weight=semibold,colour1=#ffeedb,colour2=#fce6cc"
+else
+    # Light Mode
+    organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+fi
 
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
@@ -1075,20 +1079,7 @@ killProcess "Dialog"
 
 preFlight "Complete"
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Determine light or dark mode for macOS
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Organization's Color Scheme
-if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
-    # Dark Mode
-    organizationColorScheme=$organizationColorSchemeDark
-    notice "OS Color Mode set to DARK, using dark color scheme"
-else
-    # Light Mode
-    organizationColorScheme=$organizationColorSchemeLight
-    notice "OS Color Mode set to LIGHT, using light color scheme"
-fi
 
 ####################################################################################################
 #
