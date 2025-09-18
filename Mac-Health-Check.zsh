@@ -80,8 +80,11 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smoot
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
 
-# Organization's Color Scheme
-organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+# Organization's Color Scheme (Light or Dark Modes)
+# Dark Mode
+organizationColorSchemeDark="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+# Light Mode
+organizationColorSchemeLight="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
 
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
@@ -246,8 +249,6 @@ else
         tmLastBackup="; Date(s): ${tmBackupDates//$'\n'/, }"
     fi
 fi
-
-
 
 ####################################################################################################
 #
@@ -1074,7 +1075,20 @@ killProcess "Dialog"
 
 preFlight "Complete"
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Determine light or dark mode for macOS
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+# Organization's Color Scheme
+if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
+    # Dark Mode
+    organizationColorScheme=$organizationColorSchemeDark
+    notice "OS Color Mode set to DARK, using dark color scheme"
+else
+    # Light Mode
+    organizationColorScheme=$organizationColorSchemeLight
+    notice "OS Color Mode set to LIGHT, using light color scheme"
+fi
 
 ####################################################################################################
 #
