@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 ########################################################################################################################################
 # A script to report the state of CrowdStrike Falcon (thanks, ZT!)                                                                     #
 # - If CrowdStrike Falcon is not installed, "Not Installed" will be returned.                                                          #
@@ -143,16 +143,21 @@ check_last_connection() {
 ###
 
 falconBinary="/Applications/Falcon.app/Contents/Resources/falconctl"
-falconAgentStats=$( "$falconBinary" stats agent_info Communications CloudInfo 2>&1 )
+falconAgentStats=$( "$falconBinary" stats -p agent_info Communications CloudInfo 2>&1 )
+plistBuddyBinary="/usr/libexec/PlistBuddy"
+
+# Get the sensor operational status
+sensorOperational=$("$plistBuddyBinary" -c 'Print ":agent_info:sensor_operational"' /dev/stdin <<< "$falconAgentStats")
+# echo "sensorOperational: ${sensorOperational}"
 
 # Get the connection established dates
-connectionState=$( echo "${falconAgentStats}" | awk -F "State:" '{print $2}' | xargs )
+connectionState=$("$plistBuddyBinary" -c 'Print ":CloudInfo:State"' /dev/stdin <<< "$falconAgentStats")
 # echo "connectionState: ${connectionState}"
 
-established=$( echo "${falconAgentStats}" | awk -F "[[:space:]]+Established At:" '{print $2}' | xargs )
+established=$("$plistBuddyBinary" -c 'Print ":Communications:Communication:Cloud Activity:Established At"' /dev/stdin <<< "$falconAgentStats")
 # echo "established: ${established}"
 
-lastEstablished=$( echo "${falconAgentStats}" | awk -F "[[:space:]]+Last Established At:" '{print $2}' | xargs )
+lastEstablished=$("$plistBuddyBinary" -c 'Print ":Communications:Communication:Cloud Activity:Last Established At"' /dev/stdin <<< "$falconAgentStats")
 # echo "lastEstablished: ${lastEstablished}"
 
 if [[ "${connectionState}" == "connected" ]]; then
@@ -189,25 +194,26 @@ elif [[ -n "${connectionState}" ]]; then
     returnResult+=" Connection State: ${connectionState};"
 fi
 
-case ${falconAgentStats} in
+if [[ "${sensorOperational}" == "true" ]]; then
+    RESULT="Running; ${returnResult}"
+else
+    case ${falconAgentStats} in
 
-    *"Sensor operational: true"* )
-        RESULT="Running; ${returnResult}"
-        ;;
-    *"status.bin"* )
-        RESULT="'status.bin' NOT found; ${returnResult}"
-        ;;
-    *"No such file"* )
-        RESULT="Not Installed; ${returnResult}"
-        ;;
-    *"Error"* )
-        RESULT="${falconAgentStats}; ${returnResult}"
-        ;;
-    * )
-        RESULT="Unknown; ${returnResult}"
-        ;;
+        *"status.bin"* )
+            RESULT="'status.bin' NOT found; ${returnResult}"
+            ;;
+        *"No such file"* )
+            RESULT="Not Installed; ${returnResult}"
+            ;;
+        *"Error"* )
+            RESULT="${falconAgentStats}; ${returnResult}"
+            ;;
+        * )
+            RESULT="Unknown; ${returnResult}"
+            ;;
 
-esac        
+    esac
+fi
 
 echo "${RESULT}"
 
