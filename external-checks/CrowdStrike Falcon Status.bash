@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ########################################################################################################################################
-# A script to report the state of CrowdStrike Falcon (thanks, ZT!)                                                                     #
+# A script to report the state of CrowdStrike Falcon (thanks, ZT and mrw!)                                                                     #
 # - If CrowdStrike Falcon is not installed, "Not Installed" will be returned.                                                          #
 ########################################################################################################################################
 
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
-scriptVersion="0.0.10"
+scriptVersion="0.0.12"
 RESULT="Failed: Not Installed"
 
 # The number of days before reporting device has not connected to the CrowdStrike Cloud.
@@ -129,9 +129,9 @@ check_last_connection() {
         $( convert_date "${fixed_date}" "${falconctl_date_format}" "%s" ) -lt \
         $( get_time_stamp --adjust -v-"${2}"d --epoch )
     ]]; then
-        returnResult+=" Last Connected: ${1};"
+        returnResult+="Last Connected: ${1};"
     else
-           returnResult+=" Last Connected: ${1};"
+        returnResult+="Last Connected: ${1};"
     fi
 }
 
@@ -195,21 +195,21 @@ elif [[ -n "${connectionState}" ]]; then
 fi
 
 if [[ "${sensorOperational}" == "true" ]]; then
-    RESULT="Running; ${returnResult}"
+    RESULT="Running; ${returnResult%;}"
 else
     case ${falconAgentStats} in
 
         *"status.bin"* )
-            RESULT="'status.bin' NOT found; ${returnResult}"
+            RESULT="Failed: 'status.bin' NOT found; ${returnResult}"
             ;;
         *"No such file"* )
             RESULT="Not Installed; ${returnResult}"
             ;;
         *"Error"* )
-            RESULT="${falconAgentStats}; ${returnResult}"
+            RESULT="Error: ${falconAgentStats}; ${returnResult}"
             ;;
         * )
-            RESULT="Unknown; ${returnResult}"
+            RESULT="Unknown Error: ${returnResult}"
             ;;
 
     esac
