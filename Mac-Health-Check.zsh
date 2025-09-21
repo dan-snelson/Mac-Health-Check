@@ -33,13 +33,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b21"
+scriptVersion="3.0.0b23"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.0.4845"
+swiftDialogMinimumRequiredVersion="3.0.0.4846"
 
 # Elapsed Time
 SECONDS="0"
@@ -2325,7 +2325,7 @@ function checkFileVault() {
                 ;;
 
             *  )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB4E3D, iconalpha: 1, status: fail, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB4E3D, iconalpha: 1, status: fail, statustext: Failed"
                 errorOut "${humanReadableCheckName} (${1})"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -2334,7 +2334,7 @@ function checkFileVault() {
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB4E3D, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB4E3D, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
 
