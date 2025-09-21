@@ -2,10 +2,10 @@
 
 ## CHANGELOG
 
-### 3.0.0 (18-Sep-2025)
+### 3.0.0 (20-Sep-2025)
 - First (attempt at a) MDM-agnostic release
 
-### 2.4.0 (18-Sep-2025)
+### 2.4.0 (20-Sep-2025)
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
 - Additional troubleshooting tweaks

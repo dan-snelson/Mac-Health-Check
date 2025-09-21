@@ -4,7 +4,7 @@
 
 > A practical and user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
 
-<img src="images/Mac_Health_Check_Hero.png" alt="Mac Health Check Hero" width="600"/>
+<img src="images/Mac_Health_Check_Hero.jpg" alt="Mac Health Check Hero" width="800"/>
 
 ## Overview
 
@@ -44,7 +44,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Health Checks
 
-<img src="images/MHC_2.0.0_Free_Disk_Space.png" alt="Health Checks" width="600"/>
+<img src="images/MHC_2.4.0_Firewall.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
 1. Available Updates (including deferred updates)
@@ -79,7 +79,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_2.0.0_Helpmessage.png" alt="In progress" width="600"/>
+<img src="images/MHC_2.4.0_Helpmessage.png" alt="In progress" width="800"/>
 
 #### IT Support
 - Telephone
@@ -116,7 +116,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2025-09-18 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2025-09-20 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
