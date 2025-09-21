@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.4.0, 18-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.4.0, 20-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - Updated SSID code (thanks, ZP!)
 #   - Added troubleshooting code for common JSON issues
 #   - Additional troubleshooting tweaks
@@ -40,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.4.0b10"
+scriptVersion="2.4.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -253,6 +253,8 @@ else
         tmLastBackup="; Date(s): ${tmBackupDates//$'\n'/, }"
     fi
 fi
+
+
 
 ####################################################################################################
 #
