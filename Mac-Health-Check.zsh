@@ -17,16 +17,15 @@
 #
 # HISTORY
 #
-# Version 2.3.0, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
-#   - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
-#   - Adjusted GlobalProtect VPN check for IPv6
-#   - Enhanced `checkJssCertificateExpiration` function (Addresses Issue #27 via Pull Request #30; thanks, @theahadub and @ScottEKendall)
-#   - Extended Network Checks (Pull Request #31 addresses Issue #23; thanks big bunches, @tonyyo11!)
-#   - Added `organizationBrandingBannerURL` (thanks for the inspiration, @ScottEKendall!)
-#   - Adjusted `checkVPN` function to report "Unknown" for the catch-all condition of `vpnStatus`
-#   - Added "Connected" and "Disconnected" options to `checkVPN` function
-#   - Adjusted Palo Alto Networks GlobalProtect VPN Information
-#   - Fallback to a list o' preferred wireless networks when SSID is redacted (leverages a new space-separated list of SSIDs, `organizationSSID`)
+# Version 2.4.0, 20-Sep-2025, Dan K. Snelson (@dan-snelson)
+#   - Updated SSID code (thanks, ZP!)
+#   - Added troubleshooting code for common JSON issues
+#   - Additional troubleshooting tweaks
+#   - Updates to leverage new features of swiftDialog 3.0.0
+#   - Updated listitem icon colour to reflect status
+#   - Updated checkOS function
+#   - Visually enchanced listitem error and failure statuses
+#   - Added Organization's Color Schemes based on light or dark mode (Pull Request #37; thanks, @AndrewMBarnett!)
 #
 ####################################################################################################
 
@@ -41,16 +40,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.3.0"
+scriptVersion="2.4.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Elapsed Time
 SECONDS="0"
-
-# Load is-at-least for version comparison
-autoload -Uz is-at-least
 
 
 
@@ -59,10 +55,10 @@ autoload -Uz is-at-least
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"debug"}"
+operationMode="${4:-"test"}"
 
-    # Enable `set -x` if operation mode is "test" or "debug" to help identify variable initialization issues (i.e., SSID)
-    [[ "${operationMode}" == "test" || "${operationMode}" == "debug" ]] && set -x
+    # Enable `set -x` if operation mode is "debug" to help identify variable initialization issues (i.e., SSID)
+    [[ "${operationMode}" == "debug" ]] && set -x
 
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
@@ -86,7 +82,13 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smoot
 organizationOverlayiconURL=""
 
 # Organization's Color Scheme
-organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
+    # Dark Mode
+    organizationColorScheme="weight=semibold,colour1=#ffeedb,colour2=#fce6cc"
+else
+    # Light Mode
+    organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
+fi
 
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
@@ -99,9 +101,6 @@ vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
 vpnClientDataType="extended"
-
-# Organization's SSIDs (space-delimited)
-organizationSSID="MoeHoward LarryFine CurlyHoward"
 
 # "Anticipation" Duration (in seconds)
 anticipationDuration="2"
@@ -177,17 +176,13 @@ sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# SSID ("Guess" SSID with macOS 15.7 and later; Determine SSID with macOS 15.6.1 and earlier)
+# SSID (thanks, ZP!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-if is-at-least 15.7 "${osVersion}"; then
-    wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
-    preferredWirelessNetworks=$( networksetup -listpreferredwirelessnetworks "${wirelessInterface}" )
-    ssid=$( echo "$preferredWirelessNetworks" | grep -E "^[[:space:]]*(${organizationSSID// /|})[[:space:]]*$" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//; s/,/, /g' ) 
-    [[ -z "${ssid}" ]] && ssid="No Enterprise SSIDs Found" || ssid="${ssid} (preferred)"
-else
-    ssid=$( system_profiler SPAirPortDataType | awk '/Current Network Information:/ { getline; print substr($0, 13, (length($0) - 13)); exit }' )
-fi
+wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
+ipconfig setverbose 1
+ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
+ipconfig setverbose 0
 
 
 
@@ -447,7 +442,7 @@ fi
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" != "production" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+[[ "${operationMode}" == "debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
@@ -498,7 +493,7 @@ supportKBURL="[${supportKB}](${infobuttonaction})"
 # Help Message Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}<br><br>**Jamf Pro Information:**<br>- **Site:** ${jamfProSiteName}"
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}<br><br>**Jamf Pro Information:**<br>- **Site:** ${jamfProSiteName}"
 
 helpimage="qr=${infobuttonaction}"
 
@@ -536,34 +531,33 @@ dialogJSON='
     "height" : "750",
     "width" : "900",
     "messagefont" : "size=14",
-    "titlefont" : "shadow=true, size=24",
     "listitem" : [
-        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=14.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=15.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=16.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …"},
-        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"}
+        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=14.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=15.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=16.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
 }
 '
@@ -878,18 +872,29 @@ function quitScript() {
     dialogUpdate "quit:"
 
     # Remove the dialog command file
-    rm -rf "${dialogCommandFile}"
+    rm -f "${dialogCommandFile}"
 
     # Remove the dialog JSON file
-    rm -rf "${dialogJSONFile}"
+    if [[ "${operationMode}" == "production" ]]; then
+        rm -f /var/tmp/dialogJSONFile_*
+    else
+        notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
+    fi
 
     # Remove overlay icon
     if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Finder.app" ]]; then
-        rm -rf "${overlayicon}"
+        rm -f "${overlayicon}"
     fi
 
     # Remove default dialog.log
-    rm -rf /var/tmp/dialog.log
+    rm -f /var/tmp/dialog.log
+
+    # Remove SOFA JSON cache directory
+    if [[ "${operationMode}" == "production" ]]; then
+        rm -Rf "${json_cache_dir}"
+    else
+        notice "${operationMode} mode: NOT deleting json_cache_dir ${json_cache_dir}"
+    fi
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
@@ -1094,7 +1099,7 @@ function checkOS() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=pencil.and.list.clipboard,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Comparing installed OS version with compliant version …"
 
@@ -1104,7 +1109,7 @@ function checkOS() {
 
         logComment "OS Build, ${osBuild}, ends with a letter; skipping"
         osResult="Beta macOS ${osVersion} (${osBuild})"
-        dialogUpdate "listitem: index: ${1}, status: error, statustext: ${osResult}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
         warning "${osResult}"
     
     else
@@ -1116,10 +1121,10 @@ function checkOS() {
 
         # URL to the online JSON data
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
-        user_agent="SOFA-Jamf-EA-macOSVersionCheck/1.0"
+        user_agent="Mac-Health-Check-checkOS/2.4.0"
 
         # local store
-        json_cache_dir="/private/tmp/sofa"
+        json_cache_dir="/var/tmp/sofa"
         json_cache="$json_cache_dir/macos_data_feed.json"
         etag_cache="$json_cache_dir/macos_data_feed_etag.txt"
 
@@ -1160,16 +1165,16 @@ function checkOS() {
         # system_version="15.3"
         # logComment "System Version: $system_version"
 
-        if [[ $system_version == *".0" ]]; then
-            system_version=${system_version%.0}
-            logComment "Corrected System Version: $system_version"
-        fi
+        # if [[ $system_version == *".0" ]]; then
+        #     system_version=${system_version%.0}
+        #     logComment "Corrected System Version: $system_version"
+        # fi
 
         # exit if less than macOS 12
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
             result "$osResult"
-            dialogUpdate "listitem: index: ${1}, status: fail, statustext: $osResult"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
             # return 1
         fi
 
@@ -1219,11 +1224,11 @@ function checkOS() {
 
         if [[ "$latest_version_match" == true ]] || [[ "$security_update_within_30_days" == true ]] || [[ "$n_rule" == true ]]; then
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${osResult}"
             info "${osResult}"
         else
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
             errorOut "${osResult}"
             overallHealth+="${humanReadableCheckName}; "
         fi
@@ -1244,7 +1249,7 @@ function checkAvailableSoftwareUpdates() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=arrow.trianglehead.2.clockwise,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1265,34 +1270,34 @@ function checkAvailableSoftwareUpdates() {
 
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
-                dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
 
             *"The operation couldn’t be completed."* )
                 availableSoftwareUpdates="The operation couldn’t be completed."
-                dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
 
             *"Deferred: YES"* )
                 availableSoftwareUpdates="Deferred software available."
-                dialogUpdate "listitem: index: ${1}, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
 
             *"No new software available."* )
                 availableSoftwareUpdates="No new software available."
-                dialogUpdate "listitem: index: ${1}, status: success, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${availableSoftwareUpdates}"
                 info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
 
             * )
                 SUList=$( echo "${SUListRaw}" | grep "*" | sed "s/\* Label: //g" | sed "s/,*$//g" )
                 availableSoftwareUpdates="${SUList}"
-                dialogUpdate "listitem: index: ${1}, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
 
@@ -1301,7 +1306,7 @@ function checkAvailableSoftwareUpdates() {
     else
 
         availableSoftwareUpdates="None"
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: ${availableSoftwareUpdates}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${availableSoftwareUpdates}"
         info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
 
     fi
@@ -1320,7 +1325,7 @@ function checkSIP() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=checkmark.shield.fill,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1331,12 +1336,12 @@ function checkSIP() {
     case ${sipCheck} in
 
         *"enabled"* ) 
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -1357,7 +1362,7 @@ function checkFirewall() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=firewall.fill,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1372,12 +1377,12 @@ function checkFirewall() {
     case ${firewallCheck} in
 
         *"enabled"* | *"Enabled"* | *"is blocking"* ) 
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName}: Failed"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -1398,7 +1403,7 @@ function checkUptime() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=stopwatch,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Calculating time since last reboot …"
 
@@ -1430,12 +1435,12 @@ function checkUptime() {
         case ${excessiveUptimeAlertStyle} in
 
             "warning" ) 
-                dialogUpdate "listitem: index: ${1}, status: error, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${uptimeHumanReadable}"
                 warning "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 ;;
 
             "error" | * )
-                dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${uptimeHumanReadable}"
                 errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -1444,7 +1449,7 @@ function checkUptime() {
     
     else
     
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: ${uptimeHumanReadable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${uptimeHumanReadable}"
         info "${humanReadableCheckName}: ${uptimeHumanReadable}"
     
     fi
@@ -1463,7 +1468,7 @@ function checkFreeDiskSpace() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=externaldrive.fill.badge.checkmark,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1477,15 +1482,15 @@ function checkFreeDiskSpace() {
 
     diskMessage="${humanReadableCheckName}: ${diskSpace}"
 
-    if (( $(echo ${freePercentage}'<'${allowedMinimumFreeDiskPercentage} |bc -l) )); then
+    if (( $( echo ${freePercentage}'<'${allowedMinimumFreeDiskPercentage} | bc -l ) )); then
 
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${diskSpace}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${diskSpace}"
         errorOut "${humanReadableCheckName}: ${diskSpace}"
         overallHealth+="${humanReadableCheckName}; "
 
     else
 
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: ${diskSpace}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${diskSpace}"
         info "${humanReadableCheckName}: ${diskSpace}"
 
     fi
@@ -1504,7 +1509,7 @@ function checkJamfProMdmProfile() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=gear.badge,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1514,12 +1519,12 @@ function checkJamfProMdmProfile() {
 
     if [[ -n "${mdmProfileTest}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Installed"
         info "${humanReadableCheckName}: Installed"
 
     else
 
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1539,7 +1544,7 @@ function checkAPNs() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=wave.3.up.circle,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1549,7 +1554,7 @@ function checkAPNs() {
 
     if [[ "${apnsCheck}" == *"Timestamp"* ]] || [[ -z "${apnsCheck}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1}): ${apnsCheck}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1557,12 +1562,14 @@ function checkAPNs() {
 
         apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${apnsCheck}" +"%s" )
         apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: ${apnsStatus}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${apnsStatus}"
         info "${humanReadableCheckName}: ${apnsCheck}"
 
     fi
 
 }
+
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Jamf Extended Network Checks (thanks, @tonyyo11!)
@@ -1573,10 +1580,10 @@ networkTimeout=5
 
 # Push Notification (combines APNs and on-prem Jamf push)
 pushHosts=(
-  "courier.push.apple.com,5223"
-  "courier.push.apple.com,443"
-  "api.push.apple.com,443"
-  "api.push.apple.com,2197"
+    "courier.push.apple.com,5223"
+    "courier.push.apple.com,443"
+    "api.push.apple.com,443"
+    "api.push.apple.com,2197"
 )
 
 # NOTE: The following Push Notification checks are purposely skipped …
@@ -1589,149 +1596,150 @@ pushHosts=(
 
 # Device Management (combines Device Setup & MDM enrollment/services)
 deviceMgmtHosts=(
-  "albert.apple.com,443"
-  "captive.apple.com,80"
-  "captive.apple.com,443"
-  "gs.apple.com,443"
-  "humb.apple.com,443"
-  "static.ips.apple.com,80"
-  "static.ips.apple.com,443"
-  "sq-device.apple.com,443"
-  "tbsc.apple.com,443"
-  "time-ios.apple.com,123,UDP"
-  "time.apple.com,123,UDP"
-  "time-macos.apple.com,123,UDP"
-  "deviceenrollment.apple.com,443"
-  "deviceservices-external.apple.com,443"
-  "gdmf.apple.com,443"
-  "identity.apple.com,443"
-  "iprofiles.apple.com,443"
-  "mdmenrollment.apple.com,443"
-  "setup.icloud.com,443"
-  "vpp.itunes.apple.com,443"
+    "albert.apple.com,443"
+    "captive.apple.com,80"
+    "captive.apple.com,443"
+    "gs.apple.com,443"
+    "humb.apple.com,443"
+    "static.ips.apple.com,80"
+    "static.ips.apple.com,443"
+    "sq-device.apple.com,443"
+    "tbsc.apple.com,443"
+    "time-ios.apple.com,123,UDP"
+    "time.apple.com,123,UDP"
+    "time-macos.apple.com,123,UDP"
+    "deviceenrollment.apple.com,443"
+    "deviceservices-external.apple.com,443"
+    "gdmf.apple.com,443"
+    "identity.apple.com,443"
+    "iprofiles.apple.com,443"
+    "mdmenrollment.apple.com,443"
+    "setup.icloud.com,443"
+    "vpp.itunes.apple.com,443"
 )
 
 # Software & Carrier Updates
 updateHosts=(
-  "appldnld.apple.com,80"
-  "configuration.apple.com,443"
-  "gdmf.apple.com,443"
-  "gg.apple.com,80"
-  "gg.apple.com,443"
-  "gs.apple.com,80"
-  "gs.apple.com,443"
-  "ig.apple.com,443"
-  "mesu.apple.com,80"
-  "mesu.apple.com,443"
-  "oscdn.apple.com,80"
-  "oscdn.apple.com,443"
-  "osrecovery.apple.com,80"
-  "osrecovery.apple.com,443"
-  "skl.apple.com,443"
-  "swcdn.apple.com,80"
-  "swdist.apple.com,443"
-  "swdownload.apple.com,80"
-  "appldnld.apple.com.edgesuite.net,80"
-  "itunes.com,80"
-  "itunes.apple.com,443"
-  "updates-http.cdn-apple.com,80"
-  "updates.cdn-apple.com,443"
+    "appldnld.apple.com,80"
+    "configuration.apple.com,443"
+    "gdmf.apple.com,443"
+    "gg.apple.com,80"
+    "gg.apple.com,443"
+    "gs.apple.com,80"
+    "gs.apple.com,443"
+    "ig.apple.com,443"
+    "mesu.apple.com,80"
+    "mesu.apple.com,443"
+    "oscdn.apple.com,80"
+    "oscdn.apple.com,443"
+    "osrecovery.apple.com,80"
+    "osrecovery.apple.com,443"
+    "skl.apple.com,443"
+    "swcdn.apple.com,80"
+    "swdist.apple.com,443"
+    "swdownload.apple.com,80"
+    "appldnld.apple.com.edgesuite.net,80"
+    "itunes.com,80"
+    "itunes.apple.com,443"
+    "updates-http.cdn-apple.com,80"
+    "updates.cdn-apple.com,443"
 )
 
 # Certificate Validation Hosts
 certHosts=(
-  "certs.apple.com,80"
-  "certs.apple.com,443"
-  "crl.apple.com,80"
-  "crl.entrust.net,80"
-  "crl3.digicert.com,80"
-  "crl4.digicert.com,80"
-  "ocsp.apple.com,80"
-  "ocsp.digicert.cn,80"
-  "ocsp.digicert.com,80"
-  "ocsp.entrust.net,80"
-  "ocsp2.apple.com,443"
-  "valid.apple.com,443"
+    "certs.apple.com,80"
+    "certs.apple.com,443"
+    "crl.apple.com,80"
+    "crl.entrust.net,80"
+    "crl3.digicert.com,80"
+    "crl4.digicert.com,80"
+    "ocsp.apple.com,80"
+    "ocsp.digicert.cn,80"
+    "ocsp.digicert.com,80"
+    "ocsp.entrust.net,80"
+    "ocsp2.apple.com,443"
+    "valid.apple.com,443"
 )
 
 # Identity & Content Services (Apple ID, Associated Domains, Additional Content)
 idAssocHosts=(
-  "appleid.apple.com,443"
-  "appleid.cdn-apple.com,443"
-  "idmsa.apple.com,443"
-  "gsa.apple.com,443"
-  "app-site-association.cdn-apple.com,443"
-  "app-site-association.networking.apple,443"
-  "audiocontentdownload.apple.com,80"
-  "audiocontentdownload.apple.com,443"
-  "devimages-cdn.apple.com,80"
-  "devimages-cdn.apple.com,443"
-  "download.developer.apple.com,80"
-  "download.developer.apple.com,443"
-  "playgrounds-assets-cdn.apple.com,443"
-  "playgrounds-cdn.apple.com,443"
-  "sylvan.apple.com,80"
-  "sylvan.apple.com,443"
+    "appleid.apple.com,443"
+    "appleid.cdn-apple.com,443"
+    "idmsa.apple.com,443"
+    "gsa.apple.com,443"
+    "app-site-association.cdn-apple.com,443"
+    "app-site-association.networking.apple,443"
+    "audiocontentdownload.apple.com,80"
+    "audiocontentdownload.apple.com,443"
+    "devimages-cdn.apple.com,80"
+    "devimages-cdn.apple.com,443"
+    "download.developer.apple.com,80"
+    "download.developer.apple.com,443"
+    "playgrounds-assets-cdn.apple.com,443"
+    "playgrounds-cdn.apple.com,443"
+    "sylvan.apple.com,80"
+    "sylvan.apple.com,443"
 )
 
 # Jamf Pro Cloud & On-prem Endpoints
 jamfHosts=(
-  "jamf.com,443"
-  "test.jamfcloud.com,443"
-  "use1-jcdsdownloads.services.jamfcloud.com,443"
-  "use1-jcds.services.jamfcloud.com,443"
-  "euc1-jcdsdownloads.services.jamfcloud.com,443"
-  "euc1-jcds.services.jamfcloud.com,443"
-  "euw2-jcdsdownloads.services.jamfcloud.com,443"
-  "euw2-jcds.services.jamfcloud.com,443"
-  "apse2-jcdsdownloads.services.jamfcloud.com,443"
-  "apse2-jcds.services.jamfcloud.com,443"
-  "apne1-jcdsdownloads.services.jamfcloud.com,443"
-  "apne1-jcds.services.jamfcloud.com,443"
+    "jamf.com,443"
+    "test.jamfcloud.com,443"
+    "use1-jcdsdownloads.services.jamfcloud.com,443"
+    "use1-jcds.services.jamfcloud.com,443"
+    "euc1-jcdsdownloads.services.jamfcloud.com,443"
+    "euc1-jcds.services.jamfcloud.com,443"
+    "euw2-jcdsdownloads.services.jamfcloud.com,443"
+    "euw2-jcds.services.jamfcloud.com,443"
+    "apse2-jcdsdownloads.services.jamfcloud.com,443"
+    "apse2-jcds.services.jamfcloud.com,443"
+    "apne1-jcdsdownloads.services.jamfcloud.com,443"
+    "apne1-jcds.services.jamfcloud.com,443"
 )
 
 # Generic network-host tester; uses nc to probe host:port and updates swiftDialog
 function checkNetworkHosts() {
-  local index="$1"
-  local name="$2"
-  shift 2
-  local hosts=("$@")
+    local index="$1"
+    local name="$2"
+    shift 2
+    local hosts=("$@")
 
-  notice "Check ${name} …"
-  dialogUpdate "icon: SF=network,${organizationColorScheme}"
-  dialogUpdate "listitem: index: ${index},status: wait,statustext: Checking …"
-  dialogUpdate "progress: increment"
-  dialogUpdate "progresstext: Determining ${name} connectivity …"
-  sleep "${anticipationDuration}"
+    notice "Check ${name} …"
+    dialogUpdate "icon: SF=network,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${name} connectivity …"
+    sleep "${anticipationDuration}"
 
-  local allOK=true
-  local results=""
+    local allOK=true
+    local results=""
 
-  for entry in "${hosts[@]}"; do
-    IFS=',' read -r host port proto <<< "${entry}"
-    # Default to TCP if protocol not specified
-    if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
-      ncFlags=( -u -z -w "${networkTimeout}" )
+    for entry in "${hosts[@]}"; do
+        IFS=',' read -r host port proto <<< "${entry}"
+        # Default to TCP if protocol not specified
+        if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
+            ncFlags=( -u -z -w "${networkTimeout}" )
+        else
+            ncFlags=( -z -w "${networkTimeout}" )
+        fi
+
+        if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
+            results+="${host}:${port} PASS; "
+        else
+            results+="${host}:${port} FAIL; "
+            allOK=false
+        fi
+    done
+
+    if [[ "${allOK}" == true ]]; then
+        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Passed"
+        info "${name}: ${results%;; }"
     else
-      ncFlags=( -z -w "${networkTimeout}" )
+        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        errorOut "${name}: ${results%;; }"
+        overallHealth+="${name}; "
     fi
 
-    if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
-      results+="${host}:${port} PASS; "
-    else
-      results+="${host}:${port} FAIL; "
-      allOK=false
-    fi
-  done
-
-  if [[ "${allOK}" == true ]]; then
-    dialogUpdate "listitem: index: ${index},status: success,statustext: Passed"
-    info "${name}: ${results%;; }"
-  else
-    dialogUpdate "listitem: index: ${index},status: fail,statustext: Failed"
-    errorOut "${name}: ${results%;; }"
-    overallHealth+="${name}; "
-  fi
 }
 
 
@@ -1746,7 +1754,7 @@ function checkJssCertificateExpiration() {
     notice "Check the expiration date of the ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=mail.and.text.magnifyingglass,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining MDM Certificate expiration date …"
 
@@ -1763,10 +1771,10 @@ function checkJssCertificateExpiration() {
                 expirationDateFormatted=$( date -j -f "%b %d %H:%M:%S %Y GMT" "${expiry}" "+%d-%b-%Y" )
                 date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
                 if (( date_seconds > now_seconds )); then
-                    dialogUpdate "listitem: index: ${1}, status: success, statustext: ${expirationDateFormatted}"
+                    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${expirationDateFormatted}"
                     info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
                 else
-                    dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${expirationDateFormatted}"
+                    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
                     errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
                     overallHealth+="${humanReadableCheckName}; "
                 fi
@@ -1776,7 +1784,7 @@ function checkJssCertificateExpiration() {
     else
 
         expirationDateFormatted="NOT Installed"
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${expirationDateFormatted}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
         errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1796,7 +1804,7 @@ function checkJamfProCheckIn() {
     notice "Checking ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
 
@@ -1827,17 +1835,17 @@ function checkJamfProCheckIn() {
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
         errorOut "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, status: error, statustext: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
         warning "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${last_check_in_time_human_reable}"
         info "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
     fi
 
@@ -1855,7 +1863,7 @@ function checkJamfProInventory() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=checklist,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
 
@@ -1887,17 +1895,17 @@ function checkJamfProInventory() {
     #set status indicator for last inventory
     if [ ${time_since_inventory_epoch} -ge ${inventory_time_old} ]; then
         # inventory_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_reable}"
         errorOut "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -ge ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, status: error, statustext: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_reable}"
         warning "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${last_inventory_time_human_reable}"
         info "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
     fi
 
@@ -1915,7 +1923,7 @@ function checkFileVault() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=lock.laptopcomputer,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -1930,17 +1938,17 @@ function checkFileVault() {
         case ${fileVaultStatus} in
 
             *"FileVault is On."* ) 
-                dialogUpdate "listitem: index: ${1}, status: success, statustext: Enabled"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Enabled"
                 info "${humanReadableCheckName}: Enabled"
                 ;;
 
             *"Deferred enablement appears to be active for user"* )
-                dialogUpdate "listitem: index: ${1}, status: success, statustext: Enabled (next login)"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Enabled (next login)"
                 warning "${humanReadableCheckName}: Enabled (next login)"
                 ;;
 
             *  )
-                dialogUpdate "listitem: index: ${1}, status: error, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
                 errorOut "${humanReadableCheckName} (${1})"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -1949,7 +1957,7 @@ function checkFileVault() {
 
     else
 
-        dialogUpdate "listitem: index: ${1}, status: error, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -1972,7 +1980,7 @@ function checkInternal() {
     notice "Internal Check: ${checkInternalTargetFile} …"
 
     dialogUpdate "icon: ${checkInternalTargetFileIcon}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${checkInternalTargetFileDisplayName} …"
 
@@ -1980,12 +1988,12 @@ function checkInternal() {
 
     if [[ -e "${checkInternalTargetFile}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, status: success, statustext: Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Installed"
         info "${checkInternalTargetFileDisplayName} installed"
         
     else
 
-        dialogUpdate "listitem: index: ${1}, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
         errorOut "${checkInternalTargetFileDisplayName} NOT Installed"
         overallHealth+="${checkInternalTargetFileDisplayName}; "
 
@@ -2006,7 +2014,7 @@ function checkVPN() {
     notice "Check ${vpnAppName} …"
 
     dialogUpdate "icon: ${vpnAppPath}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${vpnAppName} …"
 
@@ -2015,33 +2023,33 @@ function checkVPN() {
     case ${vpnStatus} in
 
         *"NOT installed"* )
-            dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${vpnAppName} Failed"
             overallHealth+="${vpnAppName}; "
             ;;
 
         *"Idle"* )
-            dialogUpdate "listitem: index: ${1}, status: error, statustext: Idle"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Idle"
             info "${vpnAppName} idle"
             ;;
 
         "Connected"* )
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Connected"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Connected"
             info "${vpnAppName} Connected"
             ;;
 
         "Disconnected" )
-            dialogUpdate "listitem: index: ${1}, status: error, statustext: Disconnected"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Disconnected"
             info "${vpnAppName} Disconnected"
             ;;
 
         "None" )
-            dialogUpdate "listitem: index: ${1}, status: error, statustext: No VPN"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: No VPN"
             info "No VPN"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, status: error, statustext: Unknown"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unknown"
             info "${vpnAppName} Unknown"
             ;;
 
@@ -2064,7 +2072,7 @@ function checkExternal() {
     notice "External Check: ${appPath} …"
 
     dialogUpdate "icon: ${appPath}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
@@ -2075,18 +2083,18 @@ function checkExternal() {
     case ${externalValidation:l} in
 
         *"failed"* )
-            dialogUpdate "listitem: index: ${1}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
             errorOut "${appDisplayName} Failed"
             overallHealth+="${appDisplayName}; "
             ;;
 
         *"running"* ) 
-            dialogUpdate "listitem: index: ${1}, status: success, statustext: Running"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Running"
             info "${appDisplayName} running"
             ;;
 
         *"error"* | * )
-            dialogUpdate "listitem: index: ${1}, status: error, statustext: Error"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Error"
             errorOut "${appDisplayName} Error"
             overallHealth+="${appDisplayName}; "
             ;;
@@ -2107,7 +2115,7 @@ function checkNetworkQuality() {
     notice "Check ${humanReadableCheckName} …"    
 
     dialogUpdate "icon: SF=gauge.with.dots.needle.67percent,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
 
@@ -2161,7 +2169,7 @@ function checkNetworkQuality() {
     esac
 
     mbps=$( echo "scale=2; ( $dlThroughput / 1000000 )" | bc )
-    dialogUpdate "listitem: index: ${1}, status: success, statustext: ${mbps} Mbps ${testStatus}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${mbps} Mbps ${testStatus}"
     info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsiveness}; "
 
     dialogUpdate "icon: ${icon}"
@@ -2179,7 +2187,7 @@ function updateComputerInventory() {
     notice "Updating Computer Inventory …"
 
     dialogUpdate "icon: SF=pencil.and.list.clipboard,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Updating …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Updating …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Updating Computer Inventory …"
 
@@ -2193,7 +2201,7 @@ function updateComputerInventory() {
 
     fi
 
-    dialogUpdate "listitem: index: ${1}, status: success, statustext: Updated"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: Updated"
 
 }
 
@@ -2276,14 +2284,14 @@ else
 
         notice "[Operation Mode: ${operationMode}] Check ${i} …"
 
-        dialogUpdate "icon: SF=${i}.square,${organizationColorScheme}"
-        dialogUpdate "listitem: index: ${i}, status: wait, statustext: Checking …"
+        dialogUpdate "icon: SF=$(printf "%02d" $(($i+1))).square,${organizationColorScheme}"
+        dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
         dialogUpdate "progress: increment"
         dialogUpdate "progresstext: [Operation Mode: ${operationMode}] • Item No. ${i} …"
 
         # sleep "${anticipationDuration}"
 
-        dialogUpdate "listitem: index: ${i}, status: success, statustext: ${operationMode}"
+        dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle colour=#6BD45F, iconalpha: 0.5, status: success, statustext: ${operationMode}"
 
     done
 
