@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 18-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 22-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b20"
+scriptVersion="3.0.0b21"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"

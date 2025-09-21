@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.0.0 (20-Sep-2025)
+### 3.0.0 (22-Sep-2025)
 - First (attempt at a) MDM-agnostic release
 
 ### 2.4.0 (20-Sep-2025)
