@@ -4,7 +4,7 @@
 
 > A practical and user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
 
-<img src="images/Mac_Health_Check_Hero.jpg" alt="Mac Health Check Hero" width="800"/>
+<img src="images/Mac_Health_Check_3b24_Hero.png" alt="Mac Health Check Hero" width="800"/>
 
 ## Overview
 
@@ -44,7 +44,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Health Checks
 
-<img src="images/MHC_2.4.0_Firewall.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.0.0b24_Firewall.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
 1. Available Updates (including deferred updates)
@@ -79,7 +79,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_2.4.0_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_3.0.0b24_Helpmessage.png" alt="In progress" width="800"/>
 
 #### IT Support
 - Telephone

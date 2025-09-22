@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b23"
+scriptVersion="3.0.0b24"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -603,8 +603,7 @@ mainDialogJSON='
     "progresstext" : "Please wait …",
     "height" : "750",
     "width" : "900",
-    "messagefont" : "size=14",
-    "titlefont" : "shadow=true, size=24"
+    "messagefont" : "size=14"
 }
 '
 
