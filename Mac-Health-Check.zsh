@@ -17,8 +17,9 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 22-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 23-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
+#   - Introduces an `operationMode` of "silent" to run all checks and log results without displaying a dialog to the user
 #
 ####################################################################################################
 
@@ -33,7 +34,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b24"
+scriptVersion="3.0.0b25"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -50,7 +51,7 @@ SECONDS="0"
 # Script Paramters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Paramter 4: Operation Mode [ test | debug | production ]
+# Paramter 4: Operation Mode [ test | debug | production | silent ]
 operationMode="${4:-"production"}"
 
     # Enable `set -x` if operation mode is "debug" to help identify variable initialization issues (i.e., SSID)
@@ -858,8 +859,12 @@ function quitOut()      { updateScriptLog "[QUIT]            ${1}"; }
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function dialogUpdate(){
-    sleep 0.3
-    echo "$1" >> "$dialogCommandFile"
+    if [[ "${operationMode}" != "silent" ]]; then
+        sleep 0.3
+        echo "$1" >> "$dialogCommandFile"
+    else
+        # info "Operation Mode is 'silent'; not updating dialog."
+    fi
 }
 
 
@@ -1155,7 +1160,7 @@ function quitScript() {
     rm -f "${dialogCommandFile}"
 
     # Remove the dialog JSON file
-    if [[ "${operationMode}" == "production" ]]; then
+    if [[ "${operationMode}" == "production" ]] || [[ "${operationMode}" == "silent" ]]; then
         rm -f /var/tmp/dialogJSONFile_*
     else
         notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
@@ -1170,7 +1175,7 @@ function quitScript() {
     rm -f /var/tmp/dialog.log
 
     # Remove SOFA JSON cache directory
-    if [[ "${operationMode}" == "production" ]]; then
+    if [[ "${operationMode}" == "production" ]] || [[ "${operationMode}" == "silent" ]]; then
         rm -Rf "${json_cache_dir}"
     else
         notice "${operationMode} mode: NOT deleting json_cache_dir ${json_cache_dir}"
@@ -1350,8 +1355,10 @@ dialogCheck
 # Pre-flight Check: Forcible-quit for all other running dialogs
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "Forcible-quit for all other running dialogs …"
-killProcess "Dialog"
+if [[ "${operationMode}" != "silent" ]]; then
+    preFlight "Forcible-quit for all other running dialogs …"
+    killProcess "Dialog"
+fi
 
 
 
@@ -2632,15 +2639,22 @@ echo "$combinedJSON" > "$dialogJSONFile"
 
 notice "Current Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
-eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
-dialogPID=$!
-info "Dialog PID: ${dialogPID}"
+if [[ "${operationMode}" != "silent" ]]; then
 
-dialogUpdate "progresstext: Initializing …"
+    eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
+    dialogPID=$!
+    info "Dialog PID: ${dialogPID}"
+    dialogUpdate "progresstext: Initializing …"
 
-# Band-Aid for macOS 15+ `withAnimation` SwiftUI bug
-dialogUpdate "list: hide"
-dialogUpdate "list: show"
+    # Band-Aid for macOS 15+ `withAnimation` SwiftUI bug
+    dialogUpdate "list: hide"
+    dialogUpdate "list: show"
+
+else
+
+    notice "Operation Mode is 'silent'; not displaying dialog."
+
+fi
 
 
 

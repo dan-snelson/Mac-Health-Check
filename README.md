@@ -20,7 +20,7 @@ The tool logs results for IT review, while not altering device configurations, m
 
 ## Presentation
 
-<a href="https://stream.lib.utah.edu/index.php?c=details&id=13709" target="_blank"><img src="images/Mac_Health_Check Presentation.png" alt="University of Utah Mac Admins" width="600"/><br />University of Utah Mac Admins</a> (July 2025)
+<iframe class="rumble" width="640" height="360" src="https://rumble.com/embed/v6x64oo/?pub=f1z5r" frameborder="0" allowfullscreen></iframe><br />Royalty Free Music: Bensound.com/royalty-free-music | License code: UEJSHXRMY9XG5SGT | Artist: Lunar Years
 
 ## Use Cases
 
@@ -38,6 +38,13 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Initial assessment for support sessions
 - Easily confirms remediation efforts
 - Provides peace-of-mind for end-users
+
+### :new: Silent Mode :new:
+
+- Silently performs all health checks and logs results
+- No dialog is presented to the end-user
+- Ideal for background compliance reporting
+- Complements existing MDM compliance frameworks
 
 ## Features
 The following health checks and information reporting are included and the script operates in “test” mode by default. (Change `operationMode` to `production` when ready to deploy in production.)
@@ -116,7 +123,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2025-09-22 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2025-09-23 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
