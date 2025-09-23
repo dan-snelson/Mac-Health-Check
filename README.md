@@ -18,7 +18,6 @@ Administrators can customize the user interface using swiftDialog’s visual cap
 
 The tool logs results for IT review, while not altering device configurations, making it ideal for visibility without intrusion.
 
-## Presentation
 
 <a href="https://arizona.zoom.us/rec/play/eXXmgFbxmyn1n_y81p0qdFwirdYOXua2AyNqcKoLzt0-u8gHgF0FObggPUBN3iIz1cpMZYcvHThlM4Y.WQEsj2NTeNB-ySdj" target="_blank"><img src="images/Mac_Health_Check Presentation.png" alt="Four Corners & Silver State September 2025 Meetup" width="600"/><br />Four Corners & Silver State September 2025 Meetup</a> (25-Sep-2025)
 
