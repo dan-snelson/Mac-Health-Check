@@ -18,9 +18,7 @@ Administrators can customize the user interface using swiftDialog’s visual cap
 
 The tool logs results for IT review, while not altering device configurations, making it ideal for visibility without intrusion.
 
-## Presentation
 
-<iframe class="rumble" width="640" height="360" src="https://rumble.com/embed/v6x64oo/?pub=f1z5r" frameborder="0" allowfullscreen></iframe><br />Royalty Free Music: Bensound.com/royalty-free-music | License code: UEJSHXRMY9XG5SGT | Artist: Lunar Years
 
 ## Use Cases
 
