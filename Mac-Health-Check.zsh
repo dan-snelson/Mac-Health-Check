@@ -38,10 +38,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b26"
+scriptVersion="2.5.0b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
+
+# Minimum Required Version of swiftDialog
+swiftDialogMinimumRequiredVersion="2.5.6.4805"
 
 # Elapsed Time
 SECONDS="0"
@@ -52,11 +55,11 @@ SECONDS="0"
 # Jamf Pro Script Paramters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Paramter 4: Operation Mode [ test | debug | production ]
-operationMode="${4:-"test"}"
+# Paramter 4: Operation Mode [ Test | Debug | Self Service | Silent ]
+operationMode="${4:-"Test"}"
 
-    # Enable `set -x` if operation mode is "debug" to help identify variable initialization issues (i.e., SSID)
-    [[ "${operationMode}" == "debug" ]] && set -x
+    # Enable `set -x` if operation mode is "Debug" to help identify issues
+    [[ "${operationMode}" == "Debug" ]] && set -x
 
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
@@ -131,6 +134,64 @@ completionTimer="60"
 # Jamf Pro Configuration Profile Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+if [[ -n "$(profiles list -output stdout-xml | awk '/com.apple.mdm/ {print $1}' | tail -1)" ]]; then
+    serverURL=$( profiles list -output stdout-xml | grep -a1 'ServerURL' | sed -n 's/.*<string>\(https:\/\/[^\/]*\).*/\1/p' )
+    if [[ -n "$serverURL" ]]; then
+        # echo "MDM server address: $serverURL"
+    else
+        echo "Failed to get MDM URL!"
+    fi
+else
+    echo "Not enrolled in an MDM server."
+fi
+
+# Vendor's MDM Profile UUID
+# You can find this out by using: `sudo profiles show enrollment | grep -A3 -B3 com.apple.mdm`
+
+case "${serverURL}" in
+
+    *addigy* )
+        mdmVendor="Addigy"
+        mdmVendorUuid=""
+        ;;
+
+    *jamf* | *jss* )
+        mdmVendor="Jamf Pro"
+        mdmVendorUuid="00000000-0000-0000-A000-4A414D460004"
+        [[ -f "/private/var/log/jamf.log" ]] || { echo "jamf.log missing; exiting."; exit 1; }
+        ;;
+
+    *jumpcloud* )
+        mdmVendor="JumpCloud"
+        mdmVendorUuid=""
+        ;;
+    
+    *microsoft* )
+        mdmVendor="Microsoft Intune"
+        mdmVendorUuid="67A5265B-12D4-4EB5-A2B3-72C683E33BCF"
+        ;;
+
+    *mosyle* )
+        mdmVendor="Mosyle"
+        mdmVendorUuid=""
+        ;;
+
+    * )
+        echo "Unable to determine MDM from ServerURL"
+        ;;
+
+esac
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Configuration Profile Variables
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+case ${mdmVendor} in
+
+    "Jamf Pro" )
+
 # Organization's Client-side Jamf Pro Variables
 jamfProVariables="org.churchofjesuschrist.jamfprovariables.plist"
 
@@ -181,6 +242,7 @@ wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardw
 ipconfig setverbose 1
 ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
 ipconfig setverbose 0
+[[ -z "${ssid}" ]] && ssid="Not connected"
 
 
 
@@ -440,7 +502,7 @@ fi
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" == "debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+[[ "${operationMode}" == "Debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
@@ -595,8 +657,12 @@ function quitOut()      { updateScriptLog "[QUIT]            ${1}"; }
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function dialogUpdate(){
-    sleep 0.3
-    echo "$1" >> "$dialogCommandFile"
+    if [[ "${operationMode}" != "Silent" ]]; then
+        sleep 0.3
+        echo "$1" >> "$dialogCommandFile"
+    else
+        # info "Operation Mode is 'Silent'; not updating dialog."
+    fi
 }
 
 
@@ -873,7 +939,7 @@ function quitScript() {
     rm -f "${dialogCommandFile}"
 
     # Remove the dialog JSON file
-    if [[ "${operationMode}" == "production" ]]; then
+    if [[ "${operationMode}" == "Self Service" ]] || [[ "${operationMode}" == "Silent" ]]; then
         rm -f /var/tmp/dialogJSONFile_*
     else
         notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
@@ -888,7 +954,7 @@ function quitScript() {
     rm -f /var/tmp/dialog.log
 
     # Remove SOFA JSON cache directory
-    if [[ "${operationMode}" == "production" ]]; then
+    if [[ "${operationMode}" == "Self Service" ]] || [[ "${operationMode}" == "Silent" ]]; then
         rm -Rf "${json_cache_dir}"
     else
         notice "${operationMode} mode: NOT deleting json_cache_dir ${json_cache_dir}"
@@ -1068,8 +1134,10 @@ dialogCheck
 # Pre-flight Check: Forcible-quit for all other running dialogs
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "Forcible-quit for all other running dialogs …"
-killProcess "Dialog"
+if [[ "${operationMode}" != "Silent" ]]; then
+    preFlight "Forcible-quit for all other running dialogs …"
+    killProcess "Dialog"
+fi
 
 
 
@@ -2256,7 +2324,7 @@ function updateComputerInventory() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Updating Computer Inventory …"
 
-    if [[ "${operationMode}" != "test" ]]; then
+    if [[ "${operationMode}" != "Test" ]]; then
 
         jamf recon # -verbose
 
@@ -2284,6 +2352,8 @@ function updateComputerInventory() {
 
 notice "Current Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
+if [[ "${operationMode}" != "Silent" ]]; then
+
 eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
 dialogPID=$!
 info "Dialog PID: ${dialogPID}"
@@ -2301,9 +2371,9 @@ dialogUpdate "list: show"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-if [[ "${operationMode}" != "test" ]]; then
+if [[ "${operationMode}" != "Test" ]]; then
 
-    # Production and Debug Mode
+    # Self Service and Debug Mode
 
     checkOS "0"
     checkAvailableSoftwareUpdates "1"
