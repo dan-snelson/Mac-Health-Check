@@ -2,9 +2,16 @@
 
 ## CHANGELOG
 
-### 3.0.0 (23-Sep-2025) 
+### 3.0.0 (24-Sep-2025) 
 - First (attempt at a) MDM-agnostic release
-- Introduces an `operationMode` of "silent" to run all checks and log results without displaying a dialog to the user
+- Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
+- Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
+
+    > :warning: **Breaking Change** :warning:
+    > 
+    > The `operationMode` variable is now case-sensitive and the former "production" option has been renamed to "Self Service".
+    > 
+    > Please update any existing policies that set this variable to use: "Test", "Debug", "Self Service" or "Silent" (with initial capital letters).
 
 ### 2.4.0 (20-Sep-2025)
 - Updated SSID code (thanks, ZP!)

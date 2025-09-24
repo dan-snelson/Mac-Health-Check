@@ -17,9 +17,10 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 23-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 24-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
-#   - Introduces an `operationMode` of "silent" to run all checks and log results without displaying a dialog to the user
+#   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
+#   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #
 ####################################################################################################
 
@@ -34,13 +35,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b25"
+scriptVersion="3.0.0b26"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.0.4846"
+swiftDialogMinimumRequiredVersion="3.0.0.4848"
 
 # Elapsed Time
 SECONDS="0"
@@ -51,11 +52,11 @@ SECONDS="0"
 # Script Paramters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Paramter 4: Operation Mode [ test | debug | production | silent ]
-operationMode="${4:-"production"}"
+# Paramter 4: Operation Mode [ Test | Debug | Self Service | Silent ]
+operationMode="${4:-"Test"}"
 
-    # Enable `set -x` if operation mode is "debug" to help identify variable initialization issues (i.e., SSID)
-    [[ "${operationMode}" == "debug" ]] && set -x
+    # Enable `set -x` if operation mode is "Debug" to help identify issues
+    [[ "${operationMode}" == "Debug" ]] && set -x
 
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
@@ -173,6 +174,7 @@ case "${serverURL}" in
         ;;
 
     * )
+        mdmVendor="None"
         echo "Unable to determine MDM from ServerURL"
         ;;
 
@@ -245,6 +247,7 @@ wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardw
 ipconfig setverbose 1
 ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
 ipconfig setverbose 0
+[[ -z "${ssid}" ]] && ssid="Not connected"
 
 
 
@@ -504,7 +507,7 @@ fi
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" == "debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+[[ "${operationMode}" == "Debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
@@ -859,11 +862,11 @@ function quitOut()      { updateScriptLog "[QUIT]            ${1}"; }
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function dialogUpdate(){
-    if [[ "${operationMode}" != "silent" ]]; then
+    if [[ "${operationMode}" != "Silent" ]]; then
         sleep 0.3
         echo "$1" >> "$dialogCommandFile"
     else
-        # info "Operation Mode is 'silent'; not updating dialog."
+        # info "Operation Mode is 'Silent'; not updating dialog."
     fi
 }
 
@@ -1160,7 +1163,7 @@ function quitScript() {
     rm -f "${dialogCommandFile}"
 
     # Remove the dialog JSON file
-    if [[ "${operationMode}" == "production" ]] || [[ "${operationMode}" == "silent" ]]; then
+    if [[ "${operationMode}" == "Self Service" ]] || [[ "${operationMode}" == "Silent" ]]; then
         rm -f /var/tmp/dialogJSONFile_*
     else
         notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
@@ -1175,7 +1178,7 @@ function quitScript() {
     rm -f /var/tmp/dialog.log
 
     # Remove SOFA JSON cache directory
-    if [[ "${operationMode}" == "production" ]] || [[ "${operationMode}" == "silent" ]]; then
+    if [[ "${operationMode}" == "Self Service" ]] || [[ "${operationMode}" == "Silent" ]]; then
         rm -Rf "${json_cache_dir}"
     else
         notice "${operationMode} mode: NOT deleting json_cache_dir ${json_cache_dir}"
@@ -1238,7 +1241,7 @@ fi
 # Pre-flight Check: Logging Preamble
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# MDM Vendor: ${mdmVendor}\n#\n# https://snelson.us/mhc\n###\n"
+preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# MDM Vendor: ${mdmVendor}\n# Operation Mode: ${operationMode}\n####\n"
 preFlight "Initiating …"
 
 
@@ -1355,7 +1358,7 @@ dialogCheck
 # Pre-flight Check: Forcible-quit for all other running dialogs
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-if [[ "${operationMode}" != "silent" ]]; then
+if [[ "${operationMode}" != "Silent" ]]; then
     preFlight "Forcible-quit for all other running dialogs …"
     killProcess "Dialog"
 fi
@@ -2574,7 +2577,7 @@ function updateComputerInventory() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Updating Computer Inventory …"
 
-    if [[ "${operationMode}" != "test" ]]; then
+    if [[ "${operationMode}" != "Test" ]]; then
 
         jamf recon # -verbose
 
@@ -2639,7 +2642,7 @@ echo "$combinedJSON" > "$dialogJSONFile"
 
 notice "Current Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
-if [[ "${operationMode}" != "silent" ]]; then
+if [[ "${operationMode}" != "Silent" ]]; then
 
     eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
     dialogPID=$!
@@ -2663,9 +2666,9 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-if [[ "${operationMode}" != "test" ]]; then
+if [[ "${operationMode}" != "Test" ]]; then
 
-    # Production and Debug Mode
+    # Self Service and Debug Mode
 
     case ${mdmVendor} in
 
