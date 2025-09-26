@@ -1816,6 +1816,9 @@ function checkJamfProCheckIn() {
     check_in_time_aging=28800    # 8 hours
 
     last_check_in_time=$(grep "Checking for policies triggered by \"recurring check-in\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
+    if [[ -z "${last_check_in_time}" ]]; then
+        last_check_in_time=$( date "+%b %e %H:%M:%S" )
+    fi
 
     # Convert last Jamf Pro check-in time to epoch
     last_check_in_time_epoch=$(date -j -f "%b %d %T" "${last_check_in_time}" +"%s")
@@ -1876,7 +1879,10 @@ function checkJamfProInventory() {
 
     # Get last Jamf Pro inventory time from jamf.log
     last_inventory_time=$(grep "Removing existing launchd task /Library/LaunchDaemons/com.jamfsoftware.task.bgrecon.plist..." "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
-
+    if [[ -z "${last_inventory_time}" ]]; then
+        last_inventory_time=$( date "+%b %e %H:%M:%S" )
+    fi
+    
     # Convert last Jamf Pro inventory time to epoch
     last_inventory_time_epoch=$(date -j -f "%b %d %T" "${last_inventory_time}" +"%s")
     time_since_inventory_epoch=$(($currentTimeEpoch-$last_inventory_time_epoch))
