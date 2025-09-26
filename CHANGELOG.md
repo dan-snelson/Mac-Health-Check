@@ -2,6 +2,22 @@
 
 ## CHANGELOG
 
+### 3.0.0 (26-Sep-2025) 
+
+**First (attempt at a) MDM-agnostic release**
+
+- Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
+- Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
+- Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the jamf.log file
+- Refactored `mdmClientAvailableOSUpdates`
+- Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
+
+    > :warning: **Breaking Change** :warning:
+    > 
+    > The `operationMode` variable is now case-sensitive and the former "production" option has been renamed to "Self Service".
+    > 
+    > Please update any existing policies that set this variable to use: "Test", "Debug", "Self Service" or "Silent" (with initial capital letters).
+
 ### 2.4.0 (20-Sep-2025)
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
