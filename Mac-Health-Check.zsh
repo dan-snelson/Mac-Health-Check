@@ -17,11 +17,13 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 24-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 26-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
+#   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the jamf.log file
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
+#     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
 ####################################################################################################
 
@@ -36,7 +38,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b27"
+scriptVersion="3.0.0b28"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2144,6 +2146,9 @@ function checkJamfProCheckIn() {
     check_in_time_aging=28800    # 8 hours
 
     last_check_in_time=$(grep "Checking for policies triggered by \"recurring check-in\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
+    if [[ -z "${last_check_in_time}" ]]; then
+        last_check_in_time=$( date "+%b %e %H:%M:%S" )
+    fi
 
     # Convert last Jamf Pro check-in time to epoch
     last_check_in_time_epoch=$(date -j -f "%b %d %T" "${last_check_in_time}" +"%s")
@@ -2204,7 +2209,10 @@ function checkJamfProInventory() {
 
     # Get last Jamf Pro inventory time from jamf.log
     last_inventory_time=$(grep "Removing existing launchd task /Library/LaunchDaemons/com.jamfsoftware.task.bgrecon.plist..." "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
-
+    if [[ -z "${last_inventory_time}" ]]; then
+        last_inventory_time=$( date "+%b %e %H:%M:%S" )
+    fi
+    
     # Convert last Jamf Pro inventory time to epoch
     last_inventory_time_epoch=$(date -j -f "%b %d %T" "${last_inventory_time}" +"%s")
     time_since_inventory_epoch=$(($currentTimeEpoch-$last_inventory_time_epoch))
