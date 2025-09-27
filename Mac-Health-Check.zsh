@@ -2354,15 +2354,20 @@ notice "Current Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECO
 
 if [[ "${operationMode}" != "Silent" ]]; then
 
-eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
-dialogPID=$!
-info "Dialog PID: ${dialogPID}"
+    eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
+    dialogPID=$!
+    info "Dialog PID: ${dialogPID}"
+    dialogUpdate "progresstext: Initializing …"
 
-dialogUpdate "progresstext: Initializing …"
+    # Band-Aid for macOS 15+ `withAnimation` SwiftUI bug
+    dialogUpdate "list: hide"
+    dialogUpdate "list: show"
 
-# Band-Aid for macOS 15+ `withAnimation` SwiftUI bug
-dialogUpdate "list: hide"
-dialogUpdate "list: show"
+else
+
+    notice "Operation Mode is 'Silent'; not displaying dialog."
+
+fi
 
 
 
