@@ -50,7 +50,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Health Checks
 
-<img src="images/MHC_2.4.0_Firewall.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_2.5.0_Firewall.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
 1. Available Updates (including deferred updates)
@@ -84,7 +84,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_2.4.0_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_2.5.0_Helpmessage.png" alt="Help Message" width="800"/>
 
 #### IT Support
 - Telephone

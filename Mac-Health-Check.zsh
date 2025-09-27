@@ -85,7 +85,7 @@ organizationOverlayiconURL=""
 # Organization's Color Scheme
 if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
     # Dark Mode
-    organizationColorScheme="weight=semibold,colour1=#ffeedb,colour2=#fce6cc"
+    organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
 else
     # Light Mode
     organizationColorScheme="weight=semibold,colour1=#ef9d51,colour2=#ef7951"
@@ -133,64 +133,6 @@ completionTimer="60"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Jamf Pro Configuration Profile Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-if [[ -n "$(profiles list -output stdout-xml | awk '/com.apple.mdm/ {print $1}' | tail -1)" ]]; then
-    serverURL=$( profiles list -output stdout-xml | grep -a1 'ServerURL' | sed -n 's/.*<string>\(https:\/\/[^\/]*\).*/\1/p' )
-    if [[ -n "$serverURL" ]]; then
-        # echo "MDM server address: $serverURL"
-    else
-        echo "Failed to get MDM URL!"
-    fi
-else
-    echo "Not enrolled in an MDM server."
-fi
-
-# Vendor's MDM Profile UUID
-# You can find this out by using: `sudo profiles show enrollment | grep -A3 -B3 com.apple.mdm`
-
-case "${serverURL}" in
-
-    *addigy* )
-        mdmVendor="Addigy"
-        mdmVendorUuid=""
-        ;;
-
-    *jamf* | *jss* )
-        mdmVendor="Jamf Pro"
-        mdmVendorUuid="00000000-0000-0000-A000-4A414D460004"
-        [[ -f "/private/var/log/jamf.log" ]] || { echo "jamf.log missing; exiting."; exit 1; }
-        ;;
-
-    *jumpcloud* )
-        mdmVendor="JumpCloud"
-        mdmVendorUuid=""
-        ;;
-    
-    *microsoft* )
-        mdmVendor="Microsoft Intune"
-        mdmVendorUuid="67A5265B-12D4-4EB5-A2B3-72C683E33BCF"
-        ;;
-
-    *mosyle* )
-        mdmVendor="Mosyle"
-        mdmVendorUuid=""
-        ;;
-
-    * )
-        echo "Unable to determine MDM from ServerURL"
-        ;;
-
-esac
-
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Configuration Profile Variables
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-case ${mdmVendor} in
-
-    "Jamf Pro" )
 
 # Organization's Client-side Jamf Pro Variables
 jamfProVariables="org.churchofjesuschrist.jamfprovariables.plist"
@@ -909,8 +851,8 @@ function quitScript() {
     notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
 
     if [[ -n "${overallHealth}" ]]; then
-        dialogUpdate "icon: SF=xmark.circle,weight=bold,colour1=#BB1717,colour2=#F31F1F"
-        dialogUpdate "title: Computer Unhealthy (as of $( date '+%Y-%m-%d-%H%M%S' ))"
+        dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
+        dialogUpdate "title: Computer Unhealthy<br>(as of $( date '+%Y-%m-%d-%H%M%S' ))"
         if [[ -n "${webhookURL}" ]]; then
             info "Sending webhook message"
             webhookStatus="Failures Detected"
@@ -919,8 +861,8 @@ function quitScript() {
         errorOut "${overallHealth%%; }"
         exitCode="1"
     else
-        dialogUpdate "icon: SF=checkmark.circle,weight=bold,colour1=#00ff44,colour2=#075c1e"
-        dialogUpdate "title: Computer Healthy (as of $( date '+%Y-%m-%d-%H%M%S' ))"
+        dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
+        dialogUpdate "title: Computer Healthy<br>(as of $( date '+%Y-%m-%d-%H%M%S' ))"
     fi
 
     dialogUpdate "progress: 100"
@@ -1995,67 +1937,6 @@ function checkJamfProInventory() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Check Last Mosyle Check-In 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-function checkMosyleCheckIn() {
-
-    local humanReadableCheckName="Last Mosyle check-in"
-    notice "Checking ${humanReadableCheckName} …"
-
-    dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
-    dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
-
-    sleep "${anticipationDuration}"
-
-    # Enable 24 hour clock format (12 hour clock enabled by default)
-    twenty_four_hour_format="false"
-
-    # Number of seconds since action last occurred (86400 = 1 day)
-    check_in_time_old=86400      # 1 day
-    check_in_time_aging=28800    # 8 hours
-
-    #last_check_in_time=$(grep "Checking for policies triggered by \"recurring check-in\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
-	last_check_in_time=$(defaults read com.mosyle.macos.manager.mdm MacCommandsReplyResultsSuccessDate | cut -d. -f1)
-
-    # Convert last Mosyle check-in time to epoch
-    last_check_in_time_epoch=$last_check_in_time
-    currentTimeEpoch=$(date +%s)
-    time_since_check_in_epoch=$(($currentTimeEpoch-$last_check_in_time_epoch))
-
-    # Convert last Mosyle epoch to something easier to read
-    if [[ "${twenty_four_hour_format}" == "true" ]]; then
-        # Outputs 24 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %H:%M")
-    else
-        # Outputs 12 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
-    fi
-
-    # Set status indicator for last check-in
-    if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
-        # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB4E3D, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
-        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
-        overallHealth+="${humanReadableCheckName}; "
-    elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
-        # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F7CE46, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
-        warning "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
-        overallHealth+="${humanReadableCheckName}; "
-    elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
-        # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_reable}"
-        info "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
-    fi
-
-}
-
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check FileVault
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -2425,7 +2306,7 @@ else
 
     # Test Mode
 
-    dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>MDM Vendor: ${mdmVendor} | Operation Mode: ${operationMode}"
+    dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
 
     listitemLength=$(get_json_value "${dialogJSON}" "listitem.length")
 
