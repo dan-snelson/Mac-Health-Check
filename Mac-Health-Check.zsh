@@ -17,10 +17,10 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 27-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 29-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
-#   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the jamf.log file
+#   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
 #   - Refactored `mdmClientAvailableOSUpdates`
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
@@ -38,7 +38,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b1"
+scriptVersion="2.5.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -540,7 +540,7 @@ dialogJSON='
     "progress" :  "'"${progressSteps}"'",
     "progresstext" : "Please wait …",
     "height" : "750",
-    "width" : "900",
+    "width" : "975",
     "messagefont" : "size=14",
     "listitem" : [
         {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -852,7 +852,7 @@ function quitScript() {
 
     if [[ -n "${overallHealth}" ]]; then
         dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
-        dialogUpdate "title: Computer Unhealthy<br>(as of $( date '+%Y-%m-%d-%H%M%S' ))"
+        dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
         if [[ -n "${webhookURL}" ]]; then
             info "Sending webhook message"
             webhookStatus="Failures Detected"
@@ -862,7 +862,7 @@ function quitScript() {
         exitCode="1"
     else
         dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
-        dialogUpdate "title: Computer Healthy<br>(as of $( date '+%Y-%m-%d-%H%M%S' ))"
+        dialogUpdate "title: Computer Healthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
     fi
 
     dialogUpdate "progress: 100"
@@ -1272,12 +1272,29 @@ function checkAvailableSoftwareUpdates() {
 
     sleep "${anticipationDuration}"
 
+    # MDM Client Available OS Updates
     mdmClientAvailableOSUpdates=$( /usr/libexec/mdmclient AvailableOSUpdates | awk '/Available updates/,/^\)/{if(/HumanReadableName =/){n=$0;sub(/.*= "/,"",n);sub(/".*/,"",n)}if(/DeferredUntil =/){d=$0;sub(/.*= "/,"",d);sub(/ 00:00:00.*/,"",d)}if(n!=""&&d!=""){print n" | "d;n="";d=""}}' )
     if [[ -n "${mdmClientAvailableOSUpdates}" ]]; then
         notice "MDM Client Available OS Updates | Deferred Until"
         info "${mdmClientAvailableOSUpdates}"
     fi
 
+    # DDM-enforced OS Updates
+    numberOfDays="7"
+    ddmEnforcedOSUpdates=$(
+        awk -v date="$(date -v-"$numberOfDays"d +%Y-%m-%d)" '$1 >= date' /var/log/install.log \
+        | grep EnforcedInstallDate \
+        | sed -n 's/.*EnforcedInstallDate:\([^|]*\)|VersionString:\([^|]*\)|BuildVersionString:\([^|]*\).*/\1\t\2\t\3/p' \
+        | sort -u \
+        | while IFS=$'\t' read -r ts ver build; do
+            ts="${ts%Z}"
+            formatted="$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts" "+%d-%b-%Y" 2>/dev/null)"
+            [ -z "$formatted" ] && formatted="$ts"
+            printf 'macOS %s (%s) %s\n' "$ver" "$build" "$formatted"
+            done | paste -sd'; ' -
+    )
+
+    # Software Update Recommended Updates
     recommendedUpdates=$( /usr/libexec/PlistBuddy -c "Print :RecommendedUpdates:0" /Library/Preferences/com.apple.SoftwareUpdate.plist 2>/dev/null )
     if [[ -n "${recommendedUpdates}" ]]; then
 
@@ -1322,9 +1339,15 @@ function checkAvailableSoftwareUpdates() {
 
     else
 
-        availableSoftwareUpdates="None"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
-        info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
+            availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        else
+            availableSoftwareUpdates="None"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        fi
 
     fi
 
