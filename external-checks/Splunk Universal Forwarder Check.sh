@@ -6,20 +6,21 @@
 # Last Updated: 2025-09-29
 #
 # Purpose:
-#   This script checks whether the Splunk Universal Forwarder is installed and
-#   whether its `splunkd` process is currently running.
+#   Check whether Splunk Universal Forwarder is installed and if its daemon is running.
 #
 # Usage:
-#   Run as a Jamf Pro Extension Attribute or standalone script:
-#       ./Splunk_Universal_Forwarder_Check.sh
+#   Run locally or via Jamf Pro (as an external check or policy script):
+#       ./Splunk Unversal Forwarder Check.sh
 #
 # Output:
-#   Prints the result in the format required by Jamf Pro:
-#       <result>running</result>
-#       <result>not running</result>
-#       <result>Not Installed</result>
+#   Prints a single line status (no <result> tags), suitable for Jamf "External"
+#   scripts or log parsing, e.g.:
+#       Running
+#       Not Running
+#       Not Installed
 #
 # Changelog:
+#   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
 #   2025-09-29 - v1.0.0 - Initial version created for GitHub release.
 #
 # Disclaimer:
@@ -27,19 +28,20 @@
 #   own risk. Test thoroughly before deploying to production systems.
 ###############################################################################
 
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 
 SPLUNK_PATH="/private/var/splunkforwarder/bin/splunk"
 RESULT="Not Installed"
 
 if [ -x "$SPLUNK_PATH" ]; then
-    STATUS_OUTPUT=$($SPLUNK_PATH status 2>/dev/null | grep 'splunkd')
-   
-    if echo "$STATUS_OUTPUT" | grep -q "is running"; then
-        RESULT="running"
+    # If the binary exists, query status
+    if "$SPLUNK_PATH" status 2>/dev/null | grep -q 'splunkd.*is running'; then
+        RESULT="Running"
     else
-        RESULT="not running"
+        RESULT="Not Running"
     fi
 fi
 
-echo "<result>$RESULT</result>"
+echo "${RESULT}"

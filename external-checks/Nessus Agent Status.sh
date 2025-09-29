@@ -6,18 +6,21 @@
 # Last Updated: 2025-09-29
 #
 # Purpose:
-#   Checks if the Tenable Nessus Agent service is running on macOS.
+#   Check whether Tenable Nessus Agent is installed and running on macOS.
 #
 # Usage:
-#   Designed to run as a Jamf Pro Extension Attribute or standalone script:
-#       ./Nessus_Agent_Status.sh
+#   Run locally or via Jamf Pro (as an external check or policy script):
+#       ./Nessus Agent Status.sh
 #
 # Output:
-#   Prints the status in the format required by Jamf Pro:
-#       <result>Running</result>
-#       <result>Stopped</result>
+#   Prints a single line status (no <result> tags), suitable for Jamf "External"
+#   scripts or log parsing, e.g.:
+#       Running
+#       Not Running
+#       Not Installed
 #
 # Changelog:
+#   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
 #   2025-09-29 - v1.0.0 - Initial version created for GitHub release.
 #
 # Disclaimer:
@@ -25,12 +28,35 @@
 #   own risk. Test thoroughly before deploying to production systems.
 ###############################################################################
 
-#!/bin/sh
-# Check to see if Nessus Agent is running
-NessusAgentRunning="$(sudo launchctl list com.tenablesecurity.nessusagent | grep "PID" | awk '{ print $1 }' | tr -d '\"')"
-if [ "$NessusAgentRunning" = "PID" ]
-then
- echo "<result>Running</result>"
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+
+RESULT="Not Installed"
+
+# Preferred: use Nessus Agent service script if present
+SVC="/Library/NessusAgent/run/svc.sh"
+if [ -x "$SVC" ]; then
+    # svc.sh status returns text such as "nessus-service is running"
+    if "$SVC" status 2>/dev/null | grep -qi "running"; then
+        RESULT="Running"
+    else
+        RESULT="Not Running"
+    fi
 else
- echo "<result>Stopped</result>"
+    # Fallbacks: launchctl label or process name
+    if launchctl list 2>/dev/null | grep -q "com.tenablesecurity.nessusagent"; then
+        # If listed, check if it has a PID column via launchctl print (macOS 11+)
+        if launchctl print system/com.tenablesecurity.nessusagent 2>/dev/null | grep -q "pid =" ; then
+            RESULT="Running"
+        else
+            RESULT="Not Running"
+        fi
+    elif pgrep -f "[n]essus.*agent" >/dev/null 2>&1; then
+        RESULT="Running"
+    else
+        RESULT="Not Running"
+    fi
 fi
+
+echo "${RESULT}"

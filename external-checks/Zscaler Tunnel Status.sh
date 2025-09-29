@@ -6,18 +6,21 @@
 # Last Updated: 2025-09-29
 #
 # Purpose:
-#   Determines whether the Zscaler Tunnel process is running on a macOS device.
+#   Determine whether the Zscaler Tunnel process is currently active.
 #
 # Usage:
-#   Run as a Jamf Pro Extension Attribute or standalone script:
-#       ./Zscaler_Tunnel_Status.sh
+#   Run locally or via Jamf Pro (as an external check or policy script):
+#       ./Zscaler Tunnel Status.sh
 #
 # Output:
-#   Prints the status in the format required by Jamf Pro:
-#       <result>Running</result>
-#       <result>Not Running</result>
+#   Prints a single line status (no <result> tags), suitable for Jamf "External"
+#   scripts or log parsing, e.g.:
+#       Running
+#       Not Running
+#       Not Installed
 #
 # Changelog:
+#   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
 #   2025-09-29 - v1.0.0 - Initial version created for GitHub release.
 #
 # Disclaimer:
@@ -25,17 +28,13 @@
 #   own risk. Test thoroughly before deploying to production systems.
 ###############################################################################
 
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 
-# check for process
-PROCESS=$(pgrep ZscalerTunnel)
-
-# see if process is running
-if [[ -z "$PROCESS" ]]; then
-    RESULT="Not Running"
+# Zscaler Client Connector tunnel process
+if pgrep -x "ZscalerTunnel" >/dev/null 2>&1; then
+    echo "Running"
 else
-    RESULT="Running"
+    echo "Not Running"
 fi
-
-# report results
-echo "<result>${RESULT}</result>"
