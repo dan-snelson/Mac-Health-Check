@@ -22,6 +22,7 @@
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
 #   - Refactored `mdmClientAvailableOSUpdates`
+#   - Added error-handling for `organizationOverlayiconURL`
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
@@ -38,7 +39,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b2"
+scriptVersion="2.5.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -475,12 +476,17 @@ else
 fi
 
 # Download the overlayicon from ${organizationOverlayiconURL}
-curl -o "/var/tmp/overlayicon.png" "${organizationOverlayiconURL}" --silent --show-error --fail
-if [[ "$?" -ne 0 ]]; then
-    echo "Error: Failed to download the overlayicon from '${brandingImageURL}'."
-    overlayicon="/System/Library/CoreServices/Finder.app"
+if [[ -n "${organizationOverlayiconURL}" ]]; then
+    # echo "Downloading overlayicon from '${organizationOverlayiconURL}' …"
+    curl -o "/var/tmp/overlayicon.png" "${organizationOverlayiconURL}" --silent --show-error --fail
+    if [[ "$?" -ne 0 ]]; then
+        echo "Error: Failed to download the overlayicon from '${brandingImageURL}'."
+        overlayicon="/System/Library/CoreServices/Finder.app"
+    else
+        overlayicon="/var/tmp/overlayicon.png"
+    fi
 else
-    overlayicon="/var/tmp/overlayicon.png"
+    overlayicon="/System/Library/CoreServices/Finder.app"
 fi
 
 
@@ -968,7 +974,7 @@ fi
 # Pre-flight Check: Logging Preamble
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n###\n"
+preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# Operation Mode: ${operationMode}\n####\n"
 preFlight "Initiating …"
 
 
@@ -1270,7 +1276,7 @@ function checkAvailableSoftwareUpdates() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
-    sleep "${anticipationDuration}"
+    # sleep "${anticipationDuration}"
 
     # MDM Client Available OS Updates
     mdmClientAvailableOSUpdates=$( /usr/libexec/mdmclient AvailableOSUpdates | awk '/Available updates/,/^\)/{if(/HumanReadableName =/){n=$0;sub(/.*= "/,"",n);sub(/".*/,"",n)}if(/DeferredUntil =/){d=$0;sub(/.*= "/,"",d);sub(/ 00:00:00.*/,"",d)}if(n!=""&&d!=""){print n" | "d;n="";d=""}}' )
@@ -1282,67 +1288,66 @@ function checkAvailableSoftwareUpdates() {
     # DDM-enforced OS Updates
     numberOfDays="7"
     ddmEnforcedOSUpdates=$(
-        awk -v date="$(date -v-"$numberOfDays"d +%Y-%m-%d)" '$1 >= date' /var/log/install.log \
-        | grep EnforcedInstallDate \
-        | sed -n 's/.*EnforcedInstallDate:\([^|]*\)|VersionString:\([^|]*\)|BuildVersionString:\([^|]*\).*/\1\t\2\t\3/p' \
-        | sort -u \
-        | while IFS=$'\t' read -r ts ver build; do
-            ts="${ts%Z}"
-            formatted="$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts" "+%d-%b-%Y" 2>/dev/null)"
-            [ -z "$formatted" ] && formatted="$ts"
-            printf 'macOS %s (%s) %s\n' "$ver" "$build" "$formatted"
-            done | paste -sd'; ' -
+    awk -v date="$(date -v-"$numberOfDays"d +%Y-%m-%d)" '$1 >= date' /var/log/install.log \
+    | grep EnforcedInstallDate \
+    | sed -n 's/.*EnforcedInstallDate:\([^|]*\)|VersionString:\([^|]*\)|BuildVersionString:\([^|]*\).*/\1\t\2\t\3/p' \
+    | tail -n 1 \
+    | while IFS=$'\t' read -r ts ver build; do
+        ts="${ts%Z}"
+        formatted="$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts" "+%d-%b-%Y" 2>/dev/null)"
+        [ -z "$formatted" ] && formatted="$ts"
+        printf 'macOS %s (%s) %s' "$ver" "$build" "$formatted"
+        done
     )
 
     # Software Update Recommended Updates
     recommendedUpdates=$( /usr/libexec/PlistBuddy -c "Print :RecommendedUpdates:0" /Library/Preferences/com.apple.SoftwareUpdate.plist 2>/dev/null )
     if [[ -n "${recommendedUpdates}" ]]; then
-
         SUListRaw=$( softwareupdate --list --include-config-data 2>&1 )
-
         case "${SUListRaw}" in
-
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
-
             *"The operation couldn’t be completed."* )
                 availableSoftwareUpdates="The operation couldn’t be completed."
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
-
             *"Deferred: YES"* )
                 availableSoftwareUpdates="Deferred software available."
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
-
             *"No new software available."* )
                 availableSoftwareUpdates="No new software available."
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
                 info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
-
             * )
                 SUList=$( echo "${SUListRaw}" | grep "*" | sed "s/\* Label: //g" | sed "s/,*$//g" )
                 availableSoftwareUpdates="${SUList}"
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
-
         esac
 
     else
 
+        # Treat a DDM-enforced OS Updates which contains the current OS as if there are no updates
         if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
-            availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
-            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+            if [[ "${ddmEnforcedOSUpdates}" == *"$(sw_vers -ProductVersion)" ]]; then
+                availableSoftwareUpdates="None"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+                info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+            else
+                availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+                info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+            fi
         else
             availableSoftwareUpdates="None"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
