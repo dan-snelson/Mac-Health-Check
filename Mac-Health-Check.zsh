@@ -573,8 +573,9 @@ dialogJSON='
         {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Microsoft Defender", "subtitle" : "Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
 }
 '
@@ -2232,6 +2233,66 @@ function checkNetworkQuality() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Microsoft Defender
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkMicrosoftDefender() {
+
+    local humanReadableCheckName="Microsoft Defender"
+    local appPath="/Applications/Microsoft Defender.app"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: ${appPath}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    if [[ -f /usr/local/bin/mdatp ]]; then
+        defenderOverallHealth=$(/usr/local/bin/mdatp health --field healthy)
+        defenderDefinitionsUpdated=$(/usr/local/bin/mdatp health --field definitions_updated_minutes_ago)
+        
+        if [[ "$defenderOverallHealth" == "true" ]]; then
+            defenderStatus="Healthy"
+        else
+            defenderStatus="Unhealthy"
+            defenderHealthIssues=$(/usr/local/bin/mdatp health --field health_issues)
+        fi
+        # 7days * 24 hours/day * 60 minutes/hr = 10080 minutes
+        if [[ $defenderDefinitionsUpdated -gt 10080 ]]; then
+            defenderStatus="Unhealthy"
+            defenderHealthIssues="Definitions Out of Date"
+        fi
+
+        case ${defenderStatus} in
+
+            "Healthy" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Healthy"
+                info "${humanReadableCheckName}: Healthy"
+                ;;
+
+            "Unhealthy" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unhealthy:$defenderHealthIssues"
+                errorOut "${humanReadableCheckName} (${1})"
+                overallHealth+="${humanReadableCheckName}; "
+                ;;
+
+        esac
+
+    else
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Not Installed"
+        errorOut "${humanReadableCheckName} (${1})"
+        overallHealth+="${humanReadableCheckName}; "
+
+    fi
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Update Computer Inventory
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -2324,8 +2385,9 @@ if [[ "${operationMode}" != "Test" ]]; then
     checkExternal "21" "symvCiscoUmbrella"                  "/Applications/Cisco/Cisco Secure Client.app"
     checkExternal "22" "symvCrowdStrikeFalcon"              "/Applications/Falcon.app"
     checkExternal "23" "symvGlobalProtect"                  "/Applications/GlobalProtect.app"
-    checkNetworkQuality "24"
-    updateComputerInventory "25"
+    checkMicrosoftDefender "24"
+    checkNetworkQuality "25"
+    updateComputerInventory "26"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
