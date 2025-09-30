@@ -2,11 +2,11 @@
 
 ## CHANGELOG
 
-### 2.5.0 (29-Sep-2025)
+### 2.5.0 (30-Sep-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
-- Refactored `mdmClientAvailableOSUpdates`
+- Refactored `checkAvailableSoftwareUpdates` to include DDM-enforced OS Updates
 - Added error-handling for `organizationOverlayiconURL`
 - Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
 

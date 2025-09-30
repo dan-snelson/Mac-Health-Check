@@ -17,11 +17,11 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 29-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 30-Sep-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
-#   - Refactored `mdmClientAvailableOSUpdates`
+#   - Refactored `checkAvailableSoftwareUpdates` to include DDM-enforced OS Updates
 #   - Added error-handling for `organizationOverlayiconURL`
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
@@ -39,7 +39,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b3"
+scriptVersion="2.5.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -166,9 +166,9 @@ serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSer
 computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
-systemMemory="$(expr $(sysctl -n hw.memsize) / $((1024**3))) GB"
-rawStorage=$(diskutil info /|grep "Container Total Space"|awk '{print $4}')
-if [[ $rawStorage -ge 1000 ]]; then
+systemMemory="$( expr $(sysctl -n hw.memsize) / $((1024**3)) ) GB"
+rawStorage=$( diskutil info / | grep "Container Total Space" | awk '{print $4}' )
+if [[ $rawStorage -ge 994 ]]; then
     systemStorage="$(echo "scale=0; ( ( ($rawStorage +999) /1000 * 1000)/1000)" | bc) TB"
 elif [[ $rawStorage -lt 300 ]]; then
     systemStorage="$(echo "scale=0; ( ($rawStorage +9) /10 * 10)" | bc) GB"
@@ -1083,7 +1083,9 @@ function dialogCheck() {
 
 }
 
-dialogCheck
+if [[ "${operationMode}" != "Silent" ]]; then
+    dialogCheck
+fi
 
 
 
@@ -1339,7 +1341,7 @@ function checkAvailableSoftwareUpdates() {
 
         # Treat a DDM-enforced OS Updates which contains the current OS as if there are no updates
         if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
-            if [[ "${ddmEnforcedOSUpdates}" == *"$(sw_vers -ProductVersion)" ]]; then
+            if [[ "$ddmEnforcedOSUpdates" == "macOS ${osVersion} (${osBuild})"* ]]; then
                 availableSoftwareUpdates="None"
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
                 info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
