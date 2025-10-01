@@ -643,7 +643,8 @@ addigyMdmListitemJSON='
     {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=11.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=12.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=13.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=14.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
+    {"title" : "Microsoft Defender", "subtitle":"Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=15.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
 ]
 '
 # Validate addigyMdmListitemJSON is valid JSON
@@ -685,8 +686,9 @@ jamfProListitemJSON='
     {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
+    {"title" : "Microsoft Defender", "subtitle" : "Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=26.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=27.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
 ]
 '
 
@@ -718,7 +720,8 @@ jumpcloudMdmListitemJSON='
     {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=11.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=12.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=13.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=14.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
+    {"title" : "Microsoft Defender", "subtitle" : "Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=15.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
 ]
 '
 
@@ -754,7 +757,8 @@ microsoftMdmListitemJSON='
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=15.square,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Mosyle and your Mac", "icon" : "SF=16.square,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Intune Company Portal", "subtitle" : "Intune Company Portal allows you to secure access organizational resources.", "icon" : "SF=17.square,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=18.square,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
+    {"title" : "Microsoft Defender", "subtitle" : "Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=19.square,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
 ]
 '
 
@@ -790,7 +794,8 @@ mosyleListitemJSON='
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=15.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Mosyle and your Mac", "icon" : "SF=16.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Mosyle Check-In", "subtitle" : "Your Mac should check-in with the Mosyle MDM server multiple times each day", "icon" : "SF=17.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=18.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
+    {"title" : "Microsoft Defender", "subtitle" : "Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=19.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
 ]
 '
 
@@ -822,7 +827,8 @@ genericMdmListitemJSON='
     {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=11.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=12.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Account and content delivery services","icon":"SF=13.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=14.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
+    {"title" : "Microsoft Defender", "subtitle" : "Various tests of your Mac’s Microsoft Defender installation", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=15.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4}
 ]
 '
 
@@ -2502,6 +2508,66 @@ function checkExternalJamfPro() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Microsoft Defender
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkMicrosoftDefender() {
+
+    local humanReadableCheckName="Microsoft Defender"
+    local appPath="/Applications/Microsoft Defender.app"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: ${appPath}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    if [[ -f /usr/local/bin/mdatp ]]; then
+        defenderOverallHealth=$(/usr/local/bin/mdatp health --field healthy)
+        defenderDefinitionsUpdated=$(/usr/local/bin/mdatp health --field definitions_updated_minutes_ago)
+        
+        if [[ "$defenderOverallHealth" == "true" ]]; then
+            defenderStatus="Healthy"
+        else
+            defenderStatus="Unhealthy"
+            defenderHealthIssues=$(/usr/local/bin/mdatp health --field health_issues)
+        fi
+        # 7days * 24 hours/day * 60 minutes/hr = 10080 minutes
+        if [[ $defenderDefinitionsUpdated -gt 10080 ]]; then
+            defenderStatus="Unhealthy"
+            defenderHealthIssues="Definitions Out of Date"
+        fi
+
+        case ${defenderStatus} in
+
+            "Healthy" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Healthy"
+                info "${humanReadableCheckName}: Healthy"
+                ;;
+
+            "Unhealthy" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unhealthy:$defenderHealthIssues"
+                errorOut "${humanReadableCheckName} (${1})"
+                overallHealth+="${humanReadableCheckName}; "
+                ;;
+
+        esac
+
+    else
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Not Installed"
+        errorOut "${humanReadableCheckName} (${1})"
+        overallHealth+="${humanReadableCheckName}; "
+
+    fi
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Network Quality
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -2696,7 +2762,8 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkNetworkHosts "10" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
             checkNetworkHosts "11" "Apple Certificate Validation"          "${certHosts[@]}"
             checkNetworkHosts "12" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkNetworkQuality "13"
+            checkMicrosoftDefender "13"
+            checkNetworkQuality "14"
             ;;
 
         "Jamf Pro" )
@@ -2724,8 +2791,9 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkExternalJamfPro "21" "symvCiscoUmbrella" "/Applications/Cisco/Cisco Secure Client.app"
             checkExternalJamfPro "22" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
             checkExternalJamfPro "23" "symvGlobalProtect" "/Applications/GlobalProtect.app"
-            checkNetworkQuality "24"
-            updateComputerInventory "25"
+            checkMicrosoftDefender "24"
+            checkNetworkQuality "25"
+            updateComputerInventory "26"
             ;;
 
         "JumpCloud" )
@@ -2742,7 +2810,8 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkNetworkHosts "10" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
             checkNetworkHosts "11" "Apple Certificate Validation"          "${certHosts[@]}"
             checkNetworkHosts "12" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkNetworkQuality "13"
+            checkMicrosoftDefender "13"
+            checkNetworkQuality "14"
             ;;
 
         "Microsoft Intune" )
@@ -2763,7 +2832,8 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkMdmCertificateExpiration "14"
             checkAPNs "15"
             checkInternal "16" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
-            checkNetworkQuality "17"
+            checkMicrosoftDefender "17"
+            checkNetworkQuality "18"
             ;;
 
         "Mosyle" )
@@ -2784,7 +2854,8 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkNetworkHosts "14" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
             checkNetworkHosts "15" "Apple Certificate Validation"          "${certHosts[@]}"
             checkNetworkHosts "16" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkNetworkQuality "17"
+            checkMicrosoftDefender "17"
+            checkNetworkQuality "18"
             ;;
 
         * )
@@ -2801,7 +2872,8 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkNetworkHosts "10" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
             checkNetworkHosts "11" "Apple Certificate Validation"          "${certHosts[@]}"
             checkNetworkHosts "12" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkNetworkQuality "13"
+            checkMicrosoftDefender "13"
+            checkNetworkQuality "14"
             ;;
     
     esac
