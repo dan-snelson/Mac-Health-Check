@@ -350,6 +350,7 @@ if [[ "${vpnClientVendor}" == "cisco" ]]; then
     if [[ -d "${vpnAppPath}" ]]; then
         ciscoVPNStats=$(/opt/cisco/anyconnect/bin/vpn -s stats)
     elif [[ -d "/Applications/Cisco/Cisco Secure Client.app" ]]; then
+        vpnAppPath="/Applications/Cisco/Cisco Secure Client.app"
         ciscoVPNStats=$(/opt/cisco/secureclient/bin/vpn -s stats)
     fi
     if [[ -n $ciscoVPNStats ]]; then
@@ -2086,7 +2087,7 @@ function checkVPN() {
             info "${vpnAppName} idle"
             ;;
 
-        "Connected"* )
+        "Connected"* | "${ciscoVPNIP}" )
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Connected"
             info "${vpnAppName} Connected"
             ;;
