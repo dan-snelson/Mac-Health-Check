@@ -17,12 +17,13 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 30-Sep-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 03-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
 #   - Refactored `checkAvailableSoftwareUpdates` to include DDM-enforced OS Updates
 #   - Added error-handling for `organizationOverlayiconURL`
+#   - Minor Cisco VPN fixes (Pull Request #47; thanks, @HowardGMac!)
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
@@ -39,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b4"
+scriptVersion="2.5.0b5"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
