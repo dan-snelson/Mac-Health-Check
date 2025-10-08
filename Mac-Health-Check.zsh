@@ -17,13 +17,14 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 03-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 08-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
 #   - Refactored `checkAvailableSoftwareUpdates` to include DDM-enforced OS Updates
 #   - Added error-handling for `organizationOverlayiconURL`
 #   - Minor Cisco VPN fixes (Pull Request #47; thanks, @HowardGMac!)
+#   - Update to External checks to allow defaults use (Pull Request #48; thanks, Obi-@HowardGMac!)
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
@@ -40,7 +41,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b5"
+scriptVersion="2.5.0b6"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2127,9 +2128,11 @@ function checkExternal() {
     trigger="${2}"
     appPath="${3}"
     appDisplayName=$(basename "${appPath}" .app)
-    
-    if [[ -n "$(/usr/bin/defaults read $organizationDefaultsDomain 2>/dev/null)" ]]; then
-        /usr/bin/defaults delete $organizationDefaultsDomain
+
+    if [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
+        defaults delete "${organizationDefaultsDomain}"
+        # The defaults binary can be slow; give it a moment to catch-up
+        sleep 0.5
     fi
 
     notice "External Check: ${appPath} …"
@@ -2139,32 +2142,41 @@ function checkExternal() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
-    externalValidation=$( /usr/local/bin/jamf policy -event $trigger | grep "Script result:" )
+    externalValidation=$( jamf policy -event $trigger | grep "Script result:" )
     
-    sleep 0.5
-    
-    if [[ -n "$(/usr/bin/defaults read $organizationDefaultsDomain 2>/dev/null)" ]]; then
-        checkStatus=$(/usr/bin/defaults read $organizationDefaultsDomain checkStatus)
-        checkType=$(/usr/bin/defaults read $organizationDefaultsDomain checkType)
-        checkExtended=$(/usr/bin/defaults read $organizationDefaultsDomain checkExtended)
+    # Leverage the organization defaults domain
+    if [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
+
+        checkStatus=$( defaults read "${organizationDefaultsDomain}" checkStatus )
+        checkType=$( defaults read "${organizationDefaultsDomain}" checkType )
+        checkExtended=$( defaults read "${organizationDefaultsDomain}" checkExtended )
+
         case ${checkType} in
+
             "fail" )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: $checkStatus"
                 errorOut "${appDisplayName} Failed"
                 overallHealth+="${appDisplayName}; "
                 ;;
+
             "success" )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: $checkStatus"
                 info "${appDisplayName} $checkStatus"
                 ;;
+
             "error" | * )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: $checkStatus:$checkExtended"
                 errorOut "${appDisplayName} Error:$checkExtended"
                 overallHealth+="${appDisplayName}; "
                 ;;
+
         esac
+
+    # Ignore the organization defaults domain
     else
+
         case ${externalValidation:l} in
+
             *"failed"* )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
                 errorOut "${appDisplayName} Failed"
@@ -2181,8 +2193,11 @@ function checkExternal() {
                 errorOut "${appDisplayName} Error"
                 overallHealth+="${appDisplayName}; "
                 ;;
+
         esac
+
     fi
+
 }
 
 
