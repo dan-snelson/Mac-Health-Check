@@ -84,6 +84,9 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-smoot
 # Organization's Overlayicon URL
 organizationOverlayiconURL=""
 
+# Organization's Defaults Domain for External Checks
+organizationDefaultsDomain="org.churchofjesuschrist.external"
+
 # Organization's Color Scheme
 if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
     # Dark Mode
@@ -468,7 +471,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar, plus two (i.e., "progress: increment")
-progressSteps="27"
+progressSteps="28"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -560,7 +563,7 @@ dialogJSON='
         {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "MDM Certficate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certficate", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certificate", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -575,8 +578,9 @@ dialogJSON='
         {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Microsoft Defender", "subtitle" : "Various tests of Microsoft Defender protection tool.", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
 }
 '
@@ -2123,6 +2127,10 @@ function checkExternal() {
     trigger="${2}"
     appPath="${3}"
     appDisplayName=$(basename "${appPath}" .app)
+    
+    if [[ -n "$(/usr/bin/defaults read $organizationDefaultsDomain 2>/dev/null)" ]]; then
+        /usr/bin/defaults delete $organizationDefaultsDomain
+    fi
 
     notice "External Check: ${appPath} …"
 
@@ -2131,31 +2139,50 @@ function checkExternal() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
-    # sleep "${anticipationDuration}"
-
     externalValidation=$( /usr/local/bin/jamf policy -event $trigger | grep "Script result:" )
+    
+    sleep 0.5
+    
+    if [[ -n "$(/usr/bin/defaults read $organizationDefaultsDomain 2>/dev/null)" ]]; then
+        checkStatus=$(/usr/bin/defaults read $organizationDefaultsDomain checkStatus)
+        checkType=$(/usr/bin/defaults read $organizationDefaultsDomain checkType)
+        checkExtended=$(/usr/bin/defaults read $organizationDefaultsDomain checkExtended)
+        case ${checkType} in
+            "fail" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: $checkStatus"
+                errorOut "${appDisplayName} Failed"
+                overallHealth+="${appDisplayName}; "
+                ;;
+            "success" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: $checkStatus"
+                info "${appDisplayName} $checkStatus"
+                ;;
+            "error" | * )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: $checkStatus:$checkExtended"
+                errorOut "${appDisplayName} Error:$checkExtended"
+                overallHealth+="${appDisplayName}; "
+                ;;
+        esac
+    else
+        case ${externalValidation:l} in
+            *"failed"* )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+                errorOut "${appDisplayName} Failed"
+                overallHealth+="${appDisplayName}; "
+                ;;
 
-    case ${externalValidation:l} in
+            *"running"* )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Running"
+                info "${appDisplayName} running"
+                ;;
 
-        *"failed"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
-            errorOut "${appDisplayName} Failed"
-            overallHealth+="${appDisplayName}; "
-            ;;
-
-        *"running"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Running"
-            info "${appDisplayName} running"
-            ;;
-
-        *"error"* | * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Error"
-            errorOut "${appDisplayName} Error"
-            overallHealth+="${appDisplayName}; "
-            ;;
-
-    esac
-
+            *"error"* | * )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Error"
+                errorOut "${appDisplayName} Error"
+                overallHealth+="${appDisplayName}; "
+                ;;
+        esac
+    fi
 }
 
 
@@ -2326,8 +2353,9 @@ if [[ "${operationMode}" != "Test" ]]; then
     checkExternal "21" "symvCiscoUmbrella"                  "/Applications/Cisco/Cisco Secure Client.app"
     checkExternal "22" "symvCrowdStrikeFalcon"              "/Applications/Falcon.app"
     checkExternal "23" "symvGlobalProtect"                  "/Applications/GlobalProtect.app"
-    checkNetworkQuality "24"
-    updateComputerInventory "25"
+    checkExternal "24" "symvMicrosoftDefender"              "/Applications/Microsoft Defender.app"
+    checkNetworkQuality "25"
+    updateComputerInventory "26"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
