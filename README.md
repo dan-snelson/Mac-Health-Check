@@ -120,7 +120,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (2.5.0): 2025-10-08 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (2.5.0): 2025-10-09 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
@@ -129,9 +129,9 @@ com.apple.sharepoint.group.2; Bootstrap Token supported on server: YES;
 Bootstrap Token escrowed to server: YES; sudo Check: /etc/sudoers: parsed OK;
 sudoers: root  ALL = (ALL) ALL %admin  ALL = (ALL) ALL ; Platform SSOe: localadmin NOT logged in;
 Location Services: Enabled; SSH: On; Microsoft OneDrive Sync Date: Not Configured;
-Time Machine Backup Date: Not configured ; Battery Cycle Count: 0; Wi-Fi: Liahona;
-Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; Network Time Server: time.apple.com;
-Jamf Pro Computer ID: 007; Site: Servers
+Time Machine Backup Date: Not configured; localadmin's Trash Size: Empty; Battery Cycle Count: 0;
+Wi-Fi: Liahona; Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; 
+Network Time Server: time.apple.com; Jamf Pro Computer ID: 007; Site: Servers
 ```
 
 1. Warning when logged-in user is a member of `admin`

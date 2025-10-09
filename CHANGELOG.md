@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.5.0 (08-Oct-2025)
+### 2.5.0 (09-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
@@ -10,6 +10,7 @@
 - Added error-handling for `organizationOverlayiconURL`
 - Minor Cisco VPN fixes (Pull Request #47; thanks, @HowardGMac!)
 - Update to External checks to allow defaults use (Pull Request #48; thanks, Obi-@HowardGMac!)
+- Added the size of the user's Trash to the Jamf Pro Policy Log Reporting
 - Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
 
     > :warning: **Breaking Change** :warning:

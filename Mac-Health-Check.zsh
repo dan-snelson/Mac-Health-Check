@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 08-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 09-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
@@ -25,6 +25,7 @@
 #   - Added error-handling for `organizationOverlayiconURL`
 #   - Minor Cisco VPN fixes (Pull Request #47; thanks, @HowardGMac!)
 #   - Update to External checks to allow defaults use (Pull Request #48; thanks, Obi-@HowardGMac!)
+#   - Added the size of the user's Trash to the Jamf Pro Policy Log Reporting
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
@@ -41,7 +42,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b6"
+scriptVersion="2.5.0b7"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -269,6 +270,14 @@ else
     else
         tmLastBackup="; Date(s): ${tmBackupDates//$'\n'/, }"
     fi
+fi
+
+# User's Trash Size
+userTrashSize=$( du -sh "${loggedInUserHomeDirectory}/.Trash" 2>/dev/null | awk '{print $1}' )
+if [[ "${userTrashSize}" != "0B" ]]; then
+    userTrashSizeResult="${userTrashSize}"
+else
+    userTrashSizeResult="Empty"
 fi
 
 
@@ -861,7 +870,7 @@ function quitScript() {
 
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; ${loggedInUser}'s Trash Size: ${userTrashSizeResult}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
 
     if [[ -n "${overallHealth}" ]]; then
         dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
