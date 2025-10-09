@@ -129,8 +129,8 @@ com.apple.sharepoint.group.2; Bootstrap Token supported on server: YES;
 Bootstrap Token escrowed to server: YES; sudo Check: /etc/sudoers: parsed OK;
 sudoers: root  ALL = (ALL) ALL %admin  ALL = (ALL) ALL ; Platform SSOe: localadmin NOT logged in;
 Location Services: Enabled; SSH: On; Microsoft OneDrive Sync Date: Not Configured;
-Time Machine Backup Date: Not configured; localadmin's Trash Size: Empty; Battery Cycle Count: 0;
-Wi-Fi: Liahona; Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; 
+Time Machine Backup Date: Not configured; localadmin's Desktop Size: Empty; localadmin's Trash Size: Empty;
+Battery Cycle Count: 0; Wi-Fi: Liahona; Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; 
 Network Time Server: time.apple.com; Jamf Pro Computer ID: 007; Site: Servers
 ```
 

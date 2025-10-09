@@ -10,7 +10,7 @@
 - Added error-handling for `organizationOverlayiconURL`
 - Minor Cisco VPN fixes (Pull Request #47; thanks, @HowardGMac!)
 - Update to External checks to allow defaults use (Pull Request #48; thanks, Obi-@HowardGMac!)
-- Added the size of the user's Trash to the Jamf Pro Policy Log Reporting
+- Added the size of the user's Desktop and Trash to the Jamf Pro Policy Log Reporting
 - Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
 
     > :warning: **Breaking Change** :warning:
