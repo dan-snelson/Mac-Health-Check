@@ -9,8 +9,8 @@
 #
 # HISTORY
 #
-#   Version 0.0.1, 07-Oct-2025, Howard Griffith (@HowardGMac)
-#   - Original Version
+#   Version 0.0.2, 09-Oct-2025, Howard Griffith (@HowardGMac)
+#   - Added empty checkExtended field to the Not Installed failure to prevent spurious error message
 #
 ###########################################################################################
 
@@ -43,6 +43,7 @@ organizationDefaultsDomain="org.churchofjesuschrist.external"
     else
             /usr/bin/defaults write $organizationDefaultsDomain checkStatus -string "Not Installed"
             /usr/bin/defaults write $organizationDefaultsDomain checkType -string "fail"
+            /usr/bin/defaults write $organizationDefaultsDomain checkExtended -string ""
     fi
     
     echo "<result>$(/usr/bin/defaults read $organizationDefaultsDomain checkStatus)</result>"
