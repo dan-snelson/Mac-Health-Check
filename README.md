@@ -60,9 +60,10 @@ The following health checks and information reporting are included and the scrip
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
-1. User's Desktop Size and Item Count
-1. User's Downloads Size and Item Count
-1. User's Trash Size and Item Count
+1. User's Directory Size and Item Count
+    - Desktop
+    - Downloads
+    - Trash
 1. MDM Profile
 1. MDM Certificate Expiration
 1. Apple Push Notification service
