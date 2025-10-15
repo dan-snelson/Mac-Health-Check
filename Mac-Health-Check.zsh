@@ -44,7 +44,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b10"
+scriptVersion="2.5.0b11"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -1484,7 +1484,7 @@ function checkGatekeeperXProtect() {
     local humanReadableCheckName="Gatekeeper / XProtect"
     notice "Check ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=pedestrian.gate.closed.trianglebadge.exclamationmark,${organizationColorScheme}"
+    dialogUpdate "icon: SF=key.shield.fill,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
