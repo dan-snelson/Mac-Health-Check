@@ -55,8 +55,10 @@ The following health checks and information reporting are included and the scrip
 1. macOS Version
 1. Available Updates (including deferred updates)
 1. System Integrity Protection
+1. Signed System Volume (SSV)
 1. Firewall
 1. FileVault Encryption
+1. Gatekeeper / XProtect
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
@@ -124,7 +126,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (2.5.0): 2025-10-10 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (2.5.0): 2025-10-15 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
