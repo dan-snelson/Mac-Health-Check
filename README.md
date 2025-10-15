@@ -55,11 +55,17 @@ The following health checks and information reporting are included and the scrip
 1. macOS Version
 1. Available Updates (including deferred updates)
 1. System Integrity Protection
+1. Signed System Volume (SSV)
 1. Firewall
 1. FileVault Encryption
+1. Gatekeeper / XProtect
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
+1. User's Directory Size and Item Count
+    - Desktop
+    - Downloads
+    - Trash
 1. MDM Profile
 1. MDM Certificate Expiration
 1. Apple Push Notification service
@@ -122,7 +128,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2025-10-03 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2025-10-15 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
@@ -131,9 +137,10 @@ com.apple.sharepoint.group.2; Bootstrap Token supported on server: YES;
 Bootstrap Token escrowed to server: YES; sudo Check: /etc/sudoers: parsed OK;
 sudoers: root  ALL = (ALL) ALL %admin  ALL = (ALL) ALL ; Platform SSOe: localadmin NOT logged in;
 Location Services: Enabled; SSH: On; Microsoft OneDrive Sync Date: Not Configured;
-Time Machine Backup Date: Not configured ; Battery Cycle Count: 0; Wi-Fi: Liahona;
-Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; Network Time Server: time.apple.com;
-Jamf Pro Computer ID: 007; Site: Servers
+Time Machine Backup Date: Not configured; localadmin's Desktop Size: 160M for 116 item(s);
+localadmin's Trash Size: 1.8M for 3 item(s); Battery Cycle Count: 0; Wi-Fi: Liahona;
+Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; 
+Network Time Server: time.apple.com; Jamf Pro Computer ID: 007; Site: Servers
 ```
 
 1. Warning when logged-in user is a member of `admin`
