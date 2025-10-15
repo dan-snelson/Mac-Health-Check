@@ -1484,7 +1484,7 @@ function checkGatekeeperXProtect() {
     local humanReadableCheckName="Gatekeeper / XProtect"
     notice "Check ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=key.shield.fill,${organizationColorScheme}"
+    dialogUpdate "icon: SF=bolt.shield.fill,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
