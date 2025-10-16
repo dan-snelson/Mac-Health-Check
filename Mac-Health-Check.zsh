@@ -1400,23 +1400,6 @@ function checkAvailableSoftwareUpdates() {
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         fi
 
-        # if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
-        #     if [[ "$ddmEnforcedOSUpdates" == "macOS ${osVersion} (${osBuild})"* ]]; then
-        #         availableSoftwareUpdates="None"
-        #         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
-        #         info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-        #     else
-        #         availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
-        #         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
-        #         info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-        #     fi
-        # else
-        #     availableSoftwareUpdates="None"
-        #     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
-        #     info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-        # fi
-
-
     fi
 
 }
