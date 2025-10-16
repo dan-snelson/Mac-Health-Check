@@ -68,7 +68,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Paramter 4: Operation Mode [ Test | Debug | Self Service | Silent ]
-operationMode="${4:-"Self Service"}"
+operationMode="${4:-"Test"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
