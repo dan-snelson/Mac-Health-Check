@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 15-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 16-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
@@ -28,6 +28,9 @@
 #   - Added the size and item count of the user's Desktop and Trash to the Jamf Pro Policy Log Reporting
 #   - Added `checkUserDirectorySizeItems` function to report the size and item count of any user directories (e.g. Desktop, Downloads, Trash, etc.)
 #   - Added a Health Checks for Signed System Volume (SSV) and Gatekeeper / XProtect (thanks for the reminder, @hoakley!)
+#   - Refactored "DDM-enforced OS Version" per [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder)
+#   - Refactored `checkUserDirectorySizeItems` to ignore hidden files
+#   - Simplified various date / time formats
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
@@ -44,10 +47,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b11"
+scriptVersion="2.5.0b12"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
+
+# Load is-at-least for version comparison
+autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
 swiftDialogMinimumRequiredVersion="2.5.6.4805"
@@ -1326,25 +1332,26 @@ function checkAvailableSoftwareUpdates() {
         info "${mdmClientAvailableOSUpdates}"
     fi
 
-    # DDM-enforced OS Updates
-    numberOfDays="7"
-    ddmEnforcedOSUpdates=$(
-    awk -v date="$(date -v-"$numberOfDays"d +%Y-%m-%d)" '$1 >= date' /var/log/install.log \
-    | grep EnforcedInstallDate \
-    | sed -n 's/.*EnforcedInstallDate:\([^|]*\)|VersionString:\([^|]*\)|BuildVersionString:\([^|]*\).*/\1\t\2\t\3/p' \
-    | tail -n 1 \
-    | while IFS=$'\t' read -r ts ver build; do
-        ts="${ts%Z}"
-        formatted="$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts" "+%d-%b-%Y" 2>/dev/null)"
-        [ -z "$formatted" ] && formatted="$ts"
-        printf 'macOS %s (%s) %s' "$ver" "$build" "$formatted"
-        done
-    )
+    # DDM-enforced OS Version
+    ddmEnforcedInstallDateRaw=$( grep EnforcedInstallDate /var/log/install.log | tail -n 1 )
+    if [[ -n "$ddmEnforcedInstallDateRaw" ]]; then
+        
+        # DDM-enforced Install Date
+        tmp=${ddmEnforcedInstallDateRaw##*|EnforcedInstallDate:}
+        ddmEnforcedInstallDate=${tmp%%|*}
+        
+        # DDM-enforced Version
+        tmp=${ddmEnforcedInstallDateRaw##*|VersionString:}
+        ddmVersionString=${tmp%%|*}
+
+        ddmEnforcedInstallDateHumanReadable=$(date -jf "%Y-%m-%dT%H" "$ddmEnforcedInstallDate" "+%d-%b-%Y" 2>/dev/null)
+
+    fi
 
     # Software Update Recommended Updates
     recommendedUpdates=$( /usr/libexec/PlistBuddy -c "Print :RecommendedUpdates:0" /Library/Preferences/com.apple.SoftwareUpdate.plist 2>/dev/null )
     if [[ -n "${recommendedUpdates}" ]]; then
-        SUListRaw=$( softwareupdate --list --include-config-data 2>&1 )
+        SUListRaw=$( softwareupdate --list 2>&1 )
         case "${SUListRaw}" in
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
@@ -1379,21 +1386,36 @@ function checkAvailableSoftwareUpdates() {
     else
 
         # Treat a DDM-enforced OS Updates which contains the current OS as if there are no updates
-        if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
-            if [[ "$ddmEnforcedOSUpdates" == "macOS ${osVersion} (${osBuild})"* ]]; then
-                availableSoftwareUpdates="None"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
-                info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-            else
-                availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
-                info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-            fi
-        else
+        if [[ -z "$ddmEnforcedInstallDate" ]]; then
             availableSoftwareUpdates="None"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        elif is-at-least "${ddmVersionString}" "${installedOSVersion}"; then
+            availableSoftwareUpdates="Up-to-date"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        else
+            availableSoftwareUpdates="macOS ${ddmVersionString} (${ddmEnforcedInstallDateHumanReadable})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         fi
+
+        # if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
+        #     if [[ "$ddmEnforcedOSUpdates" == "macOS ${osVersion} (${osBuild})"* ]]; then
+        #         availableSoftwareUpdates="None"
+        #         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+        #         info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        #     else
+        #         availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
+        #         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+        #         info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        #     fi
+        # else
+        #     availableSoftwareUpdates="None"
+        #     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+        #     info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        # fi
+
 
     fi
 
@@ -1677,9 +1699,9 @@ function checkUserDirectorySizeItems() {
     sleep "${anticipationDuration}"
 
     userDirectorySize=$( du -sh "${targetDirectory}" 2>/dev/null | awk '{ print $1 }' )
-    userDirectoryItems=$( find "${targetDirectory}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | xargs )
+    userDirectoryItems=$( find "${targetDirectory}" -mindepth 1 -maxdepth 1 -not -name ".*" 2>/dev/null | wc -l | xargs )
 
-    if [[ "${userDirectorySize}" == "0B" ]]; then
+    if [[ "${userDirectoryItems}" == "0" ]]; then
         userDirectoryResult="Empty"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${userDirectoryResult}"
         info "${humanReadableCheckName}: ${userDirectoryResult}"
@@ -1764,7 +1786,13 @@ function checkAPNs() {
     else
 
         apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${apnsCheck}" +"%s" )
-        apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
+        eventDate=$( date -r "${apnsStatusEpoch}" "+%Y-%m-%d" )
+        todayDate=$( date "+%Y-%m-%d" )
+        if [[ "${eventDate}" == "${todayDate}" ]]; then
+            apnsStatus=$( date -r "${apnsStatusEpoch}" "+%-l:%M %p" )
+        else
+            apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
+        fi
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${apnsStatus}"
         info "${humanReadableCheckName}: ${apnsCheck}"
 
@@ -2013,9 +2041,6 @@ function checkJamfProCheckIn() {
 
     sleep "${anticipationDuration}"
 
-    # Enable 24 hour clock format (12 hour clock enabled by default)
-    twenty_four_hour_format="false"
-
     # Number of seconds since action last occurred (86400 = 1 day)
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
@@ -2030,29 +2055,29 @@ function checkJamfProCheckIn() {
     time_since_check_in_epoch=$(($currentTimeEpoch-$last_check_in_time_epoch))
 
     # Convert last Jamf Pro epoch to something easier to read
-    if [[ "${twenty_four_hour_format}" == "true" ]]; then
-        # Outputs 24 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %H:%M")
+    eventDate=$( date -r "${last_check_in_time_epoch}" "+%Y-%m-%d" )
+    todayDate=$( date "+%Y-%m-%d" )
+    if [[ "${eventDate}" == "${todayDate}" ]]; then
+        last_check_in_time_human_readable=$(date -r "${last_check_in_time_epoch}" "+%-l:%M %p" )
     else
-        # Outputs 12 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
+        last_check_in_time_human_readable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
     fi
 
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
-        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
+        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
-        warning "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
+        warning "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_reable}"
-        info "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_readable}"
+        info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
 
 }
@@ -2075,9 +2100,6 @@ function checkJamfProInventory() {
 
     sleep "${anticipationDuration}"
 
-    # Enable 24 hour clock format (12 hour clock enabled by default)
-    twenty_four_hour_format="false"
-
     # Number of seconds since action last occurred (86400 = 1 day)
     inventory_time_old=604800    # 1 week
     inventory_time_aging=259200  # 3 days
@@ -2093,29 +2115,29 @@ function checkJamfProInventory() {
     time_since_inventory_epoch=$(($currentTimeEpoch-$last_inventory_time_epoch))
 
     # Convert last Jamf Pro epoch to something easier to read
-    if [[ "${twenty_four_hour_format}" == "true" ]]; then
-        # Outputs 24 hour clock format
-        last_inventory_time_human_reable=$(date -r "${last_inventory_time_epoch}" "+%A %H:%M")
+    eventDate=$( date -r "${last_inventory_time_epoch}" "+%Y-%m-%d" )
+    todayDate=$( date "+%Y-%m-%d" )
+    if [[ "${eventDate}" == "${todayDate}" ]]; then
+        last_inventory_time_human_readable=$(date -r "${last_inventory_time_epoch}" "+%-l:%M %p" )
     else
-        # Outputs 12 hour clock format
-        last_inventory_time_human_reable=$(date -r "${last_inventory_time_epoch}" "+%A %-l:%M %p")
+        last_inventory_time_human_readable=$(date -r "${last_inventory_time_epoch}" "+%A %-l:%M %p")
     fi
 
     #set status indicator for last inventory
     if [ ${time_since_inventory_epoch} -ge ${inventory_time_old} ]; then
         # inventory_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_reable}"
-        errorOut "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_readable}"
+        errorOut "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -ge ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_reable}"
-        warning "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_readable}"
+        warning "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_inventory_time_human_reable}"
-        info "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_inventory_time_human_readable}"
+        info "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
     fi
 
 }
