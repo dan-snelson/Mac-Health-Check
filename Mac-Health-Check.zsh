@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.5.0, 16-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.5.0, 18-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 #   - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 #   - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
@@ -31,6 +31,9 @@
 #   - Refactored "DDM-enforced OS Version" per [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder)
 #   - Refactored `checkUserDirectorySizeItems` to ignore hidden files
 #   - Simplified various date / time formats
+#   - Refactored `checkNetworkHosts` function to use `nc` for ports or `curl` for URLs (thanks for the idea, @ecubrooks!)
+#   - Added Server-side Logging to summarize errors (thanks for the idea, @isaacatmann!)
+#   - Set `anticipationDuration` to zero seconds when `operationMode` is set to "Silent"
 #   - Introduces an `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the user
 #     :warning: **Breaking Change** :warning: See: CHANGLELOG.md
 #
@@ -47,10 +50,14 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.5.0b12"
+scriptVersion="2.5.0rc1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
+
+# Temporary log (per-run) that will be reordered into $scriptLog at exit
+tmpScriptLog="${TMPDIR:-/private/tmp}/${organizationScriptName// /_}.${$}.log"
+: > "${tmpScriptLog}"   # ensure it's empty
 
 # Load is-at-least for version comparison
 autoload -Uz is-at-least
@@ -64,10 +71,10 @@ SECONDS="0"
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Jamf Pro Script Paramters
+# Jamf Pro Script Parameters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Paramter 4: Operation Mode [ Test | Debug | Self Service | Silent ]
+# Parameter 4: Operation Mode [ Test | Debug | Self Service | Silent ]
 operationMode="${4:-"Test"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
@@ -119,7 +126,11 @@ vpnClientVendor="paloalto"
 vpnClientDataType="extended"
 
 # "Anticipation" Duration (in seconds)
-anticipationDuration="2"
+if [[ "${operationMode}" == "Silent" ]]; then
+    anticipationDuration="0"
+else
+    anticipationDuration="2"
+fi
 
 # How many previous minor OS versions will be marked as compliant
 previousMinorOS="2"
@@ -249,7 +260,7 @@ if [[ -n "${kerberosRealm}" ]]; then
         username=$( /usr/libexec/PlistBuddy -c "Print:upn" /var/tmp/app-sso.plist | awk -F@ '{print $1}' )
         kerberosSSOeResult="${username}"
     fi
-    /bin/rm -f /var/tmp/app-sso.plist
+    rm -f /var/tmp/app-sso.plist
 fi
 
 # Platform Single Sign-on Extension
@@ -639,7 +650,30 @@ echo "${dialogJSON}" > "${dialogJSONFile}"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function updateScriptLog() {
-    echo "${organizationScriptName} ($scriptVersion): $( date +%Y-%m-%d\ %H:%M:%S ) - ${1}" | tee -a "${scriptLog}"
+    local stamp inputText normalized line out
+    stamp="$( date '+%Y-%m-%d %H:%M:%S' )"
+    inputText="${1-}"
+
+    # If it contains literal backslash-n but no real newline, expand escapes to real newlines
+    if [[ "${inputText}" == *'\n'* && "${inputText}" != *$'\n'* ]]; then
+        normalized="$( printf '%b' "${inputText}" )"
+    else
+        normalized="${inputText}"
+    fi
+
+    if [[ "${normalized}" == *$'\n'* ]]; then
+        # Multi-line: emit each line with the same timestamp
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+            out="${organizationScriptName} (${scriptVersion}): ${stamp} - ${line}"
+            printf '%s\n' "${out}"
+            printf '%s\n' "${out}" >> "${tmpScriptLog}"
+        done <<< "${normalized}"
+    else
+        # Single-line (original behavior)
+        out="${organizationScriptName} (${scriptVersion}): ${stamp} - ${normalized}"
+        printf '%s\n' "${out}"
+        printf '%s\n' "${out}" >> "${tmpScriptLog}"
+    fi
 }
 
 function preFlight()    { updateScriptLog "[PRE-FLIGHT]      ${1}"; }
@@ -651,6 +685,89 @@ function error()        { updateScriptLog "[ERROR]           ${1}"; let errorCou
 function warning()      { updateScriptLog "[WARNING]         ${1}"; let errorCount++; }
 function fatal()        { updateScriptLog "[FATAL ERROR]     ${1}"; exit 1; }
 function quitOut()      { updateScriptLog "[QUIT]            ${1}"; }
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Server-side Logging
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+# Return the Jamf policy-log filepath, if we were launched by 'jamf'
+function getJamfPolicyLogFile() {
+    # Grab the full command used to launch us
+    local cmd
+    cmd="$(ps -p "${PPID}" -o command= 2>/dev/null)" || return 1
+    # Prefer parsing the -policyLog flag (handles spaces cleanly)
+    # Example: ... -policyLog '/path/with spaces/policy.log' ...
+    if [[ "${cmd}" == *"-policyLog "* ]]; then
+        # Extract the argument after -policyLog (single-quoted by jamf)
+        printf '%s\n' "${cmd}" \
+        | awk -F"-policyLog '" '{print $2}' \
+        | awk -F"'" '{print $1}'
+        return 0
+    fi
+    # Fallback: last single-quoted token (@isaacatmann technique)
+    printf '%s\n' "${cmd}" \
+    | awk -F"'" '{print $(NF-1)}'
+}
+
+# Prepend a block of text to a file using BSD sed (no temp files)
+function prependToFile() {
+    local file="$1" text="$2" esc
+    [[ -f "$file" && -w "$file" ]] || return 0
+    # Escape / and convert newlines -> \n for sed
+    esc="${text//\//\\/}"
+    esc="${esc//$'\n'/\\n}"
+    # Insert a spacer, a divider, the text, another divider, spacer — all at top
+    sed -i '' '1s/^/\n/' "$file"
+    sed -i '' '1s/^/####################################################\n/' "$file"
+    sed -i '' "1s/^/${esc}\n/" "$file"
+    sed -i '' '1s/^/####################################################\n/' "$file"
+    sed -i '' '1s/^/\n/' "$file"
+}
+
+# Reorder and write the final log (only prepends summary if errors exist)
+function finalizeScriptLog() {
+    local errorCount=0
+    local errorLines="" errorList=""
+    local summaryBlock=""
+
+    # Collect "real" [ERROR] rows that contain a colon after the tag (skips roll-ups)
+    errorLines="$( grep -E '\[ERROR\].*:' -- "${tmpScriptLog}" 2>/dev/null || true )"
+
+    if [[ -n "${errorLines}" ]]; then
+        # Build the summary block (only if errors exist)
+        errorCount="$( printf '%s\n' "${errorLines}" | grep -c '\[ERROR\]' || echo 0 )"
+        errorList="$( printf '%s\n' "${errorLines}" | sed -E 's/^.* - \[ERROR\][[:space:]]+/- /' )"
+        summaryBlock="$(
+            {
+                printf '%s (%s) — [ERROR] Summary\n' "${humanReadableScriptName}" "${scriptVersion}"
+                printf 'Generated: %s\n\n' "$( date '+%Y-%m-%d %H:%M:%S' )"
+                printf 'Total [ERROR] entries: %s\n' "${errorCount}"
+                printf '%s\n' "${errorList}"
+            }
+        )"
+    fi
+
+    # Always write the full chronological log for the local log file
+    {
+        [[ -n "${summaryBlock}" ]] && printf '%s\n\n' "${summaryBlock}"
+        cat -- "${tmpScriptLog}"
+    } > "${scriptLog}"
+
+    # Only prepend the summary to the Jamf Policy Log if there were errors
+    if [[ -n "${summaryBlock}" ]]; then
+        if policyLogFile="$(getJamfPolicyLogFile)"; then
+            if [[ -n "${policyLogFile}" && -f "${policyLogFile}" ]]; then
+                prependToFile "${policyLogFile}" "${summaryBlock}"
+            fi
+        fi
+    fi
+
+    # Clean up temp log
+    rm -f -- "${tmpScriptLog}" 2>/dev/null
+
+}
 
 
 
@@ -902,40 +1019,46 @@ function quitScript() {
     notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; ${loggedInUser}'s Desktop Size: ${userDesktopSizeResult}; ${loggedInUser}'s Trash Size: ${userTrashSizeResult}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}; Jamf Pro Computer ID: ${jamfProID}; Site: ${jamfProSiteName}"
 
     if [[ -n "${overallHealth}" ]]; then
-        dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
-        dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        if [[ "${operationMode}" != "Silent" ]]; then
+            dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
+            dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        fi
         if [[ -n "${webhookURL}" ]]; then
             info "Sending webhook message"
-            webhookStatus="Failures Detected"
+            webhookStatus="Failures Detected (${#errorMessages[@]} errors)"
             webHookMessage
         fi
         errorOut "${overallHealth%%; }"
         exitCode="1"
     else
-        dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
-        dialogUpdate "title: Computer Healthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        if [[ "${operationMode}" != "Silent" ]]; then
+            dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
+            dialogUpdate "title: Computer Healthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        fi
     fi
 
-    dialogUpdate "progress: 100"
-    dialogUpdate "progresstext: Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
-    dialogUpdate "button1text: Close"
-    dialogUpdate "button1: enable"
-    
-    sleep "${anticipationDuration}"
+    if [[ "${operationMode}" != "Silent" ]]; then
+        dialogUpdate "progress: 100"
+        dialogUpdate "progresstext: Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
+        dialogUpdate "button1text: Close"
+        dialogUpdate "button1: enable"
+        
+        sleep "${anticipationDuration}"
 
-    # Progress countdown (thanks, @samg and @bartreadon!)
-    dialogUpdate "progress: reset"
-    while true; do
-        if [[ ${completionTimer} -lt ${progressSteps} ]]; then
-            dialogUpdate "progress: ${completionTimer}"
-        fi
-        dialogUpdate "progresstext: Closing automatically in ${completionTimer} seconds …"
-        sleep 1
-        ((completionTimer--))
-        if [[ ${completionTimer} -lt 0 ]]; then break; fi;
-        if ! kill -0 "${dialogPID}" 2>/dev/null; then break; fi;
-    done
-    dialogUpdate "quit:"
+        # Progress countdown (thanks, @samg and @bartreadon!)
+        dialogUpdate "progress: reset"
+        while true; do
+            if [[ ${completionTimer} -lt ${progressSteps} ]]; then
+                dialogUpdate "progress: ${completionTimer}"
+            fi
+            dialogUpdate "progresstext: Closing automatically in ${completionTimer} seconds …"
+            sleep 1
+            ((completionTimer--))
+            if [[ ${completionTimer} -lt 0 ]]; then break; fi
+            if ! kill -0 "${dialogPID}" 2>/dev/null; then break; fi
+        done
+        dialogUpdate "quit:"
+    fi
 
     # Remove the dialog command file
     rm -f "${dialogCommandFile}"
@@ -1019,7 +1142,7 @@ fi
 # Pre-flight Check: Logging Preamble
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# Operation Mode: ${operationMode}\n####\n"
+preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# Operation Mode: ${operationMode}\n####\n\n"
 preFlight "Initiating …"
 
 
@@ -1096,7 +1219,7 @@ function dialogInstall() {
     fi
 
     # Remove the temporary working directory when done
-    /bin/rm -Rf "$tempDirectory"
+    rm -Rf "$tempDirectory"
 
 }
 
@@ -1142,6 +1265,14 @@ if [[ "${operationMode}" != "Silent" ]]; then
     preFlight "Forcible-quit for all other running dialogs …"
     killProcess "Dialog"
 fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pre-flight Check: Always publish the final, reordered log at exit (success or error)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+trap finalizeScriptLog EXIT
 
 
 
@@ -1199,14 +1330,14 @@ function checkOS() {
         etag_cache="$json_cache_dir/macos_data_feed_etag.txt"
 
         # ensure local cache folder exists
-        /bin/mkdir -p "$json_cache_dir"
+        mkdir -p "$json_cache_dir"
 
         # check local vs online using etag
         if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
             # logComment "e-tag stored, will download only if e-tag doesn’t match"
-            etag_old=$(/bin/cat "$etag_cache")
+            etag_old=$(cat "$etag_cache")
             curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
-            etag_new=$(/bin/cat "$etag_cache")
+            etag_new=$(cat "$etag_cache")
             if [[ "$etag_old" == "$etag_new" ]]; then
                 # logComment "Cached ETag matched online ETag - cached json file is up to date"
             else
@@ -1911,7 +2042,7 @@ jamfHosts=(
     "apne1-jcds.services.jamfcloud.com,443"
 )
 
-# Generic network-host tester; uses nc to probe host:port and updates swiftDialog
+# Generic network-host tester: uses `nc` for ports or `curl` for URLs
 function checkNetworkHosts() {
     local index="$1"
     local name="$2"
@@ -1929,19 +2060,39 @@ function checkNetworkHosts() {
     local results=""
 
     for entry in "${hosts[@]}"; do
-        IFS=',' read -r host port proto <<< "${entry}"
-        # Default to TCP if protocol not specified
-        if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
-            ncFlags=( -u -z -w "${networkTimeout}" )
+        # If URL, handle with curl; else nc host:port:proto
+        if [[ "${entry}" =~ ^https?:// ]]; then
+            # Ensure https:// (as in MTS)
+            if [[ "${entry}" != https://* ]]; then
+                entry="https://${entry#http://}"
+            fi
+            local host=$(printf '%s' "${entry}" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
+            # -sS: silent but show errors, -L: follow redirects
+            local http_code=$( curl -sSL --max-time "${networkTimeout}" --connect-timeout 5 -o /dev/null -w "%{http_code}" "${entry}" 2>/dev/null )
+            http_code="${http_code:-000}"
+            
+            if [[ "${http_code}" =~ ^[0-9]{3}$ ]] && (( 10#${http_code} < 500 )); then
+                results+="${host} PASS (HTTP ${http_code}); "
+            else
+                results+="${host} FAIL (HTTP ${http_code}); "
+                allOK=false
+            fi
         else
-            ncFlags=( -z -w "${networkTimeout}" )
-        fi
+            # Original nc logic for host:port:proto
+            IFS=',' read -r host port proto <<< "${entry}"
+            # Default to TCP if protocol not specified
+            if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
+                ncFlags=( -u -z -w "${networkTimeout}" )
+            else
+                ncFlags=( -z -w "${networkTimeout}" )
+            fi
 
-        if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
-            results+="${host}:${port} PASS; "
-        else
-            results+="${host}:${port} FAIL; "
-            allOK=false
+            if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
+                results+="${host}:${port} PASS; "
+            else
+                results+="${host}:${port} FAIL; "
+                allOK=false
+            fi
         fi
     done
 
