@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 15-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 19-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,13 +33,13 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b31"
+scriptVersion="3.0.0b32"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.0.4907"
+swiftDialogMinimumRequiredVersion="2.5.6.4805"
 
 # Elapsed Time
 SECONDS="0"
@@ -102,7 +102,11 @@ vpnClientVendor="paloalto"
 vpnClientDataType="extended"
 
 # "Anticipation" Duration (in seconds)
-anticipationDuration="2"
+if [[ "${operationMode}" == "Silent" ]]; then
+    anticipationDuration="0"
+else
+    anticipationDuration="2"
+fi
 
 # How many previous minor OS versions will be marked as compliant
 previousMinorOS="2"
@@ -174,7 +178,7 @@ case "${serverURL}" in
 
     *mosyle* )
         mdmVendor="Mosyle"
-        mdmVendorUuid=""
+        mdmVendorUuid="0C9E0BB3-73B6-4761-95A4-419FE95DCA7F"
         ;;
 
     * )
@@ -289,7 +293,7 @@ if [[ -n "${kerberosRealm}" ]]; then
         username=$( /usr/libexec/PlistBuddy -c "Print:upn" /var/tmp/app-sso.plist | awk -F@ '{print $1}' )
         kerberosSSOeResult="${username}"
     fi
-    /bin/rm -f /var/tmp/app-sso.plist
+    rm -f /var/tmp/app-sso.plist
 fi
 
 # Platform Single Sign-on Extension
@@ -820,7 +824,7 @@ fi
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Mosyle List Items
+# Mosyle List Items (thanks, @precursorca!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 mosyleListitemJSON='
@@ -832,23 +836,22 @@ mosyleListitemJSON='
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Mosyle Check-In", "subtitle" : "Your Mac should check-in with the Mosyle MDM server multiple times each day", "icon" : "SF=17.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Mosyle Check-In", "subtitle" : "Your Mac should check-in with the Mosyle MDM server multiple times each day", "icon" : "SF=16.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' Self-Service", "subtitle" : "Your one-stop shop for all things '${mdmVendor}'.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -1193,40 +1196,46 @@ function quitScript() {
     esac
 
     if [[ -n "${overallHealth}" ]]; then
-        dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
-        dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        if [[ "${operationMode}" != "Silent" ]]; then
+            dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
+            dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        fi
         if [[ -n "${webhookURL}" ]]; then
             info "Sending webhook message"
-            webhookStatus="Failures Detected"
+            webhookStatus="Failures Detected (${#errorMessages[@]} errors)"
             webHookMessage
         fi
         errorOut "${overallHealth%%; }"
         exitCode="1"
     else
-        dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
-        dialogUpdate "title: Computer Healthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        if [[ "${operationMode}" != "Silent" ]]; then
+            dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
+            dialogUpdate "title: Computer Healthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+        fi
     fi
 
-    dialogUpdate "progress: 100"
-    dialogUpdate "progresstext: Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
-    dialogUpdate "button1text: Close"
-    dialogUpdate "button1: enable"
-    
-    sleep "${anticipationDuration}"
+    if [[ "${operationMode}" != "Silent" ]]; then
+        dialogUpdate "progress: 100"
+        dialogUpdate "progresstext: Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
+        dialogUpdate "button1text: Close"
+        dialogUpdate "button1: enable"
+        
+        sleep "${anticipationDuration}"
 
-    # Progress countdown (thanks, @samg and @bartreadon!)
-    dialogUpdate "progress: reset"
-    while true; do
-        if [[ ${completionTimer} -lt ${progressSteps} ]]; then
-            dialogUpdate "progress: ${completionTimer}"
-        fi
-        dialogUpdate "progresstext: Closing automatically in ${completionTimer} seconds …"
-        sleep 1
-        ((completionTimer--))
-        if [[ ${completionTimer} -lt 0 ]]; then break; fi;
-        if ! kill -0 "${dialogPID}" 2>/dev/null; then break; fi;
-    done
-    dialogUpdate "quit:"
+        # Progress countdown (thanks, @samg and @bartreadon!)
+        dialogUpdate "progress: reset"
+        while true; do
+            if [[ ${completionTimer} -lt ${progressSteps} ]]; then
+                dialogUpdate "progress: ${completionTimer}"
+            fi
+            dialogUpdate "progresstext: Closing automatically in ${completionTimer} seconds …"
+            sleep 1
+            ((completionTimer--))
+            if [[ ${completionTimer} -lt 0 ]]; then break; fi
+            if ! kill -0 "${dialogPID}" 2>/dev/null; then break; fi
+        done
+        dialogUpdate "quit:"
+    fi
 
     # Remove the dialog command file
     rm -f "${dialogCommandFile}"
@@ -1310,7 +1319,7 @@ fi
 # Pre-flight Check: Logging Preamble
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# MDM Vendor: ${mdmVendor}\n# Operation Mode: ${operationMode}\n####\n"
+preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# Operation Mode: ${operationMode}\n####\n\n"
 preFlight "Initiating …"
 
 
@@ -1387,7 +1396,7 @@ function dialogInstall() {
     fi
 
     # Remove the temporary working directory when done
-    /bin/rm -Rf "$tempDirectory"
+    rm -Rf "$tempDirectory"
 
 }
 
@@ -1490,14 +1499,14 @@ function checkOS() {
         etag_cache="$json_cache_dir/macos_data_feed_etag.txt"
 
         # ensure local cache folder exists
-        /bin/mkdir -p "$json_cache_dir"
+        mkdir -p "$json_cache_dir"
 
         # check local vs online using etag
         if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
             # logComment "e-tag stored, will download only if e-tag doesn’t match"
-            etag_old=$(/bin/cat "$etag_cache")
+            etag_old=$(cat "$etag_cache")
             curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
-            etag_new=$(/bin/cat "$etag_cache")
+            etag_new=$(cat "$etag_cache")
             if [[ "$etag_old" == "$etag_new" ]]; then
                 # logComment "Cached ETag matched online ETag - cached json file is up to date"
             else
@@ -1623,25 +1632,26 @@ function checkAvailableSoftwareUpdates() {
         info "${mdmClientAvailableOSUpdates}"
     fi
 
-    # DDM-enforced OS Updates
-    numberOfDays="7"
-    ddmEnforcedOSUpdates=$(
-    awk -v date="$(date -v-"$numberOfDays"d +%Y-%m-%d)" '$1 >= date' /var/log/install.log \
-    | grep EnforcedInstallDate \
-    | sed -n 's/.*EnforcedInstallDate:\([^|]*\)|VersionString:\([^|]*\)|BuildVersionString:\([^|]*\).*/\1\t\2\t\3/p' \
-    | tail -n 1 \
-    | while IFS=$'\t' read -r ts ver build; do
-        ts="${ts%Z}"
-        formatted="$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts" "+%d-%b-%Y" 2>/dev/null)"
-        [ -z "$formatted" ] && formatted="$ts"
-        printf 'macOS %s (%s) %s' "$ver" "$build" "$formatted"
-        done
-    )
+    # DDM-enforced OS Version
+    ddmEnforcedInstallDateRaw=$( grep EnforcedInstallDate /var/log/install.log | tail -n 1 )
+    if [[ -n "$ddmEnforcedInstallDateRaw" ]]; then
+        
+        # DDM-enforced Install Date
+        tmp=${ddmEnforcedInstallDateRaw##*|EnforcedInstallDate:}
+        ddmEnforcedInstallDate=${tmp%%|*}
+        
+        # DDM-enforced Version
+        tmp=${ddmEnforcedInstallDateRaw##*|VersionString:}
+        ddmVersionString=${tmp%%|*}
+
+        ddmEnforcedInstallDateHumanReadable=$(date -jf "%Y-%m-%dT%H" "$ddmEnforcedInstallDate" "+%d-%b-%Y" 2>/dev/null)
+
+    fi
 
     # Software Update Recommended Updates
     recommendedUpdates=$( /usr/libexec/PlistBuddy -c "Print :RecommendedUpdates:0" /Library/Preferences/com.apple.SoftwareUpdate.plist 2>/dev/null )
     if [[ -n "${recommendedUpdates}" ]]; then
-        SUListRaw=$( softwareupdate --list --include-config-data 2>&1 )
+        SUListRaw=$( softwareupdate --list 2>&1 )
         case "${SUListRaw}" in
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
@@ -1676,19 +1686,17 @@ function checkAvailableSoftwareUpdates() {
     else
 
         # Treat a DDM-enforced OS Updates which contains the current OS as if there are no updates
-        if [[ -n "${ddmEnforcedOSUpdates}" ]]; then
-            if [[ "$ddmEnforcedOSUpdates" == "macOS ${osVersion} (${osBuild})"* ]]; then
-                availableSoftwareUpdates="None"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
-                info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-            else
-                availableSoftwareUpdates="${ddmEnforcedOSUpdates}"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
-                info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
-            fi
-        else
+        if [[ -z "$ddmEnforcedInstallDate" ]]; then
             availableSoftwareUpdates="None"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        elif is-at-least "${ddmVersionString}" "${installedOSVersion}"; then
+            availableSoftwareUpdates="Up-to-date"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        else
+            availableSoftwareUpdates="macOS ${ddmVersionString} (${ddmEnforcedInstallDateHumanReadable})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         fi
 
@@ -1974,9 +1982,9 @@ function checkUserDirectorySizeItems() {
     sleep "${anticipationDuration}"
 
     userDirectorySize=$( du -sh "${targetDirectory}" 2>/dev/null | awk '{ print $1 }' )
-    userDirectoryItems=$( find "${targetDirectory}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | xargs )
+    userDirectoryItems=$( find "${targetDirectory}" -mindepth 1 -maxdepth 1 -not -name ".*" 2>/dev/null | wc -l | xargs )
 
-    if [[ "${userDirectorySize}" == "0B" ]]; then
+    if [[ "${userDirectoryItems}" == "0" ]]; then
         userDirectoryResult="Empty"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${userDirectoryResult}"
         info "${humanReadableCheckName}: ${userDirectoryResult}"
@@ -2063,7 +2071,13 @@ function checkAPNs() {
     else
 
         apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${apnsCheck}" +"%s" )
-        apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
+        eventDate=$( date -r "${apnsStatusEpoch}" "+%Y-%m-%d" )
+        todayDate=$( date "+%Y-%m-%d" )
+        if [[ "${eventDate}" == "${todayDate}" ]]; then
+            apnsStatus=$( date -r "${apnsStatusEpoch}" "+%-l:%M %p" )
+        else
+            apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
+        fi
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${apnsStatus}"
         info "${humanReadableCheckName}: ${apnsCheck}"
 
@@ -2199,7 +2213,7 @@ jamfHosts=(
     "apne1-jcds.services.jamfcloud.com,443"
 )
 
-# Generic network-host tester; uses nc to probe host:port and updates swiftDialog
+# Generic network-host tester: uses `nc` for ports or `curl` for URLs
 function checkNetworkHosts() {
     local index="$1"
     local name="$2"
@@ -2217,19 +2231,39 @@ function checkNetworkHosts() {
     local results=""
 
     for entry in "${hosts[@]}"; do
-        IFS=',' read -r host port proto <<< "${entry}"
-        # Default to TCP if protocol not specified
-        if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
-            ncFlags=( -u -z -w "${networkTimeout}" )
+        # If URL, handle with curl; else nc host:port:proto
+        if [[ "${entry}" =~ ^https?:// ]]; then
+            # Ensure https:// (as in MTS)
+            if [[ "${entry}" != https://* ]]; then
+                entry="https://${entry#http://}"
+            fi
+            local host=$(printf '%s' "${entry}" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
+            # -sS: silent but show errors, -L: follow redirects
+            local http_code=$( curl -sSL --max-time "${networkTimeout}" --connect-timeout 5 -o /dev/null -w "%{http_code}" "${entry}" 2>/dev/null )
+            http_code="${http_code:-000}"
+            
+            if [[ "${http_code}" =~ ^[0-9]{3}$ ]] && (( 10#${http_code} < 500 )); then
+                results+="${host} PASS (HTTP ${http_code}); "
+            else
+                results+="${host} FAIL (HTTP ${http_code}); "
+                allOK=false
+            fi
         else
-            ncFlags=( -z -w "${networkTimeout}" )
-        fi
+            # Original nc logic for host:port:proto
+            IFS=',' read -r host port proto <<< "${entry}"
+            # Default to TCP if protocol not specified
+            if [[ "${proto}" =~ ^[Uu][Dd][Pp] ]]; then
+                ncFlags=( -u -z -w "${networkTimeout}" )
+            else
+                ncFlags=( -z -w "${networkTimeout}" )
+            fi
 
-        if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
-            results+="${host}:${port} PASS; "
-        else
-            results+="${host}:${port} FAIL; "
-            allOK=false
+            if nc "${ncFlags[@]}" "${host}" "${port}" &>/dev/null; then
+                results+="${host}:${port} PASS; "
+            else
+                results+="${host}:${port} FAIL; "
+                allOK=false
+            fi
         fi
     done
 
@@ -2345,9 +2379,6 @@ function checkJamfProCheckIn() {
 
     sleep "${anticipationDuration}"
 
-    # Enable 24 hour clock format (12 hour clock enabled by default)
-    twenty_four_hour_format="false"
-
     # Number of seconds since action last occurred (86400 = 1 day)
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
@@ -2362,29 +2393,29 @@ function checkJamfProCheckIn() {
     time_since_check_in_epoch=$(($currentTimeEpoch-$last_check_in_time_epoch))
 
     # Convert last Jamf Pro epoch to something easier to read
-    if [[ "${twenty_four_hour_format}" == "true" ]]; then
-        # Outputs 24 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %H:%M")
+    eventDate=$( date -r "${last_check_in_time_epoch}" "+%Y-%m-%d" )
+    todayDate=$( date "+%Y-%m-%d" )
+    if [[ "${eventDate}" == "${todayDate}" ]]; then
+        last_check_in_time_human_readable=$(date -r "${last_check_in_time_epoch}" "+%-l:%M %p" )
     else
-        # Outputs 12 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
+        last_check_in_time_human_readable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
     fi
 
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
-        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
+        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
-        warning "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
+        warning "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_reable}"
-        info "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_readable}"
+        info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
 
 }
@@ -2407,9 +2438,6 @@ function checkJamfProInventory() {
 
     sleep "${anticipationDuration}"
 
-    # Enable 24 hour clock format (12 hour clock enabled by default)
-    twenty_four_hour_format="false"
-
     # Number of seconds since action last occurred (86400 = 1 day)
     inventory_time_old=604800    # 1 week
     inventory_time_aging=259200  # 3 days
@@ -2425,24 +2453,24 @@ function checkJamfProInventory() {
     time_since_inventory_epoch=$(($currentTimeEpoch-$last_inventory_time_epoch))
 
     # Convert last Jamf Pro epoch to something easier to read
-    if [[ "${twenty_four_hour_format}" == "true" ]]; then
-        # Outputs 24 hour clock format
-        last_inventory_time_human_reable=$(date -r "${last_inventory_time_epoch}" "+%A %H:%M")
+    eventDate=$( date -r "${last_inventory_time_epoch}" "+%Y-%m-%d" )
+    todayDate=$( date "+%Y-%m-%d" )
+    if [[ "${eventDate}" == "${todayDate}" ]]; then
+        last_inventory_time_human_readable=$(date -r "${last_inventory_time_epoch}" "+%-l:%M %p" )
     else
-        # Outputs 12 hour clock format
-        last_inventory_time_human_reable=$(date -r "${last_inventory_time_epoch}" "+%A %-l:%M %p")
+        last_inventory_time_human_readable=$(date -r "${last_inventory_time_epoch}" "+%A %-l:%M %p")
     fi
 
     #set status indicator for last inventory
     if [ ${time_since_inventory_epoch} -ge ${inventory_time_old} ]; then
         # inventory_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_reable}"
-        errorOut "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_readable}"
+        errorOut "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -ge ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_reable}"
-        warning "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_readable}"
+        warning "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟢"
@@ -2455,7 +2483,7 @@ function checkJamfProInventory() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Check Last Mosyle Check-In 
+# Check Last Mosyle Check-In (thanks, @precursorca!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkMosyleCheckIn() {
@@ -2470,14 +2498,10 @@ function checkMosyleCheckIn() {
 
     sleep "${anticipationDuration}"
 
-    # Enable 24 hour clock format (12 hour clock enabled by default)
-    twenty_four_hour_format="false"
-
     # Number of seconds since action last occurred (86400 = 1 day)
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
 
-    #last_check_in_time=$(grep "Checking for policies triggered by \"recurring check-in\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
 	last_check_in_time=$(defaults read com.mosyle.macos.manager.mdm MacCommandsReplyResultsSuccessDate | cut -d. -f1)
 
     # Convert last Mosyle check-in time to epoch
@@ -2486,29 +2510,29 @@ function checkMosyleCheckIn() {
     time_since_check_in_epoch=$(($currentTimeEpoch-$last_check_in_time_epoch))
 
     # Convert last Mosyle epoch to something easier to read
-    if [[ "${twenty_four_hour_format}" == "true" ]]; then
-        # Outputs 24 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %H:%M")
+    eventDate=$( date -r "${last_check_in_time_epoch}" "+%Y-%m-%d" )
+    todayDate=$( date "+%Y-%m-%d" )
+    if [[ "${eventDate}" == "${todayDate}" ]]; then
+        last_check_in_time_human_readable=$(date -r "${last_check_in_time_epoch}" "+%-l:%M %p" )
     else
-        # Outputs 12 hour clock format
-        last_check_in_time_human_reable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
+        last_check_in_time_human_readable=$(date -r "${last_check_in_time_epoch}" "+%A %-l:%M %p")
     fi
 
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB4E3D, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_reable}"
-        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
+        errorOut "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F7CE46, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_reable}"
-        warning "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
+        warning "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_reable}"
-        info "${humanReadableCheckName}: ${last_check_in_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_readable}"
+        info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
 
 }
@@ -2550,7 +2574,7 @@ function checkFileVault() {
                 ;;
 
             *  )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
                 errorOut "${humanReadableCheckName} (${1})"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -2559,7 +2583,7 @@ function checkFileVault() {
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -2595,7 +2619,7 @@ function checkInternal() {
         
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
         errorOut "${checkInternalTargetFileDisplayName} NOT Installed"
         overallHealth+="${checkInternalTargetFileDisplayName}; "
 
@@ -3045,23 +3069,22 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkFirewall "4"
             checkFileVault "5"
             checkGatekeeperXProtect "6"
-            checkVPN "7"
-            checkUptime "8"
-            checkFreeDiskSpace "9"
-            checkUserDirectorySizeItems "10" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "11" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "12" ".Trash" "trash.fill" "Trash"
-            checkMdmProfile "13"
-            checkMdmCertificateExpiration "14"
-            checkAPNs "15"
-            checkMosyleCheckIn "16"
-            checkNetworkHosts "17" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "18" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "19" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "20" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "21" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "22" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-            checkNetworkQuality "23"
+            checkUptime "7"
+            checkFreeDiskSpace "8"
+            checkUserDirectorySizeItems "9" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+            checkUserDirectorySizeItems "10" "Downloads" "arrow.down.circle.fill" "Downloads"
+            checkUserDirectorySizeItems "11" ".Trash" "trash.fill" "Trash"
+            checkMdmProfile "12"
+            checkMdmCertificateExpiration "13"
+            checkAPNs "14"
+            checkMosyleCheckIn "15"
+            checkNetworkHosts "16" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+            checkNetworkHosts "17" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+            checkNetworkHosts "18" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+            checkNetworkHosts "19" "Apple Certificate Validation"          "${certHosts[@]}"
+            checkNetworkHosts "20" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+            checkInternal "21" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
+            checkNetworkQuality "22"
             ;;
 
         * )
