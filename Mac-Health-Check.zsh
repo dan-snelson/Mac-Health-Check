@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 19-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 20-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
