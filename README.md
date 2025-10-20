@@ -2,7 +2,7 @@
 
 # Mac Health Check
 
-> A practical and user-friendly approach to surfacing Mac compliance information directly to end-users via Jamf Pro Self Service
+> A significant update to the practical and user-friendly approach to surfacing Mac health information directly to end-users via Jamf Pro Self Service
 
 <img src="images/Mac_Health_Check_Hero.jpg" alt="Mac Health Check Hero" width="800"/>
 
@@ -16,8 +16,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, emb
 
 Administrators can customize the user interface using swiftDialog’s visual capabilities, making the experience both informative and approachable.
 
-The tool logs results for IT review, while not altering device configurations, making it ideal for visibility without intrusion.
-
+The tool logs results for review, while not altering device configuration, and a new "Silent" Operation Mode makes Mac Health Check ideal for IT visibility without end-user intrusion.
 
 <a href="https://arizona.zoom.us/rec/play/eXXmgFbxmyn1n_y81p0qdFwirdYOXua2AyNqcKoLzt0-u8gHgF0FObggPUBN3iIz1cpMZYcvHThlM4Y.WQEsj2NTeNB-ySdj" target="_blank"><img src="images/Mac_Health_Check Presentation.png" alt="Four Corners & Silver State September 2025 Meetup" width="600"/><br />Four Corners & Silver State September 2025 Meetup</a> (25-Sep-2025)
 
@@ -38,7 +37,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Easily confirms remediation efforts
 - Provides peace-of-mind for end-users
 
-### :new: Silent Mode :new:
+### Silent Mode :new:
 
 - Silently performs all health checks and logs results
 - No dialog is presented to the end-user
@@ -53,16 +52,16 @@ The following health checks and information reporting are included and the scrip
 <img src="images/MHC_2.5.0_SSV.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
-1. Available Updates (including deferred updates)
+1. Available Updates (including deferred and DDM-enforced updates :new:)
 1. System Integrity Protection
-1. Signed System Volume (SSV)
+1. Signed System Volume (SSV) :new:
 1. Firewall
 1. FileVault Encryption
-1. Gatekeeper / XProtect
+1. Gatekeeper / XProtect :new:
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
-1. User's Directory Size and Item Count
+1. User's Directory Size and Item Count :new:
     - Desktop
     - Downloads
     - Trash
@@ -108,7 +107,9 @@ The following health checks and information reporting are included and the scrip
 - Platform Single Sign-on Extension
 
 #### Computer Information
-- macOS version (and build)
+- macOS version (build)
+- System Memory :new:
+- System Storage :new:
 - Dialog version
 - Script version
 - Computer Name
