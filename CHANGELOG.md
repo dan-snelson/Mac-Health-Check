@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.5.0 (18-Oct-2025)
+### 2.5.0 (20-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
 - Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
