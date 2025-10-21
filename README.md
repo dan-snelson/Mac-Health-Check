@@ -2,7 +2,7 @@
 
 # Mac Health Check
 
-> A practical and user-friendly approach to surfacing Mac compliance information directly to end-users via Jamf Pro Self Service
+> A significant update to the practical and user-friendly approach to surfacing Mac health information directly to end-users via Jamf Pro Self Service
 
 <img src="images/Mac_Health_Check_Hero.jpg" alt="Mac Health Check Hero" width="800"/>
 
@@ -16,9 +16,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, emb
 
 Administrators can customize the user interface using swiftDialog’s visual capabilities, making the experience both informative and approachable.
 
-The tool logs results for IT review, while not altering device configurations, making it ideal for visibility without intrusion.
-
-## Presentation
+The tool logs results for review, while not altering device configuration, and a new "Silent" Operation Mode makes Mac Health Check ideal for IT visibility without end-user intrusion.
 
 <a href="https://arizona.zoom.us/rec/play/eXXmgFbxmyn1n_y81p0qdFwirdYOXua2AyNqcKoLzt0-u8gHgF0FObggPUBN3iIz1cpMZYcvHThlM4Y.WQEsj2NTeNB-ySdj" target="_blank"><img src="images/Mac_Health_Check Presentation.png" alt="Four Corners & Silver State September 2025 Meetup" width="600"/><br />Four Corners & Silver State September 2025 Meetup</a> (25-Sep-2025)
 
@@ -39,21 +37,34 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Easily confirms remediation efforts
 - Provides peace-of-mind for end-users
 
+### Silent Mode :new:
+
+- Silently performs all health checks and logs results
+- No dialog is presented to the end-user
+- Ideal for background compliance reporting
+- Complements existing MDM compliance frameworks
+
 ## Features
 The following health checks and information reporting are included and the script operates in “test” mode by default. (Change `operationMode` to `production` when ready to deploy in production.)
 
 ### Health Checks
 
-<img src="images/MHC_2.4.0_Firewall.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_2.5.0_SSV.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
-1. Available Updates (including deferred updates)
+1. Available Updates (including deferred and DDM-enforced updates :new:)
 1. System Integrity Protection
+1. Signed System Volume (SSV) :new:
 1. Firewall
 1. FileVault Encryption
+1. Gatekeeper / XProtect :new:
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
+1. User's Directory Size and Item Count :new:
+    - Desktop
+    - Downloads
+    - Trash
 1. MDM Profile
 1. MDM Certificate Expiration
 1. Apple Push Notification service
@@ -78,7 +89,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_2.4.0_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_2.5.0_Helpmessage.png" alt="Help Message" width="800"/>
 
 #### IT Support
 - Telephone
@@ -96,7 +107,9 @@ The following health checks and information reporting are included and the scrip
 - Platform Single Sign-on Extension
 
 #### Computer Information
-- macOS version (and build)
+- macOS version (build)
+- System Memory :new:
+- System Storage :new:
 - Dialog version
 - Script version
 - Computer Name
@@ -114,7 +127,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (2.4.0): 2025-09-20 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (2.5.0): 2025-10-20 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
@@ -123,9 +136,10 @@ com.apple.sharepoint.group.2; Bootstrap Token supported on server: YES;
 Bootstrap Token escrowed to server: YES; sudo Check: /etc/sudoers: parsed OK;
 sudoers: root  ALL = (ALL) ALL %admin  ALL = (ALL) ALL ; Platform SSOe: localadmin NOT logged in;
 Location Services: Enabled; SSH: On; Microsoft OneDrive Sync Date: Not Configured;
-Time Machine Backup Date: Not configured ; Battery Cycle Count: 0; Wi-Fi: Liahona;
-Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; Network Time Server: time.apple.com;
-Jamf Pro Computer ID: 007; Site: Servers
+Time Machine Backup Date: Not configured; localadmin's Desktop Size: 160M for 116 item(s);
+localadmin's Trash Size: 1.8M for 3 item(s); Battery Cycle Count: 0; Wi-Fi: Liahona;
+Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; 
+Network Time Server: time.apple.com; Jamf Pro Computer ID: 007; Site: Servers
 ```
 
 1. Warning when logged-in user is a member of `admin`

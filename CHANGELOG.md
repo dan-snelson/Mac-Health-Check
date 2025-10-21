@@ -2,6 +2,52 @@
 
 ## CHANGELOG
 
+### 2.5.0 (20-Oct-2025)
+- Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
+- Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
+- Improved handling of the `checkJamfProCheckIn` and `checkJamfProInventory` functions when no relevant data is found in the `jamf.log` file
+- Refactored `checkAvailableSoftwareUpdates` to include DDM-enforced OS Updates
+- Added error-handling for `organizationOverlayiconURL`
+- Minor Cisco VPN fixes (Pull Request #47; thanks, @HowardGMac!)
+- Update to External checks to allow defaults use (Pull Request #48; thanks, Obi-@HowardGMac!)
+- Added the size and item count of the user's Desktop and Trash to the Jamf Pro Policy Log Reporting
+- Added `checkUserDirectorySizeItems` function to report the size and item count of any user directories (e.g. Desktop, Downloads, Trash, etc.)
+- Added a Health Checks for Signed System Volume (SSV) and Gatekeeper / XProtect (thanks for the reminder, @hoakley!)
+- Refactored "DDM-enforced OS Version" per [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder)
+- Refactored `checkUserDirectorySizeItems` to ignore hidden files
+- Simplified various date / time formats
+- Refactored `checkNetworkHosts` to use `nc` for ports or `curl` for URLs (thanks for the idea, @ecubrooks!)
+- Added Server-side Logging to summarize errors (thanks for the idea, @isaacatmann!)
+- Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
+
+    > :warning: **Breaking Change** :warning:
+    > 
+    > The `operationMode` variable is now case-sensitive and the former "production" option has been renamed to "Self Service".
+    > 
+    > Please update any existing policies that set this variable to use: "Test", "Debug", "Self Service" or "Silent" (with initial capital letters).
+
+    <details>
+        <summary>Click to view screenshots</summary>
+        <details>
+            <summary>Script</summary>
+            <img src="images/MHC_2.5.0_Script_Options.png" alt="Settings > Computer Management > Scripts > Options > Parameter Labels > Parameter 4" width="600"/><br/>
+            Settings > Computer Management > Scripts > Options > Parameter Labels > Parameter 4<br/><br/>
+            <code>Operation Mode [ Test | Debug | Self Service | Silent ]</code>
+        </details>
+        <details>
+            <summary>Self Service Policy</summary>
+            <img src="images/MHC_2.5.0_Policy_Self_Service.png" alt="Computers > Policies > Options > Scripts > Parameter Values > Self Service" width="600"/><br/>
+            Computers > Policies > Options > Scripts > Parameter Values > <code>Self Service</code>
+        </details>
+        <details>
+            <summary>Silent Policy</summary>
+            <img src="images/MHC_2.5.0_Policy_Silent_General.png" alt="Computers > Policies > Options > General > Trigger > Custom > customTriggerName" width="600"/><br/>
+            Computers > Policies > Options > General > Trigger > Custom > <code>customTriggerName</code><br/><br/>
+            <img src="images/MHC_2.5.0_Policy_Silent_Scripts.png" alt="Computers > Policies > Options > Scripts > Parameter Values > Silent" width="600"/><br/>
+            Computers > Policies > Options > Scripts > Parameter Values > <code>Silent</code>
+        </details>
+    </details>
+
 ### 2.4.0 (20-Sep-2025)
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
