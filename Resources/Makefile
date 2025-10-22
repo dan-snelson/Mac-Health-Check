@@ -47,19 +47,21 @@ pkg: $(ROOT) $(SCRIPTS)
 	# Optional: Auto-clean temp dirs after build (uncomment if desired)
 	# $(MAKE) temp-clean
 
-# Sign the latest .pkg (requires CERT_NAME env var)
+# Sign the latest .pkg (requires CERT_NAME env var; auto-detects most recent *.pkg)
 sign:
 	@if [ -z "$$CERT_NAME" ]; then \
 		echo "Error: Set CERT_NAME env var (e.g., export CERT_NAME='Developer ID Installer: Your Name (TEAMID)')"; \
 		exit 1; \
 	fi; \
-	if [ -f "$(PKG)" ]; then \
-		productsign --sign "$$CERT_NAME" "$(PKG)" "$(SIGNED_PKG)"; \
-		echo "Signed: $(SIGNED_PKG)"; \
-		echo "Verify: pkgutil --check-signature $(SIGNED_PKG)"; \
-	else \
+	LATEST_PKG=$$(ls -t *.pkg 2>/dev/null | head -1); \
+	if [ -z "$$LATEST_PKG" ]; then \
 		echo "No .pkg found—run 'make pkg' first."; \
 		exit 1; \
+	else \
+		SIGNED=$$(echo "$$LATEST_PKG" | sed 's/\.pkg$$/-signed.pkg/'); \
+		productsign --sign "$$CERT_NAME" "$$LATEST_PKG" "$$SIGNED"; \
+		echo "Signed: $$SIGNED"; \
+		echo "Verify: pkgutil --check-signature $$SIGNED"; \
 	fi
 
 # Clean temp build artifacts only (keeps .pkg)
@@ -83,7 +85,7 @@ help:
 	@echo "Targets:"
 	@echo "  all      : Build the .pkg (default)"
 	@echo "  pkg      : Build $(NAME)-<SCRIPT_VERSION>-<TIMESTAMP>.pkg in Resources/"
-	@echo "  sign     : Sign the .pkg (set CERT_NAME env var)"
+	@echo "  sign     : Sign the latest .pkg (set CERT_NAME env var)"
 	@echo "  temp-clean : Remove temp dirs only (keeps .pkg)"
 	@echo "  clean    : Remove temp + .pkg"
 	@echo "  distclean: Nuke all under /var/tmp/$(NAME)/"
@@ -95,7 +97,7 @@ help:
 	@echo "       Main script installed as /usr/local/bin/$(NAME) (Zsh-compatible)."
 	@echo "       .pkg filename uses script version + current timestamp."
 	@echo "       Post-install auto-runs the script (edit postInstall.zsh for custom args)."
-	@echo "Optional: For signing, 'productsign --sign \"Developer ID Installer\" $(PKG) $(SIGNED_PKG)'."
+	@echo "Optional: For signing, 'productsign --sign \"Developer ID Installer\" <latest.pkg> <latest-signed.pkg>'."
 	@echo "         Add preinstall script to Resources/ as 'preInstall.zsh' and update $(SCRIPTS) target to copy it too."
 
 .PHONY: all pkg sign temp-clean clean distclean help
