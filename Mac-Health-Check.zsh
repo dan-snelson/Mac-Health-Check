@@ -517,7 +517,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar (i.e., "progress: increment")
-progressSteps="33"
+progressSteps="34"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -607,30 +607,31 @@ dialogJSON='
         {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certificate", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "TouchID Status", "subtitle" : "TouchID provides secure biometric authentication for Okta Fastpass.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+        {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "MDM Profile", "subtitle" : "The presence of the Jamf Pro MDM profile helps ensure your Mac is enrolled", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the Jamf Pro MDM certificate", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, Jamf Pro and your Mac", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
 }
 '
@@ -2368,7 +2369,82 @@ function checkInternal() {
 
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Touch ID Status
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# --- Safe no-op debug if not defined ---
+type debug >/dev/null 2>&1 || debug() { :; }
 
+function checkTouchID() {
+    local idx="${1}"
+    local humanReadableCheckName="Touch ID"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=touchid,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Checking TouchID Status …"
+
+    sleep "${anticipationDuration}"
+
+    # --- Run command as console user (TCC-friendly) ---
+    runAsUserQuiet() {
+        /bin/launchctl asuser "${loggedInUserID}" /usr/bin/sudo -u "${loggedInUser}" /bin/zsh -lc "$*" 2>/dev/null
+    }
+
+    # --- Detect Touch ID-capable hardware ---
+    local hw="absent"
+    if ioreg -l 2>/dev/null | grep -Eiq "AppleBiometric|AppleBiometricServices|BiometricKit"; then
+        hw="present"
+    elif system_profiler SPiBridgeDataType 2>/dev/null | grep -qi "Touch ID"; then
+        hw="present"
+    elif system_profiler SPUSBDataType 2>/dev/null | grep -Eiq "Touch.?ID|Magic Keyboard.*Touch.?ID"; then
+        hw="present"
+    fi
+
+    # --- Enrollment check (macOS 14–15+ accurate) ---
+    local enrolled="false"
+    local bioCount="0"
+    local bioOutput=""
+
+    if [[ "${hw}" == "present" && -x /usr/bin/bioutil ]]; then
+        # Run -c as console user first, fall back to root
+        if [[ -n "${loggedInUser}" && "${loggedInUser}" != "loginwindow" && "${loggedInUserID}" =~ ^[0-9]+$ ]]; then
+            bioOutput="$(/bin/launchctl asuser "${loggedInUserID}" /usr/bin/sudo -u "${loggedInUser}" /usr/bin/bioutil -c 2>/dev/null || true)"
+        fi
+        [[ -z "${bioOutput}" ]] && bioOutput="$(/usr/bin/bioutil -c 2>/dev/null || true)"
+
+        # Parse only the "biometric template(s)" line and extract the count
+        bioCount="$(echo "${bioOutput}" | grep -Eo '[0-9]+[[:space:]]+biometric template' | grep -Eo '^[0-9]+' | head -n1)"
+
+        # Default to 0 if nothing found
+        [[ -z "${bioCount}" ]] && bioCount="0"
+
+        # Mark as enrolled if count > 0
+        if [[ "${bioCount}" -gt 0 ]]; then
+            enrolled="true"
+        fi
+    fi
+
+    debug "TouchID parse: bioCount=${bioCount} enrolled=${enrolled} outputSample='$(echo "$bioOutput" | head -n1)'"
+
+    # --- Report ---
+    if [[ "${hw}" != "present" ]]; then
+        dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Hardware not available"
+        errorOut "Touch ID: Hardware not available"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    if [[ "${enrolled}" == "true" ]]; then
+        dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled & Enrolled (count=${bioCount})"
+        info "Touch ID: Enabled & Enrolled (count=${bioCount})"
+    else
+        dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Not enrolled"
+        errorOut "Touch ID: Hardware present, not enrolled (count=${bioCount})"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
+}
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check VPN Installation
@@ -2656,30 +2732,31 @@ if [[ "${operationMode}" != "Test" ]]; then
     checkFirewall "4"
     checkFileVault "5"
     checkGatekeeperXProtect "6"
-    checkVPN "7"
-    checkUptime "8"
-    checkFreeDiskSpace "9"
-    checkUserDirectorySizeItems "10" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-    checkUserDirectorySizeItems "11" "Downloads" "arrow.down.circle.fill" "Downloads"
-    checkUserDirectorySizeItems "12" ".Trash" "trash.fill" "Trash"
-    checkJamfProMdmProfile "13"
-    checkJssCertificateExpiration "14"
-    checkAPNs "15"
-    checkJamfProCheckIn "16"
-    checkJamfProInventory "17"
-    checkNetworkHosts  "18" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-    checkNetworkHosts  "19" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-    checkNetworkHosts  "20" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-    checkNetworkHosts  "21" "Apple Certificate Validation"          "${certHosts[@]}"
-    checkNetworkHosts  "22" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-    checkNetworkHosts  "23" "Jamf Hosts"                            "${jamfHosts[@]}"
-    checkInternal "24" "/Applications/Microsoft Teams.app"  "/Applications/Microsoft Teams.app"             "Microsoft Teams"
-    checkExternal "25" "symvBeyondTrustPMfM"                "/Applications/PrivilegeManagement.app"
-    checkExternal "26" "symvCiscoUmbrella"                  "/Applications/Cisco/Cisco Secure Client.app"
-    checkExternal "27" "symvCrowdStrikeFalcon"              "/Applications/Falcon.app"
-    checkExternal "28" "symvGlobalProtect"                  "/Applications/GlobalProtect.app"
-    checkNetworkQuality "29"
-    updateComputerInventory "30"
+	checkTouchID "7"
+    checkVPN "8"
+    checkUptime "9"
+    checkFreeDiskSpace "10"
+    checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+    checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
+    checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
+    checkJamfProMdmProfile "14"
+    checkJssCertificateExpiration "15"
+    checkAPNs "16"
+    checkJamfProCheckIn "17"
+    checkJamfProInventory "18"
+    checkNetworkHosts  "19" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+    checkNetworkHosts  "20" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+    checkNetworkHosts  "21" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+    checkNetworkHosts  "22" "Apple Certificate Validation"          "${certHosts[@]}"
+    checkNetworkHosts  "23" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+    checkNetworkHosts  "24" "Jamf Hosts"                            "${jamfHosts[@]}"
+    checkInternal "25" "/Applications/Microsoft Teams.app"  "/Applications/Microsoft Teams.app"             "Microsoft Teams"
+    checkExternal "26" "symvBeyondTrustPMfM"                "/Applications/PrivilegeManagement.app"
+    checkExternal "27" "symvCiscoUmbrella"                  "/Applications/Cisco/Cisco Secure Client.app"
+    checkExternal "28" "symvCrowdStrikeFalcon"              "/Applications/Falcon.app"
+    checkExternal "29" "symvGlobalProtect"                  "/Applications/GlobalProtect.app"
+    checkNetworkQuality "30"
+    updateComputerInventory "31"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "progresstext: Final Analysis …"
