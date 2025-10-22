@@ -1,13 +1,14 @@
 # Makefile for building [Mac Health Check](https://snelson.us/mhc) .PKG installer
 # Inspired by [erase-install Makefile](https://github.com/grahampugh/erase-install/blob/main/Makefile); thanks, @grahampugh!
 
-# See: [Creating a Self-extracting, Self-executing Mac Health Check Package](https://github.com/dan-snelson/Mac-Health-Check/wiki/99.-MDM-Configuration#creating-a-self-extracting-self-executing-mac-health-check-package)
+# See: [MDM Configuration](https://github.com/dan-snelson/Mac-Health-Check/wiki/99.-MDM-Configuration#mdm-configuration)
 
 NAME = Mac-Health-Check
-VERSION = 0.0.1# Update with your version (e.g., from git tag or beta; used for pkg metadata)
 IDENTIFIER = us.snelson.$(NAME)
 DATESTAMP := $(shell date '+%Y-%m-%d-%H%M%S')
-PKG = $(NAME)-$(DATESTAMP).pkg
+SCRIPT_VERSION := $(shell sed -n 's/.*scriptVersion="\([^"]*\)".*/\1/p' ../Mac-Health-Check.zsh)
+PKG = $(NAME)-$(SCRIPT_VERSION)-$(DATESTAMP).pkg
+SIGNED_PKG = $(PKG:%.pkg=%-signed.pkg)
 TMPBASE = /var/tmp/$(NAME)
 ROOT = $(TMPBASE)/root-$(DATESTAMP)# Temp package root
 SCRIPTS = $(TMPBASE)/scripts-$(DATESTAMP)# Temp scripts dir for pkgbuild
@@ -28,23 +29,38 @@ $(ROOT):
 	chmod 755 "$(ROOT)/usr/local/bin/$(NAME)"
 	@echo "Main script copied to $(ROOT)."
 
-# Prepare scripts dir (copy post-install.zsh from current dir)
-$(SCRIPTS): post-install.zsh
+# Prepare scripts dir (copy postInstall.zsh from current dir)
+$(SCRIPTS): postInstall.zsh
 	@echo "Preparing scripts in $(SCRIPTS)..."
 	mkdir -p $(SCRIPTS)
-	cp post-install.zsh $(SCRIPTS)/postinstall
+	cp postInstall.zsh $(SCRIPTS)/postinstall
 	chmod 755 $(SCRIPTS)/postinstall
 	@echo "Post-install script copied to $(SCRIPTS)/."
 
 # Build the .pkg using pkgbuild (flat pkg with root + scripts); output to current dir
 pkg: $(ROOT) $(SCRIPTS)
 	@echo "Building $(PKG)..."
-	pkgbuild --root "$(ROOT)" --identifier "$(IDENTIFIER)" --version "$(VERSION)" --ownership recommended --install-location / --scripts "$(SCRIPTS)" "$(PKG)"
+	pkgbuild --root "$(ROOT)" --identifier "$(IDENTIFIER)" --version "$(SCRIPT_VERSION)" --ownership recommended --install-location / --scripts "$(SCRIPTS)" "$(PKG)"
 	@echo "Package built: $(PKG) (in Resources/)"
 	@echo "To install: sudo installer -pkg $(PKG) -target /"
 	@echo "Post-install will auto-run /usr/local/bin/$(NAME) (default: interactive test mode)."
 	# Optional: Auto-clean temp dirs after build (uncomment if desired)
 	# $(MAKE) temp-clean
+
+# Sign the latest .pkg (requires CERT_NAME env var)
+sign:
+	@if [ -z "$$CERT_NAME" ]; then \
+		echo "Error: Set CERT_NAME env var (e.g., export CERT_NAME='Developer ID Installer: Your Name (TEAMID)')"; \
+		exit 1; \
+	fi; \
+	if [ -f "$(PKG)" ]; then \
+		productsign --sign "$$CERT_NAME" "$(PKG)" "$(SIGNED_PKG)"; \
+		echo "Signed: $(SIGNED_PKG)"; \
+		echo "Verify: pkgutil --check-signature $(SIGNED_PKG)"; \
+	else \
+		echo "No .pkg found—run 'make pkg' first."; \
+		exit 1; \
+	fi
 
 # Clean temp build artifacts only (keeps .pkg)
 temp-clean:
@@ -54,7 +70,7 @@ temp-clean:
 # Clean everything (temp + .pkg)
 clean: temp-clean
 	@echo "Cleaning .pkg from Resources/..."
-	rm -f *.pkg
+	rm -f *.pkg *-signed.pkg
 
 # Full clean: Everything under /var/tmp/$(NAME)/
 distclean: clean
@@ -66,7 +82,8 @@ help:
 	@echo "$(NAME) Makefile (run from Resources/)"
 	@echo "Targets:"
 	@echo "  all      : Build the .pkg (default)"
-	@echo "  pkg      : Build $(NAME)-<TIMESTAMP>.pkg in Resources/"
+	@echo "  pkg      : Build $(NAME)-<SCRIPT_VERSION>-<TIMESTAMP>.pkg in Resources/"
+	@echo "  sign     : Sign the .pkg (set CERT_NAME env var)"
 	@echo "  temp-clean : Remove temp dirs only (keeps .pkg)"
 	@echo "  clean    : Remove temp + .pkg"
 	@echo "  distclean: Nuke all under /var/tmp/$(NAME)/"
@@ -74,10 +91,11 @@ help:
 	@echo ""
 	@echo "Requirements: Xcode Command Line Tools (for pkgbuild)."
 	@echo "Notes: Builds in /var/tmp/$(NAME)/ for cleanliness; .pkg outputs to Resources/."
+	@echo "       Extracts version from ../Mac-Health-Check.zsh (scriptVersion var)."
 	@echo "       Main script installed as /usr/local/bin/$(NAME) (Zsh-compatible)."
-	@echo "       .pkg filename uses current timestamp; metadata uses $(VERSION)."
-	@echo "       Post-install auto-runs the script (edit post-install.zsh for custom args)."
-	@echo "Optional: For signing, 'productsign --sign \"Developer ID Installer\" $(PKG) $(PKG).signed'."
-	@echo "         Add preinstall script to Resources/ as 'pre-install.zsh' and update $(SCRIPTS) target to copy it too."
+	@echo "       .pkg filename uses script version + current timestamp."
+	@echo "       Post-install auto-runs the script (edit postInstall.zsh for custom args)."
+	@echo "Optional: For signing, 'productsign --sign \"Developer ID Installer\" $(PKG) $(SIGNED_PKG)'."
+	@echo "         Add preinstall script to Resources/ as 'preInstall.zsh' and update $(SCRIPTS) target to copy it too."
 
-.PHONY: all pkg temp-clean clean distclean help
+.PHONY: all pkg sign temp-clean clean distclean help
