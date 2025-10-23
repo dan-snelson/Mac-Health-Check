@@ -786,6 +786,13 @@ function dialogUpdate(){
 }
 
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Run command as console user
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+function runAsUserQuiet() {
+        /bin/launchctl asuser "${loggedInUserID}" /usr/bin/sudo -u "${loggedInUser}" /bin/zsh -lc "$*" 2>/dev/null
+    }
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Run command as logged-in user (thanks, @scriptingosx!)
@@ -2372,8 +2379,10 @@ function checkInternal() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Touch ID Status
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# --- Safe no-op debug if not defined ---
-type debug >/dev/null 2>&1 || debug() { :; }
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Touch ID Status — strict bioutil -c only, robust parsing
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkTouchID() {
     local idx="${1}"
@@ -2381,16 +2390,10 @@ function checkTouchID() {
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=touchid,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Checking TouchID Status …"
-
+    dialogUpdate "progresstext: Checking Touch ID Status …"
     sleep "${anticipationDuration}"
-
-    # --- Run command as console user (TCC-friendly) ---
-    runAsUserQuiet() {
-        /bin/launchctl asuser "${loggedInUserID}" /usr/bin/sudo -u "${loggedInUser}" /bin/zsh -lc "$*" 2>/dev/null
-    }
 
     # --- Detect Touch ID-capable hardware ---
     local hw="absent"
@@ -2402,31 +2405,37 @@ function checkTouchID() {
         hw="present"
     fi
 
-    # --- Enrollment check (macOS 14–15+ accurate) ---
+    # --- Enrollment check (STRICT: bioutil -c only) ---
     local enrolled="false"
     local bioCount="0"
     local bioOutput=""
 
     if [[ "${hw}" == "present" && -x /usr/bin/bioutil ]]; then
-        # Run -c as console user first, fall back to root
         if [[ -n "${loggedInUser}" && "${loggedInUser}" != "loginwindow" && "${loggedInUserID}" =~ ^[0-9]+$ ]]; then
             bioOutput="$(/bin/launchctl asuser "${loggedInUserID}" /usr/bin/sudo -u "${loggedInUser}" /usr/bin/bioutil -c 2>/dev/null || true)"
         fi
         [[ -z "${bioOutput}" ]] && bioOutput="$(/usr/bin/bioutil -c 2>/dev/null || true)"
 
-        # Parse only the "biometric template(s)" line and extract the count
-        bioCount="$(echo "${bioOutput}" | grep -Eo '[0-9]+[[:space:]]+biometric template' | grep -Eo '^[0-9]+' | head -n1)"
+        # --- Parse output (keep the line; remove the UID prefix; then extract the count) ---
+        # 1) Take the first line that mentions both 'biometric' and 'template'
+        local biometricLine cleaned=""
+        biometricLine="$(echo "${bioOutput}" | awk 'BEGIN{IGNORECASE=1} /biometric/ && /template/ {print; exit}')"
 
-        # Default to 0 if nothing found
+        # 2) Strip "User <uid>:" if present, but keep the rest of the line
+        cleaned="$(echo "${biometricLine}" | sed -E 's/^[[:space:]]*User[[:space:]]+[0-9]+:[[:space:]]*//I')"
+
+        # 3) Flexible match: "2 biometric template(s)" OR "biometric template(s): 2"
+        bioCount="$(
+            echo "${cleaned}" \
+            | grep -iE '([0-9]+).*biometric.*template|biometric.*template.*([0-9]+)' \
+            | grep -Eo '[0-9]+' \
+            | head -n1
+        )"
+
         [[ -z "${bioCount}" ]] && bioCount="0"
-
-        # Mark as enrolled if count > 0
-        if [[ "${bioCount}" -gt 0 ]]; then
-            enrolled="true"
-        fi
+        [[ "${bioCount}" =~ ^[0-9]+$ ]] || bioCount="0"
+        [[ "${bioCount}" -gt 0 ]] && enrolled="true"
     fi
-
-    debug "TouchID parse: bioCount=${bioCount} enrolled=${enrolled} outputSample='$(echo "$bioOutput" | head -n1)'"
 
     # --- Report ---
     if [[ "${hw}" != "present" ]]; then
@@ -2437,7 +2446,7 @@ function checkTouchID() {
     fi
 
     if [[ "${enrolled}" == "true" ]]; then
-        dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled & Enrolled (count=${bioCount})"
+        dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enrolled"
         info "Touch ID: Enabled & Enrolled (count=${bioCount})"
     else
         dialogUpdate "listitem: index: ${idx}, icon: SF=$(printf "%02d" $(($idx+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Not enrolled"
