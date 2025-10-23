@@ -2,6 +2,9 @@
 
 ## CHANGELOG
 
+### 2.6.0 (23-Oct-2025)
+- Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
+
 ### 2.5.0 (20-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
