@@ -2,8 +2,9 @@
 
 ## CHANGELOG
 
-### 2.6.0 (23-Oct-2025)
+### 2.6.0 (25-Oct-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
+- Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
 
 ### 2.5.0 (20-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)

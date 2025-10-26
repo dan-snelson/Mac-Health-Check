@@ -37,7 +37,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Easily confirms remediation efforts
 - Provides peace-of-mind for end-users
 
-### Silent Mode :new:
+### Silent Mode
 
 - Silently performs all health checks and logs results
 - No dialog is presented to the end-user
@@ -52,16 +52,17 @@ The following health checks and information reporting are included and the scrip
 <img src="images/MHC_2.5.0_SSV.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
-1. Available Updates (including deferred and DDM-enforced updates :new:)
+1. Available Updates (including deferred and DDM-enforced updates)
 1. System Integrity Protection
-1. Signed System Volume (SSV) :new:
+1. Signed System Volume (SSV)
 1. Firewall
 1. FileVault Encryption
-1. Gatekeeper / XProtect :new:
+1. Gatekeeper / XProtect
+1. Touch ID :new:
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
-1. User's Directory Size and Item Count :new:
+1. User's Directory Size and Item Count
     - Desktop
     - Downloads
     - Trash
@@ -109,8 +110,8 @@ The following health checks and information reporting are included and the scrip
 
 #### Computer Information
 - macOS version (build)
-- System Memory :new:
-- System Storage :new:
+- System Memory
+- System Storage
 - Dialog version
 - Script version
 - Computer Name
@@ -128,7 +129,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (2.6.0): 2025-10-20 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (2.6.0): 2025-10-25 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
