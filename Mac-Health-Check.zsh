@@ -17,9 +17,10 @@
 #
 # HISTORY
 #
-# Version 2.6.0, 25-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.6.0, 29-Oct-2025, Dan K. Snelson (@dan-snelson)
 #   - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
 #   - Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
+#   - Added "Electron Corner Mask" list o' apps to Webhook message
 #
 ####################################################################################################
 
@@ -34,7 +35,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.6.0b2"
+scriptVersion="2.6.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -806,9 +807,15 @@ function get_json_value() {
 
 function webHookMessage() {
 
-    jamfProURL=$(defaults read /Library/Preferences/com.jamfsoftware.jamf.plist jss_url)
-
+    jamfProURL=$(defaults read /Library/Preferences/com.jamfsoftware.jamf.plist jss_url 2>/dev/null)
     jamfProComputerURL="${jamfProURL}computers.html?query=${serialNumber}&queryType=COMPUTERS"
+
+    timestamp="${timestamp:-$( date '+%Y-%m-%d %H:%M:%S' )}"
+
+    # Normalize long list for webhook readability
+    if [[ $(echo "${electronVulnerableApps}" | wc -w) -gt 50 ]]; then
+        electronVulnerableApps="$(echo "${electronVulnerableApps}" | cut -c1-200)… (truncated)"
+    fi
 
     if [[ $webhookURL == *"slack"* ]]; then
         
@@ -828,30 +835,13 @@ function webHookMessage() {
                 {
                     "type": "section",
                     "fields": [
-                        {
-                            "type": "mrkdwn",
-                            "text": "*Computer Name:*\n$( scutil --get ComputerName )"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*Serial:*\n${serialNumber}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*Timestamp:*\n${timestamp}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*User:*\n${loggedInUser}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*OS Version:*\n${osVersion} (${osBuild})"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": "*Health Failures:*\n${overallHealth%%; }"
-                        }
+                        { "type": "mrkdwn", "text": "*Computer Name:*\n$( scutil --get ComputerName )" },
+                        { "type": "mrkdwn", "text": "*Serial:*\n${serialNumber}" },
+                        { "type": "mrkdwn", "text": "*Timestamp:*\n${timestamp}" },
+                        { "type": "mrkdwn", "text": "*User:*\n${loggedInUser}" },
+                        { "type": "mrkdwn", "text": "*OS Version:*\n${osVersion} (${osBuild})" },
+                        { "type": "mrkdwn", "text": "*Health Failures:*\n${overallHealth%%; }" },
+                        { "type": "mrkdwn", "text": "*Electron Corner Mask:*\n${electronVulnerableApps}" }
                     ]
                 },
                 {
@@ -862,7 +852,7 @@ function webHookMessage() {
                             "text": {
                                 "type": "plain_text",
                                 "text": "View in Jamf Pro"
-                                },
+                            },
                             "style": "primary",
                             "url": "${jamfProComputerURL}"
                         }
@@ -876,13 +866,11 @@ EOF
         # Send the message to Slack
         info "Send the message to Slack …"
         info "${webHookdata}"
-        
         # Submit the data to Slack
         curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
-        
         webhookResult="$?"
         info "Slack Webhook Result: ${webhookResult}"
-        
+
     else
         
         info "Generating Microsoft Teams Message …"
@@ -942,22 +930,11 @@ EOF
                             {
                                 "type": "FactSet",
                                 "facts": [
-                                    {
-                                        "title": "Timestamp",
-                                        "value": "${timestamp}"
-                                    },
-                                    {
-                                        "title": "User",
-                                        "value": "${loggedInUser}"
-                                    },
-                                    {
-                                        "title": "Operating System",
-                                        "value": "${osVersion} (${osBuild})"
-                                    },
-                                    {
-                                        "title": "Health Failures",
-                                        "value": "${overallHealth%%; }"
-                                    }
+                                    { "title": "Timestamp", "value": "${timestamp}" },
+                                    { "title": "User", "value": "${loggedInUser}" },
+                                    { "title": "Operating System", "value": "${osVersion} (${osBuild})" },
+                                    { "title": "Health Failures", "value": "${overallHealth%%; }" },
+                                    { "title": "Electron Corner Mask", "value": "${electronVulnerableApps}" }
                                 ]
                             }
                         ],
@@ -978,21 +955,18 @@ EOF
 )
 
     # Send the message to Microsoft Teams
-    info "Send the message Microsoft Teams …"
-    # info "${webHookdata}"
+        info "Send the message to Microsoft Teams …"
+        curl --silent \
+            --request POST \
+            --url "${webhookURL}" \
+            --header 'Content-Type: application/json' \
+            --data "${webHookdata}" \
+            --output /dev/null
 
-    curl --silent \
-        --request POST \
-        --url "${webhookURL}" \
-        --header 'Content-Type: application/json' \
-        --data "${webHookdata}" \
-        --output /dev/null
-    
-    webhookResult="$?"
-    info "Microsoft Teams Webhook Result: ${webhookResult}"
-    
+        webhookResult="$?"
+        info "Microsoft Teams Webhook Result: ${webhookResult}"
     fi
-    
+
 }
 
 
@@ -2794,6 +2768,15 @@ function checkElectronCornerMask() {
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: All Electron apps patched"
         info "${humanReadableCheckName}: All Electron apps are running patched versions — ${safeList}"
     fi
+
+    # Export vulnerable apps list for Webhook use
+    if [[ ${#vulnerableApps[@]} -gt 0 ]]; then
+        electronVulnerableApps=$(printf '%s\n' "${vulnerableApps[@]}" | paste -sd ', ' -)
+    else
+        electronVulnerableApps="None detected"
+    fi
+    export electronVulnerableApps
+
 }
 
 
