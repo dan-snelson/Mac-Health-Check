@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 2.6.0, 29-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.6.0, 05-Nov-2025, Dan K. Snelson (@dan-snelson)
 #   - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
 #   - Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
 #   - Added "Electron Corner Mask" list o' apps to Webhook message
@@ -35,7 +35,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.6.0b3"
+scriptVersion="2.6.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2385,7 +2385,7 @@ function checkTouchID() {
 
         if [[ "${enrolled}" == "true" ]]; then
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enrolled (${bioCount})"
-            info "Touch ID: Enabled & Enrolled (count=${bioCount})"
+            info "Touch ID: Enabled & Enrolled (${bioCount})"
         else
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Not enrolled"
             warning "Touch ID: Hardware present, not enrolled"

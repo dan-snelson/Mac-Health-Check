@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 2.6.0 (29-Oct-2025)
+### 2.6.0 (05-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
 - Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
 - Added "Electron Corner Mask" list o' apps to Webhook message
