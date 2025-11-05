@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 20-Oct-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 05-Nov-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b33"
+scriptVersion="3.0.0b34"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -160,6 +160,10 @@ case "${serverURL}" in
         mdmVendorUuid=""
         ;;
 
+    *fleet* )
+        mdmVendor="Fleet"
+        mdmVendorUuid="BCA53F9D-5DD2-494D-98D3-0D0F20FF6BA1"
+        ;;
 
     *kandji* )
         mdmVendor="Kandji"
@@ -693,6 +697,46 @@ addigyMdmListitemJSON='
 if ! echo "$addigyMdmListitemJSON" | jq . >/dev/null 2>&1; then
   echo "Error: addigyMdmListitemJSON is invalid JSON"
   echo "$addigyMdmListitemJSON"
+  exit 1
+fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Fleet MDM List Items
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+fleetMdmListitemJSON='
+[
+    {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=17.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Fleet Desktop", "subtitle" : "Visibility into the security posture of your Mac.", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+]
+'
+# Validate fleetMdmListitemJSON is valid JSON
+if ! echo "$fleetMdmListitemJSON" | jq . >/dev/null 2>&1; then
+  echo "Error: fleetMdmListitemJSON is invalid JSON"
+  echo "$fleetMdmListitemJSON"
   exit 1
 fi
 
@@ -2333,36 +2377,27 @@ function checkNetworkHosts() {
 function checkMdmCertificateExpiration() {
 
     case "${mdmVendor}" in
-
         "Addigy" )
-            certificateName1="Addigy"
-            certificateName2="Addigy"
+            certificateName="Addigy"
             ;;
-    
+        "Fleet" )
+            certificateName="Fleet Identity"
+            ;;
         "Jamf Pro" )
-            certificateName1="JSS Built-in Certificate Authority"
-            certificateName2="JSS BUILT-IN CERTIFICATE AUTHORITY"
+            certificateName="JSS Built-in Certificate Authority"
             ;;
-    
         "JumpCloud" )
-            certificateName1="JumpCloud"
-            certificateName2="JumpCloud"
+            certificateName="JumpCloud"
             ;;
-
         "Microsoft Intune" )
-            certificateName1="Microsoft Intune MDM Device CA"
-            certificateName2="MICROSOFT INTUNE MDM DEVICE CA"
+            certificateName="Microsoft Intune MDM Device CA"
             ;;
-
         "Mosyle" )
-            certificateName1="MOSYLE CORPORATION"
-            certificateName2="MOSYLE CORPORATION"
+            certificateName="MOSYLE CORPORATION"
             ;;
-
         * )
             return
             ;;
-
     esac
 
     local humanReadableCheckName="${mdmVendor} Certificate Authority"
@@ -2375,36 +2410,29 @@ function checkMdmCertificateExpiration() {
 
     sleep "${anticipationDuration}"
 
-    identities=( $( security find-identity -v /Library/Keychains/System.keychain | grep -v "$serialNumber" | grep -v "Jamf" | awk '{print $3}' | tr -d '"' | head -n 1 ) )
-    now_seconds=$( date +%s )
+    expiry=$(security find-certificate -c "${certificateName}" -p /Library/Keychains/System.keychain 2>/dev/null | \
+             openssl x509 -noout -enddate | cut -d= -f2)
 
-    if [[ "${identities}" != "identities" ]]; then
-
-        for i in $identities; do
-            if [[ $(security find-certificate -c "$i" | grep issu | tr -d '"') == *"${certificateName1}"* ]] || [[ $(security find-certificate -c "$i" | grep issu | tr -d '"') == *"${certificateName2}"* ]]; then
-                expiry=$(security find-certificate -c "$i" -p | openssl x509 -noout -enddate | cut -f2 -d"=")
-                expirationDateFormatted=$( date -j -f "%b %d %H:%M:%S %Y GMT" "${expiry}" "+%d-%b-%Y" )
-                date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
-                if (( date_seconds > now_seconds )); then
-                    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${expirationDateFormatted}"
-                    info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
-                else
-                    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
-                    errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
-                    overallHealth+="${humanReadableCheckName}; "
-                fi
-            fi
-        done
-    
-    else
-
+    if [[ -z "$expiry" ]]; then
         expirationDateFormatted="NOT Installed"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
         errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
         overallHealth+="${humanReadableCheckName}; "
-
+        return
     fi
 
+    now_seconds=$(date +%s)
+    date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
+    expirationDateFormatted=$(date -j -f "%b %d %H:%M:%S %Y GMT" "$expiry" "+%d-%b-%Y")
+
+    if (( date_seconds > now_seconds )); then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${expirationDateFormatted}"
+        info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
+    else
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
+        errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
 }
 
 
@@ -2520,8 +2548,8 @@ function checkJamfProInventory() {
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_inventory_time_human_reable}"
-        info "${humanReadableCheckName}: ${last_inventory_time_human_reable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_inventory_time_human_readable}"
+        info "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
     fi
 
 }
@@ -2932,6 +2960,10 @@ case ${mdmVendor} in
         combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$addigyMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
         ;;
 
+    "Fleet" )
+        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$fleetMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
+        ;;
+
     "Kandji" )
         combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$kandjiMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
         ;;
@@ -3022,6 +3054,32 @@ if [[ "${operationMode}" != "Test" ]]; then
             checkNetworkHosts "19" "Apple Certificate Validation"          "${certHosts[@]}"
             checkNetworkHosts "20" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
             checkInternal "21" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+            checkNetworkQuality "22"
+            ;;
+
+        "Fleet" )
+            checkOS "0"
+            checkAvailableSoftwareUpdates "1"
+            checkSIP "2"
+            checkSSV "3"
+            checkFirewall "4"
+            checkFileVault "5"
+            checkGatekeeperXProtect "6"
+            checkVPN "7"
+            checkUptime "8"
+            checkFreeDiskSpace "9"
+            checkUserDirectorySizeItems "10" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+            checkUserDirectorySizeItems "11" "Downloads" "arrow.down.circle.fill" "Downloads"
+            checkUserDirectorySizeItems "12" ".Trash" "trash.fill" "Trash"
+            checkMdmProfile "13"
+            checkMdmCertificateExpiration "14"
+            checkAPNs "15"
+            checkNetworkHosts "16" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+            checkNetworkHosts "17" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+            checkNetworkHosts "18" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+            checkNetworkHosts "19" "Apple Certificate Validation"          "${certHosts[@]}"
+            checkNetworkHosts "20" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+            checkInternal "21" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
             checkNetworkQuality "22"
             ;;
     
