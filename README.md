@@ -16,8 +16,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, emb
 
 Administrators can customize the user interface using swiftDialog’s visual capabilities, making the experience both informative and approachable.
 
-The tool logs results for IT review, while not altering device configurations, making it ideal for visibility without intrusion.
-
+The tool logs results for review, while not altering device configuration, and a new "Silent" Operation Mode makes Mac Health Check ideal for IT visibility without end-user intrusion.
 
 <a href="https://arizona.zoom.us/rec/play/eXXmgFbxmyn1n_y81p0qdFwirdYOXua2AyNqcKoLzt0-u8gHgF0FObggPUBN3iIz1cpMZYcvHThlM4Y.WQEsj2NTeNB-ySdj" target="_blank"><img src="images/Mac_Health_Check Presentation.png" alt="Four Corners & Silver State September 2025 Meetup" width="600"/><br />Four Corners & Silver State September 2025 Meetup</a> (25-Sep-2025)
 
@@ -38,7 +37,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Easily confirms remediation efforts
 - Provides peace-of-mind for end-users
 
-### :new: Silent Mode :new:
+### Silent Mode
 
 - Silently performs all health checks and logs results
 - No dialog is presented to the end-user
@@ -53,12 +52,13 @@ The following health checks and information reporting are included and the scrip
 <img src="images/MHC_3.0.0b24_Firewall.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
-1. Available Updates (including deferred updates)
+1. Available Updates (including deferred and DDM-enforced updates)
 1. System Integrity Protection
 1. Signed System Volume (SSV)
 1. Firewall
 1. FileVault Encryption
 1. Gatekeeper / XProtect
+1. Touch ID :new:
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
@@ -78,6 +78,7 @@ The following health checks and information reporting are included and the scrip
     - Apple Certificate Validation
     - Apple Identity and Content Services
     - Jamf Hosts
+1. Electron Corner Mask :new:
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*
@@ -109,7 +110,9 @@ The following health checks and information reporting are included and the scrip
 - Platform Single Sign-on Extension
 
 #### Computer Information
-- macOS version (and build)
+- macOS version (build)
+- System Memory
+- System Storage
 - Dialog version
 - Script version
 - Computer Name

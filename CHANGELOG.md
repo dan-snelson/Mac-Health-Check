@@ -5,6 +5,11 @@
 ### 3.0.0 (05-Nov-2025)
 **First (attempt at a) MDM-agnostic release**
 
+### 2.6.0 (05-Nov-2025)
+- Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
+- Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
+- Added "Electron Corner Mask" list o' apps to Webhook message
+
 ### 2.5.0 (15-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
@@ -16,6 +21,11 @@
 - Added the size and item count of the user's Desktop and Trash to the Jamf Pro Policy Log Reporting
 - Added `checkUserDirectorySizeItems` function to report the size and item count of any user directories (e.g. Desktop, Downloads, Trash, etc.)
 - Added a Health Checks for Signed System Volume (SSV) and Gatekeeper / XProtect (thanks for the reminder, @hoakley!)
+- Refactored "DDM-enforced OS Version" per [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder)
+- Refactored `checkUserDirectorySizeItems` to ignore hidden files
+- Simplified various date / time formats
+- Refactored `checkNetworkHosts` to use `nc` for ports or `curl` for URLs (thanks for the idea, @ecubrooks!)
+- Added Server-side Logging to summarize errors (thanks for the idea, @isaacatmann!)
 - Introduces a new `operationMode` of "Silent" to run all checks and log results without displaying a dialog to the end-user
 
     > :warning: **Breaking Change** :warning:

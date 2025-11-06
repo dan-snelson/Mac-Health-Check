@@ -1,6 +1,6 @@
 # Contributing to Mac Health Check
 
-First, thank you for your interest in contributing to Mac Health Check!
+First, thank you for your interest in contributing to  **Mac Health Check**!
 
 Community contributions have already improved and expanded this project.
 

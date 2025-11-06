@@ -1,6 +1,7 @@
 ---
 name: Feature Request
 about: Suggest an idea for Mac Health Check
+title: 'Feature Request: '
 labels: enhancement
 assignees: dan-snelson
 

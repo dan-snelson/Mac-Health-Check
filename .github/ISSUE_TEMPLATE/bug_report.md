@@ -1,9 +1,9 @@
 ---
 name: Bug Report
 about: Submit a bug report for Mac Health Check (after using the snippet below and having reviewed open swiftDialog issues)
-title: ''
+title: 'Bug: '
 labels: bug
-assignees: ''
+assignees: 'dan-snelson'
 
 ---
 
