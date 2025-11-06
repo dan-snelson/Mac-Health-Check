@@ -17,10 +17,11 @@
 #
 # HISTORY
 #
-# Version 2.6.0, 05-Nov-2025, Dan K. Snelson (@dan-snelson)
+# Version 2.6.0, 06-Nov-2025, Dan K. Snelson (@dan-snelson)
 #   - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
 #   - Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
 #   - Added "Electron Corner Mask" list o' apps to Webhook message
+#   - Addressed Bug: Software Update check shows wrong installed version (Issue #55; thanks for the heads-up, @coalis!)
 #
 ####################################################################################################
 
