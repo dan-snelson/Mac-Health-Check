@@ -12,6 +12,8 @@ assignees: 'dan-snelson'
 > `timestamp=$( date '+%Y-%m-%d-%H%M%S' ) ; curl -o ~/Downloads/Mac-Health-Check-$timestamp.zsh https://raw.githubusercontent.com/dan-snelson/Mac-Health-Check/main/Mac-Health-Check.zsh ; sudo zsh ~/Downloads/Mac-Health-Check-$timestamp.zsh`
 > 
 > Also, please review the [open swiftDialog issues](https://github.com/swiftDialog/swiftDialog/issues) to help determine the source of the issue.
+> 
+> You're also invited to discuss via the [Mac Admins Slack](https://www.macadmins.org/) (free, registration required) [#mac-health-check Channel](https://slack.com/app_redirect?channel=C0977DRT7UY).
 
 ---
 
