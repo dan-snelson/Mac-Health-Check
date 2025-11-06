@@ -8,6 +8,8 @@
 - Added "Electron Corner Mask" list o' apps to Webhook message
 - Addressed Bug: Software Update check shows wrong installed version (Issue #55; thanks for the heads-up, @coalis!)
 
+---
+
 ### 2.5.0 (20-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
 - Corrected misspelling of "Certificate" in multiple locations (Pull Request #41; thanks, @HowardGMac!)
@@ -54,6 +56,8 @@
         </details>
     </details>
 
+---
+
 ### 2.4.0 (20-Sep-2025)
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
@@ -63,6 +67,8 @@
 - Updated `checkOS` function
 - Visually enchanced `listitem` error and failure statuses
 - Added Organization's Color Schemes based on light or dark mode (Pull Request #37; thanks, @AndrewMBarnett!)
+
+---
 
 ### 2.3.0 (26-Aug-2025)
 - Enhanced `operationMode` to verbosely execute when set to `debug` (Addresses Issue #28)
@@ -75,6 +81,8 @@
 - Adjusted Palo Alto Networks GlobalProtect VPN Information
 - Fallback to a list o' preferred wireless networks when SSID is redacted (leverages a new space-separated list of SSIDs, `organizationSSID`)
 
+---
+
 ### 2.2.0 (15-Aug-2025)
 - Improved the GlobalProtect VPN IP detection logic
 - Added an option to show if an app is installed (Feature Request #18; thanks, @ScottEKendall!)
@@ -84,6 +92,8 @@
 - Use zsh expansion in the `checkExternal` function to convert the results to lowercase so that the user doesn't have to match the case exactly in their results (Pull Request #25; thanks, @ScottEKendall!)
 - Added Tailscale VPN check (thanks, @alexfinn!)
 - Change zsh logic flag for Dialog check / installation from `-e` to `-x` to make sure file exists and is executable (Pull Request #26; thanks, @ScottEKendall!)
+
+---
 
 ### 2.1.0 (24-Jul-2025)
 - Added an `operationMode` of "debug" to specifically enable swiftDialog debugging
@@ -95,6 +105,8 @@
 - Update Firewall Cases to include one for State 2 (Pull Request #8; thanks, @mam5hs!)
 - Fix for Free Disk Space comparison bug (Addresses Issue #10). (Pull Request #11; thanks again, @HowardGMac!)
 - Added bootstrap token status
+
+---
 
 ### 2.0.0 (18-Jul-2025)
 - Renamed to "Mac Health Check" (thanks, @uurazzle and @scriptingosx!)
