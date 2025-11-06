@@ -8,6 +8,10 @@ assignees: dan-snelson
 ---
 
 > **Note:** While all requests are welcome, finding available cycles to custom-code a feature we won't use in our production environment is always challenging.
+> 
+> You're also invited to discuss via the [Mac Admins Slack](https://www.macadmins.org/) (free, registration required) [#mac-health-check Channel](https://slack.com/app_redirect?channel=C0977DRT7UY).
+
+---
 
 **Is your feature request related to a problem? Please describe.**
 A clear, concise description of the problem. (i.e., I'm frustrated when ...)
