@@ -31,3 +31,11 @@ When the policy successfully executes, the returned output must include the keyw
     info "${appPath} Running"
     ;;
 ```
+
+---
+
+## Building External Checks which leverage `organizationDefaultsDomain`
+
+- [Building External Checks which leverage `organizationDefaultsDomain`](https://github.com/dan-snelson/Mac-Health-Check/wiki/98.-Building-External-Checks-which-leverage-%60organizationDefaultsDomain%60)
+
+Special thanks to [HowardGMac](https://github.com/HowardGMac) for code and documentation contributions.

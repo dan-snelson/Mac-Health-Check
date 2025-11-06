@@ -15,7 +15,7 @@ When submitting a Pull Request, please submit against the `development` branch a
 - Additional branches may be created for new features and testing.
 
 
-## Feature Requests and Bug Reports
-Please use the [Issues](https://github.com/dan-snelson/Mac-Health-Check/issues) section to report bugs or request new features.
+## Feature Requests and Bug Reports(
+Please use the [Issues](https://github.com/dan-snelson/Mac-Health-Check/issues) section to report bugs or request new features. (You're also welcome to discuss via the [Mac Admins Slack](https://www.macadmins.org/) (free, registration required) [#mac-health-check Channel](https://slack.com/app_redirect?channel=C0977DRT7UY).)
 
 When reporting a bug, include as much detail as possible, including steps to reproduce the issue, expected behavior, and any relevant logs or screenshots.

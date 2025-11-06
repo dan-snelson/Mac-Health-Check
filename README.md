@@ -49,7 +49,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Health Checks
 
-<img src="images/MHC_2.5.0_SSV.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_2.6.0_SSV.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
 1. Available Updates (including deferred and DDM-enforced updates)
@@ -78,7 +78,7 @@ The following health checks and information reporting are included and the scrip
     - Apple Certificate Validation
     - Apple Identity and Content Services
     - Jamf Hosts
-1. Electron Corner Mask :new:
+1. Electron Corner Mask :new: [:link:](https://github.com/electron/electron/pull/48376)
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*
@@ -91,7 +91,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_2.5.0_Helpmessage.png" alt="Help Message" width="800"/>
+<img src="images/MHC_2.6.0_Helpmessage.png" alt="Help Message" width="800"/>
 
 #### IT Support
 - Telephone
