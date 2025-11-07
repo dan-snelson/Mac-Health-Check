@@ -2,13 +2,14 @@
 
 ## CHANGELOG
 
-### 3.0.0 (05-Nov-2025)
+### 3.0.0 (07-Nov-2025)
 **First (attempt at a) MDM-agnostic release**
 
-### 2.6.0 (05-Nov-2025)
+### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
 - Added check for Touch ID (Pull Request #54; thanks, @alexfinn!)
 - Added "Electron Corner Mask" list o' apps to Webhook message
+- Addressed Bug: Software Update check shows wrong installed version (Issue #55; thanks for the heads-up, @coalis!)
 
 ### 2.5.0 (15-Oct-2025)
 - Added "System Memory" and "System Storage" capacity information (Pull Request #36; thanks again, @HowardGMac!)
