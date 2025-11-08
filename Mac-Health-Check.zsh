@@ -36,7 +36,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="2.6.0"
+scriptVersion="2.6.1b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -732,7 +732,7 @@ function finalizeScriptLog() {
 
         summaryBlock="$(
             {
-                printf '%s (%s) — [ERROR] Summary\n' "${humanReadableScriptName}" "${scriptVersion}"
+                printf '%s (%s) — [ERROR]/[WARNING] Summary\n' "${humanReadableScriptName}" "${scriptVersion}"
                 printf 'Generated: %s\n\n' "$( date '+%Y-%m-%d %H:%M:%S' )"
                 printf 'Total [ERROR]/[WARNING] entries: %s\n' "${errorCount}"
                 printf '%s\n' "${errorList}"
