@@ -4,6 +4,7 @@
 
 ### 3.0.0 (07-Nov-2025)
 **First (attempt at a) MDM-agnostic release**
+- Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
