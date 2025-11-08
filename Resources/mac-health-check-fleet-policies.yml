@@ -1,0 +1,687 @@
+## Mac Health Checks for Fleet ##
+# Some queries may need to be updated to meet your organization's requirements
+# To apply to Fleet, run `fleetctl apply -f /path/to/mac-health-check-fleet-policies.yml`
+
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - macOS Version Compliance
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures macOS version meets the minimum required version. Update the version numbers
+    in the query to match your organization's compliance requirements.
+  resolution: |
+    Update to a supported macOS version:
+      1. Open System Settings
+      2. Select General
+      3. Select Software Update
+      4. Install available updates
+  query: |
+    SELECT 1 FROM os_version WHERE version >= '26.1';
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - No Software Updates Available
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures all available software updates have been installed. This check verifies
+    that no software updates are required.
+  resolution: |
+    Install available software updates:
+      1. Open System Settings
+      2. Select General
+      3. Select Software Update
+      4. Select Update All
+  query: |
+    SELECT 1 FROM software_update WHERE software_update_required = '0';
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - System Integrity Protection Enabled
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures System Integrity Protection (SIP) is enabled. SIP is a security technology
+    in macOS that prevents modification of system files and directories.
+  resolution: |
+    Enable System Integrity Protection:
+      1. Boot into Recovery Mode (hold Command+R at startup)
+      2. Open Terminal
+      3. Run: csrutil enable
+      4. Restart the Mac
+  query: |
+    SELECT 1 FROM sip_config WHERE config_flag = 'sip' AND enabled = 1;
+  purpose: Informational
+  tags: compliance, mac-health-check, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Signed System Volume Enabled
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures Signed System Volume (SSV) is enabled. SSV provides authenticated root
+    functionality to prevent tampering with system files.
+  resolution: |
+    Enable Signed System Volume:
+      1. Boot into Recovery Mode (hold Command+R at startup)
+      2. Open Terminal
+      3. Run: csrutil enable --authenticated-root
+      4. Restart the Mac
+  query: |
+    SELECT 1 FROM sip_config WHERE config_flag = 'authenticated_root' AND enabled = 1;
+  purpose: Informational
+  tags: compliance, mac-health-check, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Gatekeeper Enabled
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures Gatekeeper is enabled. Gatekeeper helps prevent malicious software from
+    running on your Mac by verifying that downloaded software is from an identified
+    developer and hasn't been tampered with.
+  resolution: |
+    Enable Gatekeeper:
+      Run in Terminal: sudo spctl --master-enable
+  query: |
+    SELECT 1 FROM gatekeeper WHERE assessments_enabled = 1;
+  purpose: Informational
+  tags: compliance, mac-health-check, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Firewall Enabled
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures the macOS firewall is enabled. The firewall helps protect your Mac from
+    unauthorized network access.
+  resolution: |
+    Enable Firewall:
+      1. Open System Settings
+      2. Select Network
+      3. Select Firewall
+      4. Turn on Firewall
+  query: |
+    SELECT 1 FROM alf WHERE global_state = 1;
+  purpose: Informational
+  tags: compliance, mac-health-check, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - FileVault Enabled
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures FileVault disk encryption is enabled. FileVault encrypts the contents of
+    your startup disk to protect your data.
+  resolution: |
+    Enable FileVault:
+      1. Open System Settings
+      2. Select Privacy & Security
+      3. Select FileVault
+      4. Turn on FileVault
+  query: |
+    SELECT 1 FROM disk_encryption WHERE encrypted = 1;
+  purpose: Informational
+  tags: compliance, mac-health-check, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - System Uptime Within Limits
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures system uptime is within acceptable limits (7 days or less). Systems should
+    be rebooted regularly to apply security updates and clear memory.
+  resolution: |
+    Restart the Mac:
+      1. Click Apple menu
+      2. Select Restart
+  query: |
+    SELECT 1 FROM uptime WHERE total_seconds < 604800;
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Sufficient Free Disk Space
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures at least 10% of disk space is available. Low disk space can cause system
+    performance issues and prevent updates from installing.
+  resolution: |
+    Free up disk space:
+      1. Empty Trash
+      2. Remove unused applications
+      3. Delete large files
+      4. Use Storage Management to identify large files
+  query: |
+    SELECT 1 FROM mounts
+    WHERE path = '/'
+      AND (
+        CAST(blocks_available AS REAL) / CAST(blocks AS REAL) * 100 >= 10
+      );
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Desktop Directory Size Acceptable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures Desktop directory does not exceed 5% of total disk space. Large user
+    directories can impact system performance and backup operations.
+  resolution: |
+    Clean up Desktop:
+      1. Move files to appropriate folders
+      2. Delete unnecessary files
+      3. Organize files into subdirectories
+  query: |
+    SELECT 1 FROM file
+    WHERE path LIKE '/Users/%/Desktop/%'
+      AND path NOT LIKE '/Users/%/Desktop/.%'
+      AND path NOT LIKE '/Users/%/Desktop/%/%'
+    GROUP BY SUBSTR(path, 1, INSTR(path || '/', '/Desktop') + 8)
+    HAVING CAST(SUM(size) AS REAL) <= 
+      (SELECT CAST(blocks AS REAL) * blocks_size * 0.05 FROM mounts WHERE path = '/' LIMIT 1)
+    OR COUNT(*) = 0;
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Downloads Directory Size Acceptable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures Downloads directory does not exceed 5% of total disk space. Large user
+    directories can impact system performance and backup operations.
+  resolution: |
+    Clean up Downloads:
+      1. Delete old downloaded files
+      2. Move important files to appropriate folders
+      3. Organize files into subdirectories
+  query: |
+    SELECT 1 FROM file
+    WHERE path LIKE '/Users/%/Downloads/%'
+      AND path NOT LIKE '/Users/%/Downloads/.%'
+      AND path NOT LIKE '/Users/%/Downloads/%/%'
+    GROUP BY SUBSTR(path, 1, INSTR(path || '/', '/Downloads') + 9)
+    HAVING CAST(SUM(size) AS REAL) <= 
+      (SELECT CAST(blocks AS REAL) * blocks_size * 0.05 FROM mounts WHERE path = '/' LIMIT 1)
+    OR COUNT(*) = 0;
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Trash Directory Size Acceptable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures Trash directory does not exceed 5% of total disk space. Large Trash
+    directories waste disk space and should be emptied regularly.
+  resolution: |
+    Empty Trash:
+      1. Right-click Trash icon in Dock
+      2. Select Empty Trash
+      3. Confirm deletion
+  query: |
+    SELECT 1 FROM file
+    WHERE path LIKE '/Users/%/.Trash/%'
+      AND path NOT LIKE '/Users/%/.Trash/%/%'
+    GROUP BY SUBSTR(path, 1, INSTR(path || '/', '/.Trash') + 6)
+    HAVING CAST(SUM(size) AS REAL) <= 
+      (SELECT CAST(blocks AS REAL) * blocks_size * 0.05 FROM mounts WHERE path = '/' LIMIT 1)
+    OR COUNT(*) = 0;
+  purpose: Informational
+  tags: compliance, mac-health-check
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - VPN Client Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies VPN client is installed. Supports checking for Palo Alto GlobalProtect,
+    Cisco AnyConnect/Secure Client, or Tailscale. This check verifies the application
+    exists but does not verify connection status.
+  resolution: |
+    Install VPN client:
+      1. Contact IT support for VPN client installation
+      2. Follow organization's VPN setup procedures
+  query: |
+    SELECT 1 FROM apps
+    WHERE path LIKE '/Applications/GlobalProtect.app/%'
+      OR path LIKE '/Applications/Cisco/Cisco AnyConnect Secure Mobility Client.app/%'
+      OR path LIKE '/Applications/Cisco/Cisco Secure Client.app/%'
+      OR path LIKE '/Applications/Tailscale.app/%';
+  purpose: Informational
+  tags: compliance, mac-health-check, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Jamf Pro MDM Profile Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures Jamf Pro MDM profile is installed. The MDM profile is required for device
+    management and policy enforcement.
+  resolution: |
+    Contact IT support to enroll device in MDM:
+      1. Device must be enrolled in Jamf Pro
+      2. MDM profile will be installed automatically during enrollment
+  query: |
+    SELECT 1 WHERE EXISTS (
+      SELECT 1 FROM mdm 
+      WHERE enrolled = 'true'
+      AND (
+        server_url LIKE '%jamf%' 
+        OR checkin_url LIKE '%jamf%'
+      )
+    );
+  purpose: Informational
+  tags: compliance, mac-health-check, mdm
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - JSS Certificate Not Expired
+  platforms: macOS
+  platform: darwin
+  description: |
+    Ensures JSS Built-in Certificate Authority is installed and not expired. This
+    certificate is required for secure MDM communication.
+  resolution: |
+    Contact IT support to renew MDM certificate:
+      1. Certificate may need to be renewed in Jamf Pro
+      2. Device may need to be re-enrolled
+  query: |
+    SELECT 1 FROM certificates
+    WHERE (subject LIKE '%JSS BUILT-IN CERTIFICATE AUTHORITY%'
+      OR subject LIKE '%JSS Built-in Certificate Authority%')
+      AND CAST(not_valid_after AS INTEGER) > CAST(strftime('%s', 'now') AS INTEGER);
+  purpose: Informational
+  tags: compliance, mac-health-check, mdm, security
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Apple Push Notification Service Active
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Apple Push Notification service (APNs) is functioning. This check verifies
+    that the APNs daemon (apsd) is running and that an MDM profile is installed, which
+    requires APNs to function properly. Note: This is a simplified check as osquery cannot
+    directly verify APNs log entries or actual push notification delivery.
+  resolution: |
+    Troubleshoot APNs connectivity:
+      1. Verify apsd daemon is running: ps aux | grep apsd
+      2. Check network connectivity to Apple servers
+      3. Verify firewall settings allow APNs traffic (ports 5223, 443, 2197)
+      4. Ensure MDM profile is properly installed
+      5. Contact IT support
+  query: |
+    SELECT 1 WHERE EXISTS (
+      SELECT 1 FROM processes WHERE name = 'apsd'
+    ) AND EXISTS (
+      SELECT 1 FROM mdm WHERE enrolled = 'true'
+    );
+  purpose: Informational
+  tags: compliance, mac-health-check, mdm
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Recent Jamf Pro Check-In
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Jamf Pro check-in occurred within the last 24 hours. This check verifies
+    that the jamf.log file was modified within the last 24 hours, which indicates recent
+    check-in activity. This ensures the device is actively communicating with the
+    management server.
+  resolution: |
+    Trigger Jamf Pro check-in:
+      1. Open Jamf Self Service
+      2. Run "Check for Policies"
+      3. Or contact IT support
+  query: |
+    SELECT 1 FROM file
+    WHERE path = '/private/var/log/jamf.log'
+      AND mtime > (strftime('%s', 'now') - 86400);
+  purpose: Informational
+  tags: compliance, mac-health-check, mdm
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Recent Jamf Pro Inventory Update
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Jamf Pro inventory update occurred within the last 7 days. This check
+    verifies that the jamf.log file was modified within the last 7 days, which indicates
+    recent inventory update activity. This ensures device information is current in the
+    management system.
+  resolution: |
+    Trigger Jamf Pro inventory update:
+      1. Open Jamf Self Service
+      2. Run "Update Inventory"
+      3. Or contact IT support
+  query: |
+    SELECT 1 FROM file
+    WHERE path = '/private/var/log/jamf.log'
+      AND mtime > (strftime('%s', 'now') - 604800);
+  purpose: Informational
+  tags: compliance, mac-health-check, mdm
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Apple Push Notification Hosts Reachable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies connectivity to Apple Push Notification service hosts. This check tests HTTPS
+    connectivity to Apple's push notification API endpoint.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Verify firewall settings allow outbound HTTPS to Apple servers
+      3. Test DNS resolution for api.sandbox.push.apple.com
+      4. Contact IT support
+  query: |
+    SELECT 1 WHERE EXISTS (
+      SELECT * FROM curl_certificate 
+      WHERE hostname = 'api.push.apple.com'
+      AND common_name IS NOT NULL
+      AND common_name != ''
+    );
+  purpose: Informational
+  tags: compliance, mac-health-check, network
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Apple Device Management Hosts Reachable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies connectivity to Apple Device Management hosts. This check tests actual HTTPS
+    connectivity to Apple's device management servers.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Verify firewall settings allow outbound HTTPS to Apple servers
+      3. Test DNS resolution
+      4. Contact IT support
+  query: |
+    SELECT 1 FROM curl
+    WHERE url = 'https://deviceenrollment.apple.com'
+      AND response_code BETWEEN 200 AND 499;
+  purpose: Informational
+  tags: compliance, mac-health-check, network
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Apple Software Update Hosts Reachable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies connectivity to Apple Software Update hosts. This check tests actual HTTPS
+    connectivity to Apple's software update servers.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Verify firewall settings allow outbound HTTPS to Apple servers
+      3. Test DNS resolution
+      4. Contact IT support
+  query: |
+    SELECT 1 FROM curl
+    WHERE url = 'https://swscan.apple.com'
+      AND response_code BETWEEN 200 AND 499;
+  purpose: Informational
+  tags: compliance, mac-health-check, network
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Apple Certificate Validation Hosts Reachable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies connectivity to Apple Certificate Validation hosts. This check tests actual
+    HTTPS connectivity to Apple's certificate validation servers.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Verify firewall settings allow outbound HTTPS to Apple servers
+      3. Test DNS resolution
+      4. Contact IT support
+  query: |
+    SELECT 1 FROM curl
+    WHERE url = 'https://valid.apple.com'
+      AND response_code BETWEEN 200 AND 499;
+  purpose: Informational
+  tags: compliance, mac-health-check, network
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Apple Identity and Content Services Hosts Reachable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies connectivity to Apple Identity and Content Services hosts. This check tests
+    actual HTTPS connectivity to Apple's identity services servers.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Verify firewall settings allow outbound HTTPS to Apple servers
+      3. Test DNS resolution
+      4. Contact IT support
+  query: |
+    SELECT 1 FROM curl
+    WHERE url = 'https://appleid.apple.com'
+      AND response_code BETWEEN 200 AND 499;
+  purpose: Informational
+  tags: compliance, mac-health-check, network
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Jamf Hosts Reachable
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies connectivity to Jamf cloud services. This check tests actual HTTPS connectivity
+    to Jamf's cloud infrastructure.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Verify firewall settings allow outbound HTTPS to Jamf cloud services
+      3. Test DNS resolution for jamf.com and jamfcloud.com
+      4. Contact IT support
+  query: |
+    SELECT 1 FROM curl
+    WHERE url = 'https://jamf.com'
+      AND response_code BETWEEN 200 AND 499;
+  purpose: Informational
+  tags: compliance, mac-health-check, network, mdm
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Microsoft Teams Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Microsoft Teams application is installed. This is an organization-specific
+    requirement.
+  resolution: |
+    Install Microsoft Teams:
+      1. Download from Microsoft Teams website
+      2. Or contact IT support for installation
+  query: |
+    SELECT 1 FROM apps
+    WHERE path LIKE '/Applications/Microsoft Teams.app/%';
+  purpose: Informational
+  tags: compliance, mac-health-check, applications
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Beyond Trust Privilege Management Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Beyond Trust Privilege Management application is installed. This is an
+    organization-specific security requirement. Note: This check verifies installation
+    only, not running status.
+  resolution: |
+    Install Beyond Trust Privilege Management:
+      1. Contact IT support for installation
+      2. Ensure the application is installed and running
+  query: |
+    SELECT 1 FROM apps WHERE path LIKE '/Applications/PrivilegeManagement.app/%';
+  purpose: Informational
+  tags: compliance, mac-health-check, security, applications
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Cisco Umbrella Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Cisco Umbrella (Secure Client) application is installed. This is an
+    organization-specific security requirement.
+  resolution: |
+    Install Cisco Umbrella:
+      1. Contact IT support for installation
+      2. Follow setup instructions
+  query: |
+    SELECT 1 FROM apps
+    WHERE path LIKE '/Applications/Cisco/Cisco Secure Client.app/%';
+  purpose: Informational
+  tags: compliance, mac-health-check, security, applications
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - CrowdStrike Falcon Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies CrowdStrike Falcon endpoint protection is installed. This is an
+    organization-specific security requirement. Note: This check verifies installation
+    only, not running status.
+  resolution: |
+    Install CrowdStrike Falcon:
+      1. Contact IT support for installation
+      2. Ensure the agent is installed and running
+  query: |
+    SELECT 1 FROM apps WHERE path LIKE '/Applications/Falcon.app/%';
+  purpose: Informational
+  tags: compliance, mac-health-check, security, applications
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - GlobalProtect VPN Installed
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies Palo Alto GlobalProtect VPN application is installed. This is an
+    organization-specific requirement.
+  resolution: |
+    Install GlobalProtect VPN:
+      1. Contact IT support for installation
+      2. Follow VPN setup instructions
+  query: |
+    SELECT 1 FROM apps
+    WHERE path LIKE '/Applications/GlobalProtect.app/%';
+  purpose: Informational
+  tags: compliance, mac-health-check, security, applications
+  contributors: mac-health-check
+---
+apiVersion: v1
+kind: policy
+spec:
+  name: Mac Health Check - Network Quality Test Available
+  platforms: macOS
+  platform: darwin
+  description: |
+    Verifies network quality test capability. This check verifies that network services
+    (networkd, mDNSResponder, configd) are running, which are required for network
+    quality testing. Note: This is a simplified check as osquery cannot perform actual
+    network quality tests using the networkQuality command.
+  resolution: |
+    Troubleshoot network connectivity:
+      1. Check network connection
+      2. Restart network services
+      3. Contact IT support
+  query: |
+    SELECT 1 FROM processes
+    WHERE name LIKE '%networkd%'
+      OR name LIKE '%mDNSResponder%'
+      OR name LIKE '%configd%';
+  purpose: Informational
+  tags: compliance, mac-health-check, network
+  contributors: mac-health-check
