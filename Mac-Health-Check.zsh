@@ -2318,12 +2318,14 @@ function checkNetworkHosts() {
             local http_code=$( curl -sSL --max-time "${networkTimeout}" --connect-timeout 5 -o /dev/null -w "%{http_code}" "${entry}" 2>/dev/null )
             http_code="${http_code:-000}"
             
-            if [[ "${http_code}" =~ ^[0-9]{3}$ ]] && (( 10#${http_code} < 500 )); then
-                results+="${host} PASS (HTTP ${http_code}); "
-            else
-                results+="${host} FAIL (HTTP ${http_code}); "
-                allOK=false
-            fi
+          # Only treat codes > 0 and < 500 as PASS; "000" (no response) will FAIL
+          if [[ "${http_code}" =~ ^[0-9]{3}$ ]] && (( 10#${http_code} > 0 && 10#${http_code} < 500 )); then
+            results+="${host} PASS (HTTP ${http_code}); "
+          else
+            results+="${host} FAIL (HTTP ${http_code}); "
+            allOK=false
+          fi
+
         else
             # Original nc logic for host:port:proto
             IFS=',' read -r host port proto <<< "${entry}"
