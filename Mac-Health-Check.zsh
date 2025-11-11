@@ -17,8 +17,10 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 07-Nov-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 11-Nov-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
+#   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
+#   - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
 #
 ####################################################################################################
 
@@ -33,7 +35,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b38"
+scriptVersion="3.0.0b39"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -408,24 +410,46 @@ if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     vpnAppName="GlobalProtect VPN Client"
     vpnAppPath="/Applications/GlobalProtect.app"
     vpnStatus="GlobalProtect is NOT installed"
+
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
-        globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-        case "$globalProtectTunnelStatus" in
-            "connected"* | "internal" )
-                globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
-                vpnStatus="Connected ${globalProtectVpnIP}"
+
+        # Safely read the plist key; suppress "Does Not Exist" noise
+        globalProtectTunnelStatus=$(
+            /usr/libexec/PlistBuddy -c \
+                "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" \
+                /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null
+        )
+
+        case "${globalProtectTunnelStatus}" in
+            "connected"*|"internal"|"connected-non-pa")
+                # Extract the IPv4 tunnel address if available
+                globalProtectVpnIP=$(
+                    /usr/libexec/PlistBuddy -c \
+                        'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' \
+                        /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null \
+                    | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p'
+                )
+                vpnStatus="Connected ${globalProtectVpnIP:-<no-IP>}"
+
                 if [[ "${vpnClientDataType}" == "extended" ]]; then
-                    globalProtectUserResult=$( defaults read /Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
-                    if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
-                        globalProtectUserResult="${loggedInUser} NOT logged-in"
-                    elif [[ ! -z "${globalProtectUserResult}" ]]; then
-                        globalProtectUserResult="\"${loggedInUser}\" logged-in"
-                    fi
+                    globalProtectUserResult=$(
+                        defaults read "/Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client" User 2>&1
+                    )
+
+                    case "${globalProtectUserResult}" in
+                        *"Does Not Exist"*|"")
+                            globalProtectUserResult="${loggedInUser} NOT logged-in"
+                            ;;
+                        *)
+                            globalProtectUserResult="\"${loggedInUser}\" logged-in"
+                            ;;
+                    esac
+
                     vpnExtendedStatus="${globalProtectUserResult}"
                 fi
                 ;;
-            "disconnected" )
+            "disconnected")
                 vpnStatus="Disconnected"
                 ;;
             *)
