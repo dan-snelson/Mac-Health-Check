@@ -960,29 +960,35 @@ mosyleListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Mosyle Check-In", "subtitle" : "Your Mac should check-in with the Mosyle MDM server multiple times each day", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
-    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=18.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' Self-Service", "subtitle" : "Your one-stop shop for all things '${mdmVendor}'.", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Mosyle Check-In", "subtitle" : "Your Mac should check-in with the Mosyle MDM server multiple times each day", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.4},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' Self-Service", "subtitle" : "Your one-stop shop for all things '${mdmVendor}'.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -1805,6 +1811,73 @@ function checkAvailableSoftwareUpdates() {
 }
 
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Last App Auto-Patch Run
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+function checkAppAutoPatch() {
+    local humanReadableCheckName="App Auto-Patch last run"
+    notice "Checking ${humanReadableCheckName} …"
+    dialogUpdate "icon: SF=arrow.triangle.2.circlepath.circle,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
+    sleep "${anticipationDuration}"
+    
+    # Thresholds in days
+    aap_warning_threshold=7
+    aap_critical_threshold=30
+    
+    # Path to App Auto-Patch log
+    aap_log_path="/Library/Management/AppAutoPatch/logs/aap.log"
+    
+    # Check if log file exists
+    if [[ ! -f "${aap_log_path}" ]]; then
+        updateScriptLog "FAIL: ${humanReadableCheckName} log file not found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Log not found"
+        errorOut "${humanReadableCheckName}: Log file not found"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+    
+    # Extract the "Days Since" value from the log
+    aap_log_line=$(grep "Days Since" "${aap_log_path}" | tail -1)
+    
+    if [[ -z "${aap_log_line}" ]]; then
+        updateScriptLog "FAIL: ${humanReadableCheckName} - no patching data found in log"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: No patching data found"
+        errorOut "${humanReadableCheckName}: No patching data found in log"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+    
+    # Extract the number of days (the last number in the line)
+    days_since_patch=$(echo "${aap_log_line}" | awk '{print $NF}')
+    
+    # Validate that we got a number
+    if [[ ! "${days_since_patch}" =~ ^[0-9]+$ ]]; then
+        updateScriptLog "FAIL: ${humanReadableCheckName} - unable to parse days value"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Invalid data format"
+        errorOut "${humanReadableCheckName}: Unable to parse days value"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+    
+    # Set status based on days since last patch
+    if [ ${days_since_patch} -ge ${aap_critical_threshold} ]; then
+        updateScriptLog "FAIL: ${humanReadableCheckName} last ran ${days_since_patch} days ago (exceeds critical threshold of ${aap_critical_threshold} days)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${days_since_patch} days ago"
+        errorOut "${humanReadableCheckName}: ${days_since_patch} days ago (Critical)"
+        overallHealth+="${humanReadableCheckName}; "
+    elif [ ${days_since_patch} -ge ${aap_warning_threshold} ]; then
+        updateScriptLog "Warning: ${humanReadableCheckName} last ran ${days_since_patch} days ago (exceeds warning threshold of ${aap_warning_threshold} days)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${days_since_patch} days ago"
+        warning "${humanReadableCheckName}: ${days_since_patch} days ago (Warning)"
+    else
+        updateScriptLog "PASS: ${humanReadableCheckName} last ran ${days_since_patch} days ago"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${days_since_patch} days ago"
+        info "${humanReadableCheckName}: ${days_since_patch} days ago"
+    fi
+}
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check System Integrity Protection
@@ -3166,6 +3239,124 @@ function checkElectronCornerMask() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check BluetoothSharing
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkBluetoothSharingAsUser() {
+	notice "Checking Bluetooth Sharing status …"
+	dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
+	dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+	dialogUpdate "progress: increment"
+	dialogUpdate "progresstext: Evaluating Bluetooth Sharing setting …"
+	sleep "${anticipationDuration}"
+    
+    # Check Bluetooth sharing settings
+    local result=$(launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" /usr/bin/defaults read /Users/"$loggedInUser"/Library/Preferences/com.apple.bluetooth.plist PrefKeyServicesEnabled 2>/dev/null)
+    
+    if [[ "$result" == "0" ]] || [[ -z "$result" ]]; then
+        updateScriptLog "PASS: Bluetooth sharing is disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Compliant, "
+        info "Bluetooth Sharing: Disabled"
+    else
+        updateScriptLog "FAIL: Bluetooth sharing is enabled (value: $result)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Non-Compliant, "
+        errorOut "Bluetooth Sharing: Failed (value: $result)"
+    fi
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Password Hint
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkPasswordHintAsUser() {
+    notice "Check User Password Hint"
+	dialogUpdate "icon: SF=key.horizontal.fill,${organizationColorScheme}"
+	dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+	dialogUpdate "progress: increment"
+	dialogUpdate "progresstext: Evaluating password hint status …"
+	sleep "${anticipationDuration}"
+    
+    # Use launchctl to run a simple defaults command as user
+    local result=$(launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" /usr/bin/defaults read /Users/"$loggedInUser"/Library/Preferences/com.apple.loginwindow.plist RetriesUntilHint 2>/dev/null)
+    
+    if [[ "$result" == "0" ]] || [[ -z "$result" ]]; then
+        updateScriptLog "PASS: Password hint is disabled"
+        info "Password Hint: Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: No Hint Found, "
+    else
+        updateScriptLog "Warning: Password hint is enabled (value: $result)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Hint Found, "
+        warning "Password Hint Found (value: $result)"
+    fi
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check AirPlay Receiver
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkAirPlayStatusAsUser() {
+	notice "Checking AirPlay Receiver status …"
+	dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
+	dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+	dialogUpdate "progress: increment"
+	dialogUpdate "progresstext: Evaluating AirPlay Receiver configuration …"
+	sleep "${anticipationDuration}"
+    
+    # Check AirPlay settings
+    if launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" launchctl list | grep -q "com.apple.AirPlayUIAgent"; then
+        local result="ENABLED"
+    else
+        local result="DISABLED"
+    fi
+    
+    if [[ "$result" == "DISABLED" ]] || [[ -z "$result" ]]; then
+        updateScriptLog "PASS: AirPlay Receiver is appropriately configured"
+        info "AirPlay: Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled, "
+    else
+        updateScriptLog "Warning: AirPlay Receiver is enabled (value: $result)"
+        errorOut "AirPlay: Non-Compliant (value: $result)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirPlay Receiver Enabled, "
+    fi
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check AirDrop
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkAirDropSettingsAsUser() {
+    notice "Check AirDrop Settings …"
+    dialogUpdate "icon: SF=airplayaudio.circle.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining AirDrop status …"
+    sleep "${anticipationDuration}"
+
+    
+    # Check AirDrop settings
+    local result=$(launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" /usr/bin/defaults read /Users/"$loggedInUser"/Library/Preferences/com.apple.sharingd.plist DiscoverableMode 2>/dev/null)
+    
+    if [[ "$result" != "Everyone" ]] || [[ -z "$result" ]]; then
+        updateScriptLog "PASS: AirDrop is appropriately configured"
+        info "AirDrop Settings: Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Compliant"
+    else
+        updateScriptLog "FAIL: AirDrop allows discovery by everyone (value: $result)"
+        errorOut "AirDrop Settings: Non-Compliant (value: $result)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirDrop for Everyone Enabled"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Update Computer Inventory
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -3460,29 +3651,35 @@ if [[ "${operationMode}" != "Test" ]]; then
         "Mosyle" )
             checkOS "0"
             checkAvailableSoftwareUpdates "1"
-            checkSIP "2"
-            checkSSV "3"
-            checkFirewall "4"
-            checkFileVault "5"
-            checkGatekeeperXProtect "6"
-            checkTouchID "7"
-            checkUptime "8"
-            checkFreeDiskSpace "9"
-            checkUserDirectorySizeItems "10" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "11" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "12" ".Trash" "trash.fill" "Trash"
-            checkMdmProfile "13"
-            checkMdmCertificateExpiration "14"
-            checkAPNs "15"
-            checkMosyleCheckIn "16"
-            checkNetworkHosts "17" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "18" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "19" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "20" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "21" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "22" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
-            checkElectronCornerMask "23"
-            checkNetworkQuality "24"
+            checkAppAutoPatch "2"
+            checkSIP "3"
+            checkSSV "4"
+            checkFirewall "5"
+            checkFileVault "6"
+            checkGatekeeperXProtect "7"
+            checkTouchID "8"
+            checkVPN "9"
+            checkUptime "10"
+            checkFreeDiskSpace "11"
+            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+		    checkPasswordHintAsUser "15"
+		    checkAirDropSettingsAsUser "16"
+		    checkAirPlayStatusAsUser "17"
+		    checkBluetoothSharingAsUser "18"
+		    checkMdmProfile "19"
+            checkMdmCertificateExpiration "20"
+            checkAPNs "21"
+            checkMosyleCheckIn "22"
+            checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+            checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+            checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+            checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+            checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+            checkInternal "28" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
+            checkElectronCornerMask "29"
+            checkNetworkQuality "30"
             ;;
 
         * )
