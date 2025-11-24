@@ -973,10 +973,10 @@ mosyleListitemJSON='
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
-    {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle.fill,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
+    {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …"},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -1832,9 +1832,8 @@ function checkAppAutoPatch() {
     
     # Check if log file exists
     if [[ ! -f "${aap_log_path}" ]]; then
-        updateScriptLog "FAIL: ${humanReadableCheckName} log file not found"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Log not found"
         errorOut "${humanReadableCheckName}: Log file not found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Log not found"
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
@@ -1843,9 +1842,8 @@ function checkAppAutoPatch() {
     aap_log_line=$(grep "Days Since" "${aap_log_path}" | tail -1)
     
     if [[ -z "${aap_log_line}" ]]; then
-        updateScriptLog "FAIL: ${humanReadableCheckName} - no patching data found in log"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: No patching data found"
         errorOut "${humanReadableCheckName}: No patching data found in log"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: No patching data found"
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
@@ -1855,27 +1853,23 @@ function checkAppAutoPatch() {
     
     # Validate that we got a number
     if [[ ! "${days_since_patch}" =~ ^[0-9]+$ ]]; then
-        updateScriptLog "FAIL: ${humanReadableCheckName} - unable to parse days value"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Invalid data format"
         errorOut "${humanReadableCheckName}: Unable to parse days value"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Invalid data format"
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
     
     # Set status based on days since last patch
     if [ ${days_since_patch} -ge ${aap_critical_threshold} ]; then
-        updateScriptLog "FAIL: ${humanReadableCheckName} last ran ${days_since_patch} days ago (exceeds critical threshold of ${aap_critical_threshold} days)"
+        errorOut "${humanReadableCheckName}: ${days_since_patch} days ago (exceeds critical threshold of ${aap_critical_threshold} days)"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${days_since_patch} days ago"
-        errorOut "${humanReadableCheckName}: ${days_since_patch} days ago (Critical)"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${days_since_patch} -ge ${aap_warning_threshold} ]; then
-        updateScriptLog "Warning: ${humanReadableCheckName} last ran ${days_since_patch} days ago (exceeds warning threshold of ${aap_warning_threshold} days)"
+        warning "${humanReadableCheckName}: ${days_since_patch} days ago (exceeds warning threshold of ${aap_warning_threshold} days)"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${days_since_patch} days ago"
-        warning "${humanReadableCheckName}: ${days_since_patch} days ago (Warning)"
     else
-        updateScriptLog "PASS: ${humanReadableCheckName} last ran ${days_since_patch} days ago"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${days_since_patch} days ago"
         info "${humanReadableCheckName}: ${days_since_patch} days ago"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${days_since_patch} days ago"
     fi
 }
 
@@ -3243,27 +3237,27 @@ function checkElectronCornerMask() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkBluetoothSharingAsUser() {
-	notice "Checking Bluetooth Sharing status …"
-	dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
-	dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
-	dialogUpdate "progress: increment"
-	dialogUpdate "progresstext: Evaluating Bluetooth Sharing setting …"
-	sleep "${anticipationDuration}"
+    local humanReadableCheckName="Bluetooth Sharing"
+    notice "Checking ${humanReadableCheckName} status …"
+    dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Evaluating ${humanReadableCheckName} setting …"
+    sleep "${anticipationDuration}"
     
-    # Check Bluetooth sharing settings
-    local result=$(launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" /usr/bin/defaults read /Users/"$loggedInUser"/Library/Preferences/com.apple.bluetooth.plist PrefKeyServicesEnabled 2>/dev/null)
+    # Check Bluetooth sharing settings using -currentHost as per macOS Security Compliance Project
+    local result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.Bluetooth PrefKeyServicesEnabled 2>&1 | grep -v "Run" | tail -1)
     
-    if [[ "$result" == "0" ]] || [[ -z "$result" ]]; then
-        updateScriptLog "PASS: Bluetooth sharing is disabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Compliant, "
-        info "Bluetooth Sharing: Disabled"
+    # If the key doesn't exist or is 0, Bluetooth sharing is disabled (compliant)
+    if [[ "${result}" == "0" ]] || [[ "${result}" =~ "does not exist" ]]; then
+        info "${humanReadableCheckName}: Disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Compliant"
     else
-        updateScriptLog "FAIL: Bluetooth sharing is enabled (value: $result)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Non-Compliant, "
-        errorOut "Bluetooth Sharing: Failed (value: $result)"
+        errorOut "${humanReadableCheckName}: Enabled (value: ${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Non-Compliant"
+        overallHealth+="${humanReadableCheckName}; "
     fi
 }
-
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -3271,27 +3265,26 @@ function checkBluetoothSharingAsUser() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkPasswordHintAsUser() {
-    notice "Check User Password Hint"
-	dialogUpdate "icon: SF=key.horizontal.fill,${organizationColorScheme}"
-	dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
-	dialogUpdate "progress: increment"
-	dialogUpdate "progresstext: Evaluating password hint status …"
-	sleep "${anticipationDuration}"
+    local humanReadableCheckName="Password Hint"
+    notice "Checking ${humanReadableCheckName} …"
+    dialogUpdate "icon: SF=key.horizontal.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Evaluating ${humanReadableCheckName} status …"
+    sleep "${anticipationDuration}"
     
-    # Use launchctl to run a simple defaults command as user
-    local result=$(launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" /usr/bin/defaults read /Users/"$loggedInUser"/Library/Preferences/com.apple.loginwindow.plist RetriesUntilHint 2>/dev/null)
+    # Check for password hints using dscl as per macOS Security Compliance Project
+    local hint=$(/usr/bin/dscl . -read /Users/"${loggedInUser}" hint 2>/dev/null | /usr/bin/awk '{$1=""; print $0}' | /usr/bin/xargs)
     
-    if [[ "$result" == "0" ]] || [[ -z "$result" ]]; then
-        updateScriptLog "PASS: Password hint is disabled"
-        info "Password Hint: Compliant"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: No Hint Found, "
+    # If hint is empty, no password hint is set (compliant)
+    if [[ -z "${hint}" ]]; then
+        info "${humanReadableCheckName}: No hint set"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: No Hint Found"
     else
-        updateScriptLog "Warning: Password hint is enabled (value: $result)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Hint Found, "
-        warning "Password Hint Found (value: $result)"
+        warning "${humanReadableCheckName}: Hint found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Hint Found"
     fi
 }
-
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -3299,31 +3292,26 @@ function checkPasswordHintAsUser() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkAirPlayStatusAsUser() {
-	notice "Checking AirPlay Receiver status …"
-	dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
-	dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
-	dialogUpdate "progress: increment"
-	dialogUpdate "progresstext: Evaluating AirPlay Receiver configuration …"
-	sleep "${anticipationDuration}"
+    local humanReadableCheckName="AirPlay Receiver"
+    notice "Checking ${humanReadableCheckName} status …"
+    dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Evaluating ${humanReadableCheckName} configuration …"
+    sleep "${anticipationDuration}"
     
-    # Check AirPlay settings
-    if launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" launchctl list | grep -q "com.apple.AirPlayUIAgent"; then
-        local result="ENABLED"
-    else
-        local result="DISABLED"
-    fi
+    # Check AirPlay settings - filter out the "Run" log message before checking
+    local launchctl_output=$(runAsUser launchctl list 2>&1 | grep -v "Run")
     
-    if [[ "$result" == "DISABLED" ]] || [[ -z "$result" ]]; then
-        updateScriptLog "PASS: AirPlay Receiver is appropriately configured"
-        info "AirPlay: Compliant"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled, "
+    if echo "${launchctl_output}" | grep -q "com.apple.AirPlayUIAgent"; then
+        errorOut "${humanReadableCheckName}: Enabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirPlay Receiver Enabled"
+        overallHealth+="${humanReadableCheckName}; "
     else
-        updateScriptLog "Warning: AirPlay Receiver is enabled (value: $result)"
-        errorOut "AirPlay: Non-Compliant (value: $result)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirPlay Receiver Enabled, "
+        info "${humanReadableCheckName}: Disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled"
     fi
 }
-
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -3331,29 +3319,26 @@ function checkAirPlayStatusAsUser() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkAirDropSettingsAsUser() {
-    notice "Check AirDrop Settings …"
+    local humanReadableCheckName="AirDrop Settings"
+    notice "Checking ${humanReadableCheckName} …"
     dialogUpdate "icon: SF=airplayaudio.circle.fill,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Determining AirDrop status …"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
     sleep "${anticipationDuration}"
-
     
     # Check AirDrop settings
-    local result=$(launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" /usr/bin/defaults read /Users/"$loggedInUser"/Library/Preferences/com.apple.sharingd.plist DiscoverableMode 2>/dev/null)
+    local result=$(runAsUser /usr/bin/defaults read /Users/"${loggedInUser}"/Library/Preferences/com.apple.sharingd.plist DiscoverableMode 2>&1 | grep -v "Run" | tail -1)
     
-    if [[ "$result" != "Everyone" ]] || [[ -z "$result" ]]; then
-        updateScriptLog "PASS: AirDrop is appropriately configured"
-        info "AirDrop Settings: Compliant"
+    if [[ "${result}" != "Everyone" ]] || [[ -z "${result}" ]]; then
+        info "${humanReadableCheckName}: Compliant"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Compliant"
     else
-        updateScriptLog "FAIL: AirDrop allows discovery by everyone (value: $result)"
-        errorOut "AirDrop Settings: Non-Compliant (value: $result)"
+        errorOut "${humanReadableCheckName}: AirDrop for Everyone enabled (value: ${result})"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirDrop for Everyone Enabled"
         overallHealth+="${humanReadableCheckName}; "
     fi
 }
-
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
