@@ -2,10 +2,11 @@
 
 ## CHANGELOG
 
-### 3.0.0 (11-Nov-2025)
+### 3.0.0 (24-Nov-2025)
 **First (attempt at a) MDM-agnostic release**
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
 - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
+- AAP and User Sharing Checks (Pull Request #63; thanks, @bigdoodr!)
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376

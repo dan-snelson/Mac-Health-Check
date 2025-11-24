@@ -58,7 +58,11 @@ The following health checks and information reporting are included and the scrip
 1. Firewall
 1. FileVault Encryption
 1. Gatekeeper / XProtect
-1. Touch ID :new:
+1. Touch ID
+1. Password Hint :new:
+1. AirDrop Settings :new:
+1. AirPlay Receiver Status :new:
+1. Bluetooth Sharing :new:
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
@@ -78,7 +82,8 @@ The following health checks and information reporting are included and the scrip
     - Apple Certificate Validation
     - Apple Identity and Content Services
     - Jamf Hosts
-1. Electron Corner Mask :new:
+1. App Auto-Patch Status :new:
+1. Electron Corner Mask
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*
@@ -131,7 +136,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2025-11-11 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2025-11-24 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
