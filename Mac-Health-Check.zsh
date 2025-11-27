@@ -17,10 +17,13 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 24-Nov-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 26-Nov-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
+#   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
 #   - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
+#   - Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
+#   - Refactored many other functions, adding instructive "listitem" "subtitle" self-remedidation instructions
 #
 ####################################################################################################
 
@@ -35,7 +38,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b40"
+scriptVersion="3.0.0b41"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -55,7 +58,7 @@ SECONDS="0"
 # Script Paramters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-# Parameter 4: Operation Mode [ Test | Debug | Self Service | Silent ]
+# Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
 operationMode="${4:-"Self Service"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
@@ -75,6 +78,12 @@ humanReadableScriptName="Mac Health Check"
 
 # Organization's Script Name
 organizationScriptName="MHC"
+
+# Organization's Self Service Marketing Name 
+organizationSelfServiceMarketingName="Workforce App Store"
+
+# Organization's Boilerplate Compliance Message 
+organizationBoilerplateComplianceMessage="Meets organizational standards"
 
 # Organization's Branding Banner URL
 organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-textured-backgound_1258-30469.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
@@ -587,7 +596,7 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 chmod 644 "${dialogCommandFile}"
 
 # The total number of steps for the progress bar (i.e., "progress: increment")
-progressSteps="34"
+progressSteps="40"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
 if system_profiler SPPowerDataType | grep -q "Battery Power"; then
@@ -602,12 +611,12 @@ if [[ -n "${organizationOverlayiconURL}" ]]; then
     curl -o "/var/tmp/overlayicon.png" "${organizationOverlayiconURL}" --silent --show-error --fail
     if [[ "$?" -ne 0 ]]; then
         echo "Error: Failed to download the overlayicon from '${brandingImageURL}'."
-        overlayicon="/System/Library/CoreServices/Finder.app"
+        overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
     else
         overlayicon="/var/tmp/overlayicon.png"
     fi
 else
-    overlayicon="/System/Library/CoreServices/Finder.app"
+    overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
 fi
 
 
@@ -697,7 +706,7 @@ addigyMdmListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -706,13 +715,13 @@ addigyMdmListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -723,7 +732,7 @@ addigyMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -744,7 +753,7 @@ fleetMdmListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -753,13 +762,13 @@ fleetMdmListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -770,7 +779,7 @@ fleetMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Fleet Desktop", "subtitle" : "Visibility into the security posture of your Mac.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -791,7 +800,7 @@ kandjiMdmListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -800,13 +809,13 @@ kandjiMdmListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -817,7 +826,7 @@ kandjiMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -845,12 +854,12 @@ jamfProListitemJSON='
     {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -865,8 +874,8 @@ jamfProListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=29.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -894,7 +903,7 @@ jumpcloudMdmListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -903,13 +912,13 @@ jumpcloudMdmListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -920,7 +929,7 @@ jumpcloudMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -942,7 +951,7 @@ microsoftMdmListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -951,13 +960,13 @@ microsoftMdmListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -968,7 +977,7 @@ microsoftMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -990,7 +999,7 @@ mosyleListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch Status", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -999,13 +1008,13 @@ mosyleListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -1017,7 +1026,7 @@ mosyleListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' Self-Service", "subtitle" : "Your one-stop shop for all things '${mdmVendor}'.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -1047,13 +1056,13 @@ genericMdmListitemJSON='
     {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "See KB0080685 Disk Usage to help identify the 50 largest directories", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop Settings", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver Status", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
@@ -1061,7 +1070,7 @@ genericMdmListitemJSON='
     {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects vulnerable Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
@@ -1185,8 +1194,7 @@ function webHookMessage() {
                         { "type": "mrkdwn", "text": "*Timestamp:*\n${timestamp}" },
                         { "type": "mrkdwn", "text": "*User:*\n${loggedInUser}" },
                         { "type": "mrkdwn", "text": "*OS Version:*\n${osVersion} (${osBuild})" },
-                        { "type": "mrkdwn", "text": "*Health Failures:*\n${overallHealth%%; }" },
-                        { "type": "mrkdwn", "text": "*Electron Corner Mask:*\n${electronVulnerableApps}" }
+                        { "type": "mrkdwn", "text": "*Health Failures:*\n${overallHealth%%; }" }
                     ]
                 },
                 {
@@ -1278,8 +1286,7 @@ EOF
                                     { "title": "Timestamp", "value": "${timestamp}" },
                                     { "title": "User", "value": "${loggedInUser}" },
                                     { "title": "Operating System", "value": "${osVersion} (${osBuild})" },
-                                    { "title": "Health Failures", "value": "${overallHealth%%; }" },
-                                    { "title": "Electron Corner Mask", "value": "${electronVulnerableApps}" }
+                                    { "title": "Health Failures", "value": "${overallHealth%%; }" }
                                 ]
                             }
                         ],
@@ -1618,7 +1625,7 @@ function checkOS() {
 
         logComment "OS Build, ${osBuild}, ends with a letter; skipping"
         osResult="Beta macOS ${osVersion} (${osBuild})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Beta builds of macOS are purposely marked as unsupported, status: error, statustext: ${osResult}"
         warning "${osResult}"
     
     else
@@ -1733,11 +1740,11 @@ function checkOS() {
 
         if [[ "$latest_version_match" == true ]] || [[ "$security_update_within_30_days" == true ]] || [[ "$n_rule" == true ]]; then
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${osResult}"
             info "${osResult}"
         else
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please update to a supported macOS version via System Settings > General > Software Update, status: fail, statustext: ${osResult}"
             errorOut "${osResult}"
             overallHealth+="${humanReadableCheckName}; "
         fi
@@ -1794,30 +1801,30 @@ function checkAvailableSoftwareUpdates() {
         case "${SUListRaw}" in
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Software Update, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
             *"The operation couldn’t be completed."* )
                 availableSoftwareUpdates="The operation couldn’t be completed."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Software Update, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
             *"Deferred: YES"* )
                 availableSoftwareUpdates="Deferred software available."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
             *"No new software available."* )
                 availableSoftwareUpdates="No new software available."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
                 info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
             * )
                 SUList=$( echo "${SUListRaw}" | grep "*" | sed "s/\* Label: //g" | sed "s/,*$//g" )
                 availableSoftwareUpdates="${SUList}"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
         esac
@@ -1827,15 +1834,15 @@ function checkAvailableSoftwareUpdates() {
         # Treat a DDM-enforced OS Updates which contains the current OS as if there are no updates
         if [[ -z "$ddmEnforcedInstallDate" ]]; then
             availableSoftwareUpdates="None"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         elif is-at-least "${ddmVersionString}" "${osVersion}"; then
             availableSoftwareUpdates="Up-to-date"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         else
             availableSoftwareUpdates="macOS ${ddmVersionString} (${ddmEnforcedInstallDateHumanReadable})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update, status: error, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         fi
 
@@ -1870,7 +1877,7 @@ function checkAppAutoPatch() {
     # Check if log file exists
     if [[ ! -f "${aap_log_path}" ]]; then
         errorOut "${humanReadableCheckName}: Log file not found"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Log not found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Log not found"
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
@@ -1880,7 +1887,7 @@ function checkAppAutoPatch() {
     
     if [[ -z "${aap_log_line}" ]]; then
         errorOut "${humanReadableCheckName}: No patching data found in log"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: No patching data found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: No patching data found"
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
@@ -1891,22 +1898,22 @@ function checkAppAutoPatch() {
     # Validate that we got a number
     if [[ ! "${days_since_patch}" =~ ^[0-9]+$ ]]; then
         errorOut "${humanReadableCheckName}: Unable to parse days value"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Invalid data format"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Invalid data format"
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
     
     # Set status based on days since last patch
     if [ ${days_since_patch} -ge ${aap_critical_threshold} ]; then
-        errorOut "${humanReadableCheckName}: ${days_since_patch} days ago (exceeds critical threshold of ${aap_critical_threshold} days)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${days_since_patch} days ago"
+        errorOut "${humanReadableCheckName}: ${days_since_patch} day(s) ago (exceeds critical threshold of ${aap_critical_threshold} days)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: ${days_since_patch} day(s) ago"
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${days_since_patch} -ge ${aap_warning_threshold} ]; then
-        warning "${humanReadableCheckName}: ${days_since_patch} days ago (exceeds warning threshold of ${aap_warning_threshold} days)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${days_since_patch} days ago"
+        warning "${humanReadableCheckName}: ${days_since_patch} day(s) ago (exceeds warning threshold of ${aap_warning_threshold} days)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: error, statustext: ${days_since_patch} day(s) ago"
     else
-        info "${humanReadableCheckName}: ${days_since_patch} days ago"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${days_since_patch} days ago"
+        info "${humanReadableCheckName}: ${days_since_patch} day(s) ago"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: You can run App Auto-Patch at any time from the ${organizationSelfServiceMarketingName}, status: success, statustext: ${days_since_patch} day(s) ago"
     fi
 
 }
@@ -1934,12 +1941,12 @@ function checkSIP() {
     case ${sipCheck} in
 
         *"enabled"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -1971,12 +1978,12 @@ function checkSSV() {
     case ${ssvCheck} in
 
         *"enabled"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -2008,12 +2015,12 @@ function checkGatekeeperXProtect() {
     case ${gatekeeperXProtectCheck} in
 
         *"enabled"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -2049,12 +2056,12 @@ function checkFirewall() {
     case ${firewallCheck} in
 
         *"enabled"* | *"Enabled"* | *"is blocking"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
             errorOut "${humanReadableCheckName}: Failed"
             overallHealth+="${humanReadableCheckName}; "
             ;;
@@ -2107,12 +2114,12 @@ function checkUptime() {
         case ${excessiveUptimeAlertStyle} in
 
             "warning" ) 
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please restart your Mac regularly, status: error, statustext: ${uptimeHumanReadable}"
                 warning "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 ;;
 
             "error" | * )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please restart your Mac regularly, status: fail, statustext: ${uptimeHumanReadable}"
                 errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -2121,7 +2128,7 @@ function checkUptime() {
     
     else
     
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${uptimeHumanReadable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for restarting your Mac regularly, status: success, statustext: ${uptimeHumanReadable}"
         info "${humanReadableCheckName}: ${uptimeHumanReadable}"
     
     fi
@@ -2156,13 +2163,13 @@ function checkFreeDiskSpace() {
 
     if (( $( echo ${freePercentage}'<'${allowedMinimumFreeDiskPercentage} | bc -l ) )); then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${diskSpace}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: See KB0080685 Disk Usage to help identify the 50 largest directories, status: fail, statustext: ${diskSpace}"
         errorOut "${humanReadableCheckName}: ${diskSpace}"
         overallHealth+="${humanReadableCheckName}; "
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${diskSpace}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${diskSpace}"
         info "${humanReadableCheckName}: ${diskSpace}"
 
     fi
@@ -2193,7 +2200,7 @@ function checkUserDirectorySizeItems() {
 
     if [[ "${userDirectoryItems}" == "0" ]]; then
         userDirectoryResult="Empty"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${userDirectoryResult}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
         info "${humanReadableCheckName}: ${userDirectoryResult}"
     else
         dirBlocks=$( du -s "${targetDirectory}" 2>/dev/null | awk '{print $1}' )
@@ -2201,11 +2208,11 @@ function checkUserDirectorySizeItems() {
         percentage=$( echo "scale=2; if (${totalDiskBytes} > 0) ${dirBytes} * 100 / ${totalDiskBytes} else 0" | bc -l 2>/dev/null || echo "0" )
         userDirectoryResult="${userDirectorySize} (${userDirectoryItems} items) — ${percentage}% of disk"
         if (( $( echo ${percentage}'>'${allowedMaximumDirectoryPercentage} | bc -l 2>/dev/null ) )); then
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${userDirectoryResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, Please contact ${supportTeamName} if you need asssitance, status: error, statustext: ${userDirectoryResult}"
             warning "${humanReadableCheckName}: ${userDirectoryResult}"
             # overallHealth+="${humanReadableCheckName}; " # Uncomment to treat as an error
         else
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${userDirectoryResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
             info "${humanReadableCheckName}: ${userDirectoryResult}"
         fi
     fi
@@ -2234,7 +2241,7 @@ function checkMdmProfile() {
 
     if [[ -n "${mdmProfileTest}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
         info "${humanReadableCheckName}: Installed"
 
     else
@@ -2271,7 +2278,7 @@ function checkAPNs() {
 
     if [[ "${apnsCheck}" == *"Timestamp"* ]] || [[ -z "${apnsCheck}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1}): ${apnsCheck}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -2285,7 +2292,7 @@ function checkAPNs() {
         else
             apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
         fi
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${apnsStatus}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${apnsStatus}"
         info "${humanReadableCheckName}: ${apnsCheck}"
 
     fi
@@ -2477,7 +2484,7 @@ function checkNetworkHosts() {
     done
 
     if [[ "${allOK}" == true ]]; then
-        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Passed"
+        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Passed"
         info "${name}: ${results%;; }"
     else
         dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
@@ -2545,7 +2552,7 @@ function checkMdmCertificateExpiration() {
     expirationDateFormatted=$(date -j -f "%b %d %H:%M:%S %Y GMT" "$expiry" "+%d-%b-%Y")
 
     if (( date_seconds > now_seconds )); then
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${expirationDateFormatted}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${expirationDateFormatted}"
         info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
     else
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
@@ -2607,7 +2614,7 @@ function checkJamfProCheckIn() {
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_check_in_time_human_readable}"
         info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
 
@@ -2667,7 +2674,7 @@ function checkJamfProInventory() {
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_inventory_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_inventory_time_human_readable}"
         info "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
     fi
 
@@ -2724,7 +2731,7 @@ function checkMosyleCheckIn() {
         overallHealth+="${humanReadableCheckName}; "
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_check_in_time_human_readable}"
         info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
 
@@ -2757,12 +2764,12 @@ function checkFileVault() {
         case ${fileVaultStatus} in
 
             *"FileVault is On."* ) 
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
                 info "${humanReadableCheckName}: Enabled"
                 ;;
 
             *"Deferred enablement appears to be active for user"* )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enabled (next login)"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled (next login)"
                 warning "${humanReadableCheckName}: Enabled (next login)"
                 ;;
 
@@ -2807,7 +2814,7 @@ function checkInternal() {
 
     if [[ -e "${checkInternalTargetFile}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
         info "${checkInternalTargetFileDisplayName} installed"
         
     else
@@ -2834,7 +2841,7 @@ function checkTouchID() {
     notice "Check ${humanReadableCheckName} …"
     
     dialogUpdate "icon: SF=touchid,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill ${organizationColorScheme//,/ }, iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
 
@@ -2875,7 +2882,7 @@ function checkTouchID() {
         fi
 
         if [[ "${enrolled}" == "true" ]]; then
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Enrolled (${bioCount})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enrolled (${bioCount})"
             info "Touch ID: Enabled & Enrolled (${bioCount})"
         else
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Not enrolled"
@@ -2906,7 +2913,7 @@ function checkVPN() {
     case ${vpnStatus} in
 
         *"NOT installed"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
             errorOut "${vpnAppName} Failed"
             overallHealth+="${vpnAppName}; "
             ;;
@@ -2917,7 +2924,7 @@ function checkVPN() {
             ;;
 
         "Connected"* | "${ciscoVPNIP}" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Connected"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Connected"
             info "${vpnAppName} Connected"
             ;;
 
@@ -2983,7 +2990,7 @@ function checkExternalJamfPro() {
                 ;;
 
             "success" )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: $checkStatus"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: $checkStatus"
                 info "${appDisplayName} $checkStatus"
                 ;;
 
@@ -3001,13 +3008,13 @@ function checkExternalJamfPro() {
         case ${externalValidation:l} in
 
             *"failed"* )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
                 errorOut "${appDisplayName} Failed"
                 overallHealth+="${appDisplayName}; "
                 ;;
 
             *"running"* )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Running"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Running"
                 info "${appDisplayName} running"
                 ;;
 
@@ -3117,7 +3124,7 @@ function checkElectronCornerMask() {
     osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
     if [[ "${osMajorVersion}" -lt 26 ]]; then
         info "${humanReadableCheckName}: macOS ${osVersion} — not affected."
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Not affected (macOS ${osVersion})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Not affected (macOS ${osVersion})"
         return 0
     fi
 
@@ -3135,6 +3142,7 @@ function checkElectronCornerMask() {
     local safeApps=()
 
     setopt null_glob
+
     local appPaths=(
         /Applications/*.app
         /Applications/Utilities/*.app
@@ -3217,7 +3225,7 @@ function checkElectronCornerMask() {
                     vulnerableApps+=("${appName} (version unknown)")
                 else
                     warning "${humanReadableCheckName}: ${appName} Electron version unknown (app ${appVersion})"
-                    vulnerableApps+=("${appName} (app version ${appVersion}, Electron unknown)")
+                    vulnerableApps+=("${appName} (${appVersion//, /; })")
                 fi
                 continue
             fi
@@ -3243,30 +3251,24 @@ function checkElectronCornerMask() {
 
     # Reporting
     if [[ ${foundElectronApps} -eq 0 ]]; then
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: No Electron apps found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: No Electron apps found"
         info "${humanReadableCheckName}: No Electron-based apps detected."
         return 0
     fi
 
     if [[ ${#vulnerableApps[@]} -gt 0 ]]; then
         local vulnerableList=$(printf '%s; ' "${vulnerableApps[@]}")
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Vulnerable apps found"
-        warning "${humanReadableCheckName}: Vulnerable Electron apps detected — ${vulnerableList}"
+        vulnerableList="${vulnerableList%; }"
+        info "vulnerableList: ${vulnerableList}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: ${vulnerableList}, status: error, statustext: Susceptible apps found"
+        warning "${humanReadableCheckName}: Susceptible Electron apps detected — ${vulnerableList}"
         errorOut "${humanReadableCheckName}: ${vulnerableList}"
         overallHealth+="${humanReadableCheckName}; "
     else
         local safeList=$(printf '%s; ' "${safeApps[@]}")
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: All Electron apps patched"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: All Electron apps patched"
         info "${humanReadableCheckName}: All Electron apps are running patched versions — ${safeList}"
     fi
-
-    # Export vulnerable apps list for Webhook use
-    if [[ ${#vulnerableApps[@]} -gt 0 ]]; then
-        electronVulnerableApps=$(printf '%s\n' "${vulnerableApps[@]}" | paste -sd ', ' -)
-    else
-        electronVulnerableApps="None detected"
-    fi
-    export electronVulnerableApps
 
 }
 
@@ -3294,10 +3296,10 @@ function checkBluetoothSharing() {
     # If the key doesn't exist or is 0, Bluetooth sharing is disabled (compliant)
     if [[ "${result}" == "0" ]] || [[ "${result}" =~ "does not exist" ]]; then
         info "${humanReadableCheckName}: Disabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Off (Compliant)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Off (Compliant)"
     else
         errorOut "${humanReadableCheckName}: Enabled (value: ${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: On (Non-Compliant)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable, status: fail, statustext: Enabled"
         overallHealth+="${humanReadableCheckName}; "
     fi
 
@@ -3327,10 +3329,10 @@ function checkPasswordHint() {
     # If hint is empty, no password hint is set (compliant)
     if [[ -z "${hint}" ]]; then
         info "${humanReadableCheckName}: No hint set"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: No Hint Found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: (None) Compliant"
     else
         warning "${humanReadableCheckName}: Hint found"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Hint Found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Found (Non-compliant)"
     fi
 
 }
@@ -3358,11 +3360,11 @@ function checkAirPlayStatus() {
     
     if echo "${launchctl_output}" | grep -q "com.apple.AirPlayUIAgent"; then
         errorOut "${humanReadableCheckName}: Enabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirPlay Receiver Enabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
         overallHealth+="${humanReadableCheckName}; "
     else
         info "${humanReadableCheckName}: Disabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
     fi
 
 }
@@ -3390,10 +3392,10 @@ function checkAirDropSettings() {
     
     if [[ "${result}" != "Everyone" ]] || [[ -z "${result}" ]]; then
         info "${humanReadableCheckName}: Compliant"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
     else
         errorOut "${humanReadableCheckName}: Discoverable by Everyone (value: ${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Discoverable by Everyone"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only, status: fail, statustext: Everyone"
         overallHealth+="${humanReadableCheckName}; "
     fi
 
@@ -3424,7 +3426,7 @@ function updateComputerInventory() {
 
     fi
 
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Updated"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Latest computer inventory submitted at $( date '+%d-%b-%Y %H:%M:%S' ), status: success, statustext: Updated"
 
 }
 
@@ -3437,45 +3439,47 @@ function updateComputerInventory() {
 ####################################################################################################
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Write MDM-specific JSON to disk
+# Generate dialogJSONFile based on Operation Mode and MDM Vendor
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-case ${mdmVendor} in
+if [[ "${operationMode}" == "Development" ]]; then
+    
+    notice "Operation Mode is ${operationMode}; using ${operationMode} dialogJSONFile template."
 
-    "Addigy" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$addigyMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+    # Development List Items
 
-    "Fleet" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$fleetMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+    developmentListitemJSON='
+    [
+        {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    ]
+    '
+    # Validate developmentListitemJSON is valid JSON
+    if ! echo "$developmentListitemJSON" | jq . >/dev/null 2>&1; then
+        echo "Error: developmentListitemJSON is invalid JSON"
+        echo "$developmentListitemJSON"
+        exit 1
+    else
+        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$developmentListitemJSON" '$dialog + { "listitem": $listitems }' )
+    fi
 
-    "Kandji" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$kandjiMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+else
 
-    "Jamf Pro" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jamfProListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+    notice "Operation Mode is ${operationMode}; using MDM-specific dialogJSONFile."
 
-    "JumpCloud" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jumpcloudMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+    case ${mdmVendor} in
 
-    "Mosyle" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$mosyleListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+        "Addigy"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$addigyMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Fleet"             ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$fleetMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Kandji"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$kandjiMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Jamf Pro"          ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jamfProListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "JumpCloud"         ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jumpcloudMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Mosyle"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$mosyleListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Microsoft Intune"  ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$microsoftMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        *                   ) warning "Unknown MDM vendor: ${mdmVendor}" ; combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$genericMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
 
-    "Microsoft Intune" )
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$microsoftMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
+    esac
 
-    * )
-        warning "Unknown MDM vendor: ${mdmVendor}"
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$genericMdmListitemJSON" '$dialog + { "listitem": $listitems }' )
-        ;;
-
-esac
+fi
 
 echo "$combinedJSON" > "$dialogJSONFile"
 
@@ -3484,8 +3488,6 @@ echo "$combinedJSON" > "$dialogJSONFile"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Create Dialog
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-notice "Current Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
 if [[ "${operationMode}" != "Silent" ]]; then
 
@@ -3507,319 +3509,328 @@ fi
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Health Checks (where "n" represents the listitem order)
+# Generate Health Checks based on Operation Mode and MDM Vendor (where "n" represents the listitem order)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-
-if [[ "${operationMode}" != "Test" ]]; then
-
-    # Self Service and Debug Mode
-
-    case ${mdmVendor} in
-
-        "Addigy" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkAppAutoPatch "2"
-            checkSIP "3"
-            checkSSV "4"
-            checkFirewall "5"
-            checkFileVault "6"
-            checkGatekeeperXProtect "7"
-            checkTouchID "8"
-            checkVPN "9"
-            checkUptime "10"
-            checkFreeDiskSpace "11"
-            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "15"
-		    checkAirDropSettings "16"
-		    checkAirPlayStatus "17"
-		    checkBluetoothSharing "18"
-		    checkMdmProfile "19"
-            checkMdmCertificateExpiration "20"
-            checkAPNs "21"
-            checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-            checkElectronCornerMask "28"
-            checkNetworkQuality "29"
-            ;;
-
-        "Fleet" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkAppAutoPatch "2"
-            checkSIP "3"
-            checkSSV "4"
-            checkFirewall "5"
-            checkFileVault "6"
-            checkGatekeeperXProtect "7"
-            checkTouchID "8"
-            checkVPN "9"
-            checkUptime "10"
-            checkFreeDiskSpace "11"
-            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "15"
-		    checkAirDropSettings "16"
-		    checkAirPlayStatus "17"
-		    checkBluetoothSharing "18"
-		    checkMdmProfile "19"
-            checkMdmCertificateExpiration "20"
-            checkAPNs "21"
-            checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "27" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
-            checkElectronCornerMask "28"
-            checkNetworkQuality "29"
-            ;;
+if [[ "${operationMode}" == "Development" ]]; then
     
-        "Kandji" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkAppAutoPatch "2"
-            checkSIP "3"
-            checkSSV "4"
-            checkFirewall "5"
-            checkFileVault "6"
-            checkGatekeeperXProtect "7"
-            checkTouchID "8"
-            checkVPN "9"
-            checkUptime "10"
-            checkFreeDiskSpace "11"
-            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "15"
-		    checkAirDropSettings "16"
-		    checkAirPlayStatus "17"
-		    checkBluetoothSharing "18"
-		    checkMdmProfile "19"
-            checkMdmCertificateExpiration "20"
-            checkAPNs "21"
-            checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-            checkElectronCornerMask "28"
-            checkNetworkQuality "29"
-            ;;
-
-        "Jamf Pro" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkSIP "2"
-            checkSSV "3"
-            checkFirewall "4"
-            checkFileVault "5"
-            checkGatekeeperXProtect "6"
-            checkTouchID "7"
-		    checkPasswordHint "8"
-		    checkAirDropSettings "9"
-		    checkAirPlayStatus "10"
-		    checkBluetoothSharing "11"
-            checkVPN "12"
-            checkUptime "13"
-            checkFreeDiskSpace "14"
-            checkUserDirectorySizeItems "15" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "16" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "17" ".Trash" "trash.fill" "Trash"
-            checkMdmProfile "18"
-            checkMdmCertificateExpiration "19"
-            checkAPNs "20"
-            checkJamfProCheckIn "21"
-            checkJamfProInventory "22"
-            checkNetworkHosts  "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts  "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts  "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts  "26" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts  "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkNetworkHosts  "28" "Jamf Hosts"                            "${jamfHosts[@]}"
-            checkAppAutoPatch "29"
-            checkElectronCornerMask "30"
-            checkInternal "31" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-            checkExternalJamfPro "32" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
-            checkExternalJamfPro "33" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
-            checkExternalJamfPro "34" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
-            checkExternalJamfPro "35" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
-            checkNetworkQuality "36"
-            updateComputerInventory "37"
-            ;;
-
-        "JumpCloud" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkAppAutoPatch "2"
-            checkSIP "3"
-            checkSSV "4"
-            checkFirewall "5"
-            checkFileVault "6"
-            checkGatekeeperXProtect "7"
-            checkTouchID "8"
-            checkVPN "9"
-            checkUptime "10"
-            checkFreeDiskSpace "11"
-            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "15"
-		    checkAirDropSettings "16"
-		    checkAirPlayStatus "17"
-		    checkBluetoothSharing "18"
-		    checkMdmProfile "19"
-            checkMdmCertificateExpiration "20"
-            checkAPNs "21"
-            checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-            checkElectronCornerMask "28"
-            checkNetworkQuality "29"
-            ;;
-
-        "Microsoft Intune" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkAppAutoPatch "2"
-            checkSIP "3"
-            checkSSV "4"
-            checkFirewall "5"
-            checkFileVault "6"
-            checkGatekeeperXProtect "7"
-            checkTouchID "8"
-            checkVPN "9"
-            checkUptime "10"
-            checkFreeDiskSpace "11"
-            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "15"
-		    checkAirDropSettings "16"
-		    checkAirPlayStatus "17"
-		    checkBluetoothSharing "18"
-		    checkMdmProfile "19"
-            checkMdmCertificateExpiration "20"
-            checkAPNs "21"
-            checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-            checkElectronCornerMask "28"
-            checkNetworkQuality "29"
-            ;;
-
-        "Mosyle" )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkAppAutoPatch "2"
-            checkSIP "3"
-            checkSSV "4"
-            checkFirewall "5"
-            checkFileVault "6"
-            checkGatekeeperXProtect "7"
-            checkTouchID "8"
-            checkVPN "9"
-            checkUptime "10"
-            checkFreeDiskSpace "11"
-            checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "15"
-		    checkAirDropSettings "16"
-		    checkAirPlayStatus "17"
-		    checkBluetoothSharing "18"
-		    checkMdmProfile "19"
-            checkMdmCertificateExpiration "20"
-            checkAPNs "21"
-            checkMosyleCheckIn "22"
-            checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkInternal "28" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
-            checkElectronCornerMask "29"
-            checkNetworkQuality "30"
-            ;;
-
-        * )
-            checkOS "0"
-            checkAvailableSoftwareUpdates "1"
-            checkSIP "2"
-            checkSSV "3"
-            checkFirewall "4"
-            checkFileVault "5"
-            checkGatekeeperXProtect "6"
-            checkTouchID "7"
-            checkVPN "8"
-            checkUptime "9"
-            checkFreeDiskSpace "10"
-            checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-            checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
-            checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
-		    checkPasswordHint "14"
-		    checkAirDropSettings "15"
-		    checkAirPlayStatus "16"
-		    checkBluetoothSharing "17"
-            checkAPNs "18"
-            checkNetworkHosts "19" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-            checkNetworkHosts "20" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-            checkNetworkHosts "21" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-            checkNetworkHosts "22" "Apple Certificate Validation"          "${certHosts[@]}"
-            checkNetworkHosts "23" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-            checkElectronCornerMask "24"
-            checkNetworkQuality "25"
-            ;;
-    
-    esac
-
-    dialogUpdate "icon: ${icon}"
-    dialogUpdate "progresstext: Final Analysis …"
-
-    sleep "${anticipationDuration}"
+    # Operation Mode: Development
+    notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
+    dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
+    checkElectronCornerMask "0"
 
 else
 
-    # Test Mode
+    notice "Operation Mode is ${operationMode}; using MDM-specific Health Checks."
 
-    dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
+    if [[ "${operationMode}" != "Test" ]]; then
 
-    listitemLength=$(get_json_value "${combinedJSON}" "listitem.length")
+        # Operation Mode: Debug
+        if [[ "${operationMode}" == "Debug" ]]; then
+            dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
+        fi
 
-    for (( i=0; i<listitemLength; i++ )); do
+        # Operation Mode: Self Service 
+        case ${mdmVendor} in
 
-        notice "[Operation Mode: ${operationMode}] Check ${i} …"
+            "Addigy" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayStatus "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkElectronCornerMask "28"
+                checkNetworkQuality "29"
+                ;;
 
-        dialogUpdate "icon: SF=$(printf "%02d" $(($i+1))).square,${organizationColorScheme}"
-        dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
-        dialogUpdate "progress: increment"
-        dialogUpdate "progresstext: [Operation Mode: ${operationMode}] • Item No. ${i} …"
+            "Fleet" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayStatus "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "27" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
+                checkElectronCornerMask "28"
+                checkNetworkQuality "29"
+                ;;
+        
+            "Kandji" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayStatus "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkElectronCornerMask "28"
+                checkNetworkQuality "29"
+                ;;
 
-        # sleep "${anticipationDuration}"
+            "Jamf Pro" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkSIP "2"
+                checkSSV "3"
+                checkFirewall "4"
+                checkFileVault "5"
+                checkGatekeeperXProtect "6"
+                checkTouchID "7"
+                checkPasswordHint "8"
+                checkAirDropSettings "9"
+                checkAirPlayStatus "10"
+                checkBluetoothSharing "11"
+                checkVPN "12"
+                checkUptime "13"
+                checkFreeDiskSpace "14"
+                checkUserDirectorySizeItems "15" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "16" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "17" ".Trash" "trash.fill" "Trash"
+                checkMdmProfile "18"
+                checkMdmCertificateExpiration "19"
+                checkAPNs "20"
+                checkJamfProCheckIn "21"
+                checkJamfProInventory "22"
+                checkNetworkHosts  "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts  "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts  "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts  "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts  "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkNetworkHosts  "28" "Jamf Hosts"                            "${jamfHosts[@]}"
+                checkAppAutoPatch "29"
+                checkElectronCornerMask "30"
+                checkInternal "31" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkExternalJamfPro "32" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
+                checkExternalJamfPro "33" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
+                checkExternalJamfPro "34" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
+                checkExternalJamfPro "35" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
+                checkNetworkQuality "36"
+                updateComputerInventory "37"
+                ;;
 
-        dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${operationMode}"
+            "JumpCloud" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayStatus "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkElectronCornerMask "28"
+                checkNetworkQuality "29"
+                ;;
 
-    done
+            "Microsoft Intune" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayStatus "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkElectronCornerMask "28"
+                checkNetworkQuality "29"
+                ;;
 
-    dialogUpdate "icon: ${icon}"
-    dialogUpdate "progresstext: Final Analysis …"
+            "Mosyle" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayStatus "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkMosyleCheckIn "22"
+                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "28" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
+                checkElectronCornerMask "29"
+                checkNetworkQuality "30"
+                ;;
 
-    sleep "${anticipationDuration}"
+            * )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkSIP "2"
+                checkSSV "3"
+                checkFirewall "4"
+                checkFileVault "5"
+                checkGatekeeperXProtect "6"
+                checkTouchID "7"
+                checkVPN "8"
+                checkUptime "9"
+                checkFreeDiskSpace "10"
+                checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "14"
+                checkAirDropSettings "15"
+                checkAirPlayStatus "16"
+                checkBluetoothSharing "17"
+                checkAPNs "18"
+                checkNetworkHosts "19" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "20" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "21" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "22" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "23" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkElectronCornerMask "24"
+                checkNetworkQuality "25"
+                ;;
+        
+        esac
+
+        dialogUpdate "icon: ${icon}"
+        dialogUpdate "progresstext: Final Analysis …"
+
+        sleep "${anticipationDuration}"
+
+    else
+
+        # Operation Mode: Test
+        dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
+        listitemLength=$(get_json_value "${combinedJSON}" "listitem.length")
+
+        for (( i=0; i<listitemLength; i++ )); do
+            notice "[Operation Mode: ${operationMode}] Check ${i} …"
+            dialogUpdate "icon: SF=$(printf "%02d" $(($i+1))).square,${organizationColorScheme}"
+            dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+            dialogUpdate "progress: increment"
+            dialogUpdate "progresstext: [Operation Mode: ${operationMode}] • Item No. ${i} …"
+            # sleep "${anticipationDuration}"
+            dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${operationMode}"
+        done
+
+        dialogUpdate "icon: ${icon}"
+        dialogUpdate "progresstext: Final Analysis …"
+
+        sleep "${anticipationDuration}"
+
+    fi
 
 fi
 

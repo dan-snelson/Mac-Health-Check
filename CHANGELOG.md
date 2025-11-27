@@ -2,11 +2,13 @@
 
 ## CHANGELOG
 
-### 3.0.0 (24-Nov-2025)
+### 3.0.0 (27-Nov-2025)
 **First (attempt at a) MDM-agnostic release**
+- Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
 - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
-- AAP and User Sharing Checks (Pull Request #63; thanks, @bigdoodr!)
+- Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
+- Refactored many other functions, adding instructive "listitem" "subtitle" self-remedidation instructions
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376

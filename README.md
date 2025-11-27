@@ -60,8 +60,8 @@ The following health checks and information reporting are included and the scrip
 1. Gatekeeper / XProtect
 1. Touch ID
 1. Password Hint :new:
-1. AirDrop Settings :new:
-1. AirPlay Receiver Status :new:
+1. AirDrop :new:
+1. AirPlay Receiver :new:
 1. Bluetooth Sharing :new:
 1. VPN Client
 1. Last Reboot
@@ -82,7 +82,7 @@ The following health checks and information reporting are included and the scrip
     - Apple Certificate Validation
     - Apple Identity and Content Services
     - Jamf Hosts
-1. App Auto-Patch Status :new:
+1. App Auto-Patch :new:
 1. Electron Corner Mask
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
@@ -122,8 +122,6 @@ The following health checks and information reporting are included and the scrip
 - Script version
 - Computer Name
 - Serial Number
-- System Memory
-- System Storage Capacity
 - Wi-Fi SSID
 - Wi-FI IP Address
 - VPN IP Address
@@ -136,7 +134,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2025-11-24 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2025-11-27 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
@@ -176,3 +174,63 @@ Community-supplied, best-effort support is available on the [Mac Admins Slack](
 Deployment of Mac Health Check involves configuring organizational defaults, embedding the script in Jamf Pro, creating a policy to run it on demand and testing to ensure proper output and behavior.
 
 <a href="https://snelson.us/mhc" target="_blank">Continue reading …</a>
+
+## Operation Mode: Development :new:
+
+A new "Development" Operation Mode has been added to aid in developing Health Checks, allowing the easy execution of a _single_ Health Check.
+
+<img src="images/MHC_3.0.0_Development_1.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.0.0_Development_2.png" alt="Health Checks" width="800"/>
+
+When `operationMode` is set to `Development`, a dedicated `developmentListitemJSON` is used to allow developers to focus on a specific check, instead of running the entire suite.
+
+```zsh
+####################################################################################################
+#
+# Program
+#
+####################################################################################################
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Generate dialogJSONFile based on Operation Mode and MDM Vendor
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${operationMode}" == "Development" ]]; then
+    
+    notice "Operation Mode is ${operationMode}; using ${operationMode} dialogJSONFile template."
+
+    # Development List Items
+
+    developmentListitemJSON='
+    [
+        {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    ]
+    '
+    # Validate developmentListitemJSON is valid JSON
+    if ! echo "$developmentListitemJSON" | jq . >/dev/null 2>&1; then
+        echo "Error: developmentListitemJSON is invalid JSON"
+        echo "$developmentListitemJSON"
+        exit 1
+    else
+        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$developmentListitemJSON" '$dialog + { "listitem": $listitems }' )
+    fi
+
+else
+```
+
+Additionally, a dedicated, single Health Check function is executed:
+
+```zsh
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Generate Health Checks based on Operation Mode and MDM Vendor (where "n" represents the listitem order)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${operationMode}" == "Development" ]]; then
+    
+    # Operation Mode: Development
+    notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
+    dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
+    checkElectronCornerMask "0"
+
+else
+```
