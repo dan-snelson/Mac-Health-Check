@@ -38,7 +38,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b41"
+scriptVersion="3.0.0b42"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -59,7 +59,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
-operationMode="${4:-"Self Service"}"
+operationMode="${4:-"Development"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
@@ -3344,7 +3344,8 @@ function checkPasswordHint() {
 # Check AirPlay Receiver
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-function checkAirPlayStatus() {
+function checkAirPlayReceiver() {
+
 
     local humanReadableCheckName="AirPlay Receiver"
     notice "Checking ${humanReadableCheckName} status …"
@@ -3356,7 +3357,9 @@ function checkAirPlayStatus() {
 
     sleep "${anticipationDuration}"
     
-    # Check AirPlay settings - filter out the "Run" log message before checking
+    set -x
+
+    # Check AirPlay Receiver settings - filter out the "Run" log message before checking
     local launchctl_output=$(runAsUser launchctl list 2>&1 | grep -v "Run")
     
     if echo "${launchctl_output}" | grep -q "com.apple.AirPlayUIAgent"; then
@@ -3367,6 +3370,8 @@ function checkAirPlayStatus() {
         info "${humanReadableCheckName}: Disabled"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
     fi
+
+    set +x
 
 }
 
@@ -3455,7 +3460,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -3522,7 +3527,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    checkElectronCornerMask "0"
+    checkAirPlayReceiver "0"
 
 else
 
@@ -3556,7 +3561,7 @@ else
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
-                checkAirPlayStatus "17"
+                checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
                 checkMdmCertificateExpiration "20"
@@ -3589,7 +3594,7 @@ else
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
-                checkAirPlayStatus "17"
+                checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
                 checkMdmCertificateExpiration "20"
@@ -3622,7 +3627,7 @@ else
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
-                checkAirPlayStatus "17"
+                checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
                 checkMdmCertificateExpiration "20"
@@ -3648,7 +3653,7 @@ else
                 checkTouchID "7"
                 checkPasswordHint "8"
                 checkAirDropSettings "9"
-                checkAirPlayStatus "10"
+                checkAirPlayReceiver "10"
                 checkBluetoothSharing "11"
                 checkVPN "12"
                 checkUptime "13"
@@ -3696,7 +3701,7 @@ else
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
-                checkAirPlayStatus "17"
+                checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
                 checkMdmCertificateExpiration "20"
@@ -3729,7 +3734,7 @@ else
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
-                checkAirPlayStatus "17"
+                checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
                 checkMdmCertificateExpiration "20"
@@ -3762,7 +3767,7 @@ else
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
-                checkAirPlayStatus "17"
+                checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
                 checkMdmCertificateExpiration "20"
@@ -3795,7 +3800,7 @@ else
                 checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "14"
                 checkAirDropSettings "15"
-                checkAirPlayStatus "16"
+                checkAirPlayReceiver "16"
                 checkBluetoothSharing "17"
                 checkAPNs "18"
                 checkNetworkHosts "19" "Apple Push Notification Hosts"         "${pushHosts[@]}"
