@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 26-Nov-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 01-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -265,6 +265,7 @@ if [[ -z "${totalDiskBytes}" || "${totalDiskBytes}" == "0" ]]; then
     totalDiskBytes=$( echo "${rawStorage} * 1000000000" | bc 2>/dev/null || echo "0" )
 fi
 batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
+activationLockStatus=$( system_profiler SPHardwareDataType | awk '/Activation Lock Status/{print $NF}' )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
@@ -284,6 +285,24 @@ ipconfig setverbose 1
 ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
 ipconfig setverbose 0
 [[ -z "${ssid}" ]] && ssid="Not connected"
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Boot Policies
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+bootPoliciesRaw=$( bputil --display-policy )
+extractBootPoliciesStatus() {
+  local key="$1"
+  printf '%s\n' "$bootPoliciesRaw" |
+  grep -E "^[ ]*$key:" |
+  awk -F: '{gsub(/^[ \t]+|[ \t]+$/, "", $2); split($2,a,"  "); print a[1]}'
+}
+bootPoliciesSecurityMode=$(extractBootPoliciesStatus "Security Mode") # See: quitScript function
+bootPoliciesDepAllowedMdmControl=$(extractBootPoliciesStatus "DEP-allowed MDM Control") # See: quitScript function
+bootPoliciesSipStatus=$(extractBootPoliciesStatus "SIP Status") # See: checkSIP function
+bootPoliciesSsvStatus=$(extractBootPoliciesStatus "Signed System Volume Status") # See: checkSSV function
 
 
 
@@ -353,24 +372,6 @@ else
     else
         tmLastBackup="; Date(s): ${tmBackupDates//$'\n'/, }"
     fi
-fi
-
-# User's Desktop Size
-userDesktopSize=$( du -sh "${loggedInUserHomeDirectory}/Desktop" 2>/dev/null | awk '{print $1}' )
-if [[ "${userDesktopSize}" != "0B" ]]; then
-    userDesktopSizeItemCount=$( find "${loggedInUserHomeDirectory}/Desktop" -mindepth 1 -maxdepth 1 | wc -l | awk '{print $1}' )
-    userDesktopSizeResult="${userDesktopSize} for ${userDesktopSizeItemCount} item(s)"
-else
-    userDesktopSizeResult="Uncluttered"
-fi
-
-# User's Trash Size
-userTrashSize=$( du -sh "${loggedInUserHomeDirectory}/.Trash" 2>/dev/null | awk '{print $1}' )
-if [[ "${userTrashSize}" != "0B" ]]; then
-    userTrashSizeItemCount=$( find "${loggedInUserHomeDirectory}/.Trash" -mindepth 1 -maxdepth 1 | wc -l | awk '{print $1}' )
-    userTrashSizeResult="${userTrashSize} for ${userTrashSizeItemCount} item(s)"
-else
-    userTrashSizeResult="Empty"
 fi
 
 
@@ -1331,7 +1332,7 @@ function quitScript() {
 
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; Security Mode: ${bootPoliciesSecurityMode}; DEP-allowed MDM Control: ${bootPoliciesDepAllowedMdmControl}; Activation Lock: ${activationLockStatus}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}"
 
     case ${mdmVendor} in
 
@@ -1394,7 +1395,7 @@ function quitScript() {
     fi
 
     # Remove overlay icon
-    if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Finder.app" ]]; then
+    if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Apple Diagnostics.app" ]]; then
         rm -f "${overlayicon}"
     fi
 
@@ -1630,13 +1631,13 @@ function checkOS() {
     
     else
 
-        # logComment "OS Build, ${osBuild}, ends with a number; proceeding …"
+        logComment "OS Build, ${osBuild}, ends with a number; proceeding …"
 
         # N-rule variable [How many previous minor OS path versions will be marked as compliant]
         n="${previousMinorOS}"
 
         # URL to the online JSON data
-        online_json_url="https://sofafeed.macadmins.io/v2/macos_data_feed.json"
+        online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
         user_agent="Mac-Health-Check-checkOS/3.0.0"
 
         # local store
@@ -1649,23 +1650,23 @@ function checkOS() {
 
         # check local vs online using etag
         if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
-            # logComment "e-tag stored, will download only if e-tag doesn’t match"
+            logComment "e-tag stored, will download only if e-tag doesn’t match"
             etag_old=$(cat "$etag_cache")
             curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
             etag_new=$(cat "$etag_cache")
             if [[ "$etag_old" == "$etag_new" ]]; then
-                # logComment "Cached ETag matched online ETag - cached json file is up to date"
+                logComment "Cached ETag matched online ETag - cached json file is up to date"
             else
-                # logComment "Cached ETag did not match online ETag, so downloaded new SOFA json file"
+                logComment "Cached ETag did not match online ETag, so downloaded new SOFA json file"
             fi
         else
-            # logComment "No e-tag cached, proceeding to download SOFA json file"
+            logComment "No e-tag cached, proceeding to download SOFA json file"
             curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
         fi
 
         # 1. Get model (DeviceID)
         model=$(sysctl -n hw.model)
-        # logComment "Model Identifier: $model"
+        logComment "Model Identifier: $model"
 
         # check that the model is virtual or is in the feed at all
         if [[ $model == "VirtualMac"* ]]; then
@@ -1679,7 +1680,7 @@ function checkOS() {
         system_version=$( sw_vers -productVersion )
         system_os=$(cut -d. -f1 <<< "$system_version")
         # system_version="15.3"
-        # logComment "System Version: $system_version"
+        logComment "System Version: $system_version"
 
         # if [[ $system_version == *".0" ]]; then
         #     system_version=${system_version%.0}
@@ -1696,7 +1697,7 @@ function checkOS() {
 
         # 3. Identify latest compatible major OS
         latest_compatible_os=$(plutil -extract "Models.$model.SupportedOS.0" raw -expect string "$json_cache" | head -n 1)
-        # logComment "Latest Compatible macOS: $latest_compatible_os"
+        logComment "Latest Compatible macOS: $latest_compatible_os"
 
         # 4. Get OSVersions.Latest.ProductVersion
         latest_version_match=false
@@ -1936,11 +1937,11 @@ function checkSIP() {
 
     sleep "${anticipationDuration}"
 
-    sipCheck=$( csrutil status )
+    # sipCheck=$( csrutil status )
 
-    case ${sipCheck} in
+    case ${bootPoliciesSipStatus} in
 
-        *"enabled"* ) 
+        "Enabled" ) 
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
@@ -1973,11 +1974,11 @@ function checkSSV() {
 
     sleep "${anticipationDuration}"
 
-    ssvCheck=$( csrutil authenticated-root status )
+    # ssvCheck=$( csrutil authenticated-root status )
 
-    case ${ssvCheck} in
+    case ${bootPoliciesSsvStatus} in
 
-        *"enabled"* ) 
+        "Enabled" ) 
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
             info "${humanReadableCheckName}: Enabled"
             ;;
@@ -3296,7 +3297,7 @@ function checkBluetoothSharing() {
     # If the key doesn't exist or is 0, Bluetooth sharing is disabled (compliant)
     if [[ "${result}" == "0" ]] || [[ "${result}" =~ "does not exist" ]]; then
         info "${humanReadableCheckName}: Disabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Off (Compliant)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
     else
         errorOut "${humanReadableCheckName}: Enabled (value: ${result})"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable, status: fail, statustext: Enabled"
@@ -3437,6 +3438,10 @@ function updateComputerInventory() {
 # Program
 #
 ####################################################################################################
+
+notice "Current Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
+
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Generate dialogJSONFile based on Operation Mode and MDM Vendor
