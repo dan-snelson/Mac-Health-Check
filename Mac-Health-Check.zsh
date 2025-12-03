@@ -3344,35 +3344,65 @@ function checkPasswordHint() {
 # Check AirPlay Receiver
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-function checkAirPlayReceiver() {
-
-
+function checkAirPlayStatus() {
     local humanReadableCheckName="AirPlay Receiver"
     notice "Checking ${humanReadableCheckName} status …"
-
     dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Evaluating ${humanReadableCheckName} configuration …"
-
     sleep "${anticipationDuration}"
     
-    set -x
-
-    # Check AirPlay Receiver settings - filter out the "Run" log message before checking
-    local launchctl_output=$(runAsUser launchctl list 2>&1 | grep -v "Run")
+    # Check AirPlay Receiver settings
+    # Key names have changed across macOS versions:
+    # - macOS 26.0: AirplayReceiverAdvertising
+    # - macOS 26.1+: AirplayReceiverEnabled (correct spelling)
+    # - Older versions: AirplayRecieverEnabled (misspelled)
     
-    if echo "${launchctl_output}" | grep -q "com.apple.AirPlayUIAgent"; then
-        errorOut "${humanReadableCheckName}: Enabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
-        overallHealth+="${humanReadableCheckName}; "
+    local result=""
+    local keyFound=""
+    
+    # Try the new correctly-spelled key first (macOS 26.1+)
+    result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverEnabled 2>&1 | grep -v "Run" | tail -1)
+    if [[ ! "${result}" =~ "does not exist" ]]; then
+        keyFound="AirplayReceiverEnabled"
     else
-        info "${humanReadableCheckName}: Disabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+        # Try the misspelled key (older versions)
+        result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayRecieverEnabled 2>&1 | grep -v "Run" | tail -1)
+        if [[ ! "${result}" =~ "does not exist" ]]; then
+            keyFound="AirplayRecieverEnabled"
+        else
+            # Try the advertising key (macOS 26.0)
+            result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverAdvertising 2>&1 | grep -v "Run" | tail -1)
+            if [[ ! "${result}" =~ "does not exist" ]]; then
+                keyFound="AirplayReceiverAdvertising"
+            fi
+        fi
     fi
-
-    set +x
-
+    
+    # Evaluate the result
+    if [[ -z "${keyFound}" ]] || [[ "${result}" =~ "does not exist" ]]; then
+        # No key found means AirPlay Receiver is disabled (compliant)
+        info "${humanReadableCheckName}: Disabled (key not found)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled"
+    elif [[ "${result}" == "0" ]]; then
+        # Value is 0, disabled (compliant)
+        info "${humanReadableCheckName}: Disabled (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled"
+    elif [[ "${result}" == "1" ]]; then
+        # Value is 1, enabled (non-compliant)
+        errorOut "${humanReadableCheckName}: Enabled (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirPlay Receiver Enabled"
+        overallHealth+="${humanReadableCheckName}; "
+    elif [[ "${result}" == "2" ]]; then
+        # Value is 2 (Contacts Only mode in some versions)
+        info "${humanReadableCheckName}: Contacts Only (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Contacts Only"
+    else
+        # Unexpected value
+        warning "${humanReadableCheckName}: Unexpected value (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Status Unknown"
+    fi
 }
 
 
