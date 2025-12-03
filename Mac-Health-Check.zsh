@@ -17,13 +17,14 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 01-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 03-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
 #   - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
 #   - Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
 #   - Refactored many other functions, adding instructive "listitem" "subtitle" self-remedidation instructions
+#   - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
 #
 ####################################################################################################
 
@@ -38,7 +39,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b42"
+scriptVersion="3.0.0b43"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -246,6 +247,7 @@ osVersion=$( sw_vers -productVersion )
 osVersionExtra=$( sw_vers -productVersionExtra ) 
 osBuild=$( sw_vers -buildVersion )
 osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
+osMinorVersion=$( echo "${osVersion}" | awk -F '.' '{print $2}' )
 if [[ -n $osVersionExtra ]] && [[ "${osMajorVersion}" -ge 13 ]]; then osVersion="${osVersion} ${osVersionExtra}"; fi
 serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSerialNumber/{print $4}' )
 computerName=$( scutil --get ComputerName | sed 's/’//' )
@@ -3341,16 +3343,19 @@ function checkPasswordHint() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Check AirPlay Receiver
+# Check AirPlay Receiver (thanks, @bigdoodr!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-function checkAirPlayStatus() {
+function checkAirPlayReceiver() {
+
     local humanReadableCheckName="AirPlay Receiver"
     notice "Checking ${humanReadableCheckName} status …"
+
     dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Evaluating ${humanReadableCheckName} configuration …"
+
     sleep "${anticipationDuration}"
     
     # Check AirPlay Receiver settings
@@ -3382,27 +3387,43 @@ function checkAirPlayStatus() {
     
     # Evaluate the result
     if [[ -z "${keyFound}" ]] || [[ "${result}" =~ "does not exist" ]]; then
-        # No key found means AirPlay Receiver is disabled (compliant)
-        info "${humanReadableCheckName}: Disabled (key not found)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled"
+        # No key found:
+        # - On macOS 15.7.x, this now means "Enabled" (default)
+        # - On macOS 15.6.1 and earlier, and on 26.x, your tests show the key
+        #   exists and holds 0/1, so "no key" is a safe "Disabled" fallback.
+        if [[ "${osMajorVersion}" -eq 15 && "${osMinorVersion}" -ge 7 ]]; then
+            # 15.7.x: assume Enabled when key is missing
+            errorOut "${humanReadableCheckName}: Enabled (no ${keyFound:-AirplayReceiverEnabled} key; default behavior on macOS ${osMajorVersion}.${osMinorVersion})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
+            overallHealth+="${humanReadableCheckName}; "
+        else
+            # 15.6.1 and earlier, and 26.x+: missing key treated as Disabled/compliant
+            info "${humanReadableCheckName}: Disabled (key not found on macOS ${osMajorVersion}.${osMinorVersion})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+        fi
+
     elif [[ "${result}" == "0" ]]; then
         # Value is 0, disabled (compliant)
         info "${humanReadableCheckName}: Disabled (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: AirPlay Receiver Disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+
     elif [[ "${result}" == "1" ]]; then
         # Value is 1, enabled (non-compliant)
         errorOut "${humanReadableCheckName}: Enabled (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: AirPlay Receiver Enabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
         overallHealth+="${humanReadableCheckName}; "
+
     elif [[ "${result}" == "2" ]]; then
         # Value is 2 (Contacts Only mode in some versions)
         info "${humanReadableCheckName}: Contacts Only (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: Contacts Only"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Contacts Only"
+
     else
         # Unexpected value
         warning "${humanReadableCheckName}: Unexpected value (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Status Unknown"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: error, statustext: Status Unknown"
     fi
+
 }
 
 
@@ -3557,7 +3578,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
+    # set -x
     checkAirPlayReceiver "0"
+    # set +x
 
 else
 
