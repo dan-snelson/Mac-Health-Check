@@ -253,9 +253,11 @@ serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSer
 computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
-systemMemory="$( expr $(sysctl -n hw.memsize) / $((1024**3)) ) GB"
-rawStorage=$( diskutil info / | grep "Container Total Space" | awk '{print $4}' )
-if [[ $rawStorage -ge 994 ]]; then
+systemMemory="$(( $(sysctl -n hw.memsize) / $((1024**3)) )) GB"
+rawStorage=$(( $(/usr/sbin/diskutil info / | grep "Container Total Space" | awk '{print $6}' | sed 's/(//g') / $((1000**3)) ))
+if [[ $rawStorage -ge 1998 ]]; then
+    systemStorage=$(diskutil info / | grep "Container Total Space" | awk '{print $4" "$5}')
+elif [[ $rawStorage -ge 994 ]]; then
     systemStorage="$(echo "scale=0; ( ( ($rawStorage +999) /1000 * 1000)/1000)" | bc) TB"
 elif [[ $rawStorage -lt 300 ]]; then
     systemStorage="$(echo "scale=0; ( ($rawStorage +9) /10 * 10)" | bc) GB"
