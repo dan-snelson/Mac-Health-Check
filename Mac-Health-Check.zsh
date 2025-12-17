@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 03-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 17-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -25,6 +25,7 @@
 #   - Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
 #   - Refactored many other functions, adding instructive "listitem" "subtitle" self-remedidation instructions
 #   - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
+#   - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
 #
 ####################################################################################################
 
@@ -39,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b43"
+scriptVersion="3.0.0b44"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
