@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 03-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 17-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -25,6 +25,7 @@
 #   - Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
 #   - Refactored many other functions, adding instructive "listitem" "subtitle" self-remedidation instructions
 #   - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
+#   - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
 #
 ####################################################################################################
 
@@ -39,7 +40,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b43"
+scriptVersion="3.0.0b44"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -256,9 +257,11 @@ serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSer
 computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
-systemMemory="$( expr $(sysctl -n hw.memsize) / $((1024**3)) ) GB"
-rawStorage=$( diskutil info / | grep "Container Total Space" | awk '{print $4}' )
-if [[ $rawStorage -ge 994 ]]; then
+systemMemory="$(( $(sysctl -n hw.memsize) / $((1024**3)) )) GB"
+rawStorage=$(( $(/usr/sbin/diskutil info / | grep "Container Total Space" | awk '{print $6}' | sed 's/(//g') / $((1000**3)) ))
+if [[ $rawStorage -ge 1998 ]]; then
+    systemStorage=$(diskutil info / | grep "Container Total Space" | awk '{print $4" "$5}')
+elif [[ $rawStorage -ge 994 ]]; then
     systemStorage="$(echo "scale=0; ( ( ($rawStorage +999) /1000 * 1000)/1000)" | bc) TB"
 elif [[ $rawStorage -lt 300 ]]; then
     systemStorage="$(echo "scale=0; ( ($rawStorage +9) /10 * 10)" | bc) GB"
