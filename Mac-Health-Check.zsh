@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b45, 18-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0b46, 18-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -27,6 +27,7 @@
 #   - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
 #   - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
 #   - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
+#   - Added detection for staged macOS updates (from DDM-OS-Reminder)
 #
 ####################################################################################################
 
@@ -41,7 +42,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b45"
+scriptVersion="3.0.0b46"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -1766,6 +1767,131 @@ function checkOS() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Staged macOS Updates
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkStagedUpdate() {
+
+    local stagedUpdateSize="0"
+    local stagedUpdateLocation="Not detected"
+    local stagedUpdateStatus="Pending download"
+    
+    # Check for APFS snapshots indicating staged updates
+    local updateSnapshots=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.os.update")
+    
+    if [[ ${updateSnapshots} -gt 0 ]]; then
+        info "Found ${updateSnapshots} update snapshot(s)"
+        stagedUpdateStatus="Partially staged"
+    fi
+    
+    # Identify Preboot UUID directory
+    local systemVolumeUUID
+    systemVolumeUUID=$(
+        ls -1 /System/Volumes/Preboot 2>/dev/null \
+        | grep -E '^[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}$' \
+        | head -1
+    )
+
+    if [[ -z "${systemVolumeUUID}" ]]; then
+        info "No Preboot UUID directory found; staging cannot be evaluated."
+        updateStagingStatus="Pending download"
+        return
+    fi
+
+    local prebootPath="/System/Volumes/Preboot/${systemVolumeUUID}"
+    info "Using Preboot UUID directory: ${prebootPath}"
+
+    if [[ -n "${systemVolumeUUID}" ]]; then
+        local prebootPath="/System/Volumes/Preboot/${systemVolumeUUID}"
+
+        # Diagnostic Logging (Preboot visibility)
+        info "Analyzing Preboot path: ${prebootPath}"
+
+        if [[ ! -d "${prebootPath}" ]]; then
+            info "Preboot path does not exist or is not a directory."
+        else
+            info "Listing contents of Preboot UUID directory:"
+            ls -l "${prebootPath}" 2>/dev/null | sed 's/^/    /' || info "Unable to list Preboot contents"
+
+            # Check for expected staging directories
+            if [[ ! -d "${prebootPath}/cryptex1" ]]; then
+                info "No 'cryptex1' directory present (normal until staging begins)"
+            fi
+            if [[ ! -d "${prebootPath}/restore-staged" ]]; then
+                info "No 'restore-staged' directory present (normal until later staging phase)"
+            fi
+        fi
+
+        # Check cryptex1 for staged update content
+        if [[ -d "${prebootPath}/cryptex1" ]]; then
+            local cryptexSize=$(sudo du -sk "${prebootPath}/cryptex1" 2>/dev/null | awk '{print $1}')
+            
+            # Typical cryptex1 is < 1GB; if > 1GB, staging is very likely underway
+            if [[ -n "${cryptexSize}" ]] && [[ ${cryptexSize} -gt 1048576 ]]; then
+                stagedUpdateSize=$(echo "scale=2; ${cryptexSize} / 1048576" | bc)
+                stagedUpdateLocation="${prebootPath}/cryptex1"
+                stagedUpdateStatus="Fully staged"
+                info "Staged update detected: ${stagedUpdateSize} GB in cryptex1"
+            fi
+        fi
+        
+        # Check restore-staged directory (optional supplemental assets)
+        if [[ -d "${prebootPath}/restore-staged" ]]; then
+            local restoreSize=$(sudo du -sk "${prebootPath}/restore-staged" 2>/dev/null | awk '{print $1}')
+            if [[ -n "${restoreSize}" ]] && [[ ${restoreSize} -gt 102400 ]]; then
+                local restoreSizeGB=$(echo "scale=2; ${restoreSize} / 1048576" | bc)
+                info "Additional staged content: ${restoreSizeGB} GB in restore-staged"
+            fi
+        fi
+        
+        # Check total Preboot volume usage
+        local totalPrebootSize=$(sudo du -sk "${prebootPath}" 2>/dev/null | awk '{print $1}')
+        if [[ -n "${totalPrebootSize}" ]]; then
+            local prebootGB=$(echo "scale=2; ${totalPrebootSize} / 1048576" | bc)
+            
+            # Typical Preboot is 1–3 GB; if > 8 GB, major update assets are staged
+            if (( $(echo "${prebootGB} > 8" | bc -l) )); then
+                if [[ "${stagedUpdateStatus}" != "Fully staged" ]]; then
+                    stagedUpdateSize="${prebootGB}"
+                    stagedUpdateLocation="${prebootPath}"
+                    stagedUpdateStatus="Fully staged"
+                    info "Large Preboot volume detected: ${prebootGB} GB total (threshold 8 GB)"
+                fi
+            fi
+        fi
+    fi
+    
+    # Export variables for use in dialog
+    updateStagedSize="${stagedUpdateSize}"
+    updateStagedLocation="${stagedUpdateLocation}"
+    updateStagingStatus="${stagedUpdateStatus}"
+    
+    notice "Update Staging Status: ${stagedUpdateStatus}"
+    if [[ "${stagedUpdateStatus}" == "Fully staged" ]]; then
+        notice "Update Size: ${stagedUpdateSize} GB"
+        notice "Location: ${stagedUpdateLocation}"
+    fi
+
+    case "${updateStagingStatus}" in
+        "Fully staged")
+            stagingMessage="Ready to install (${updateStagedSize} GB downloaded)"
+            ;;
+        "Partially staged")
+            stagingMessage="Preparing update …"
+            ;;
+        "Pending download")
+            stagingMessage="Will start download when you open System Settings > General > Software Update"
+            ;;
+        *)
+            stagingMessage="Open System Settings > General > Software Update"
+            ;;
+    esac
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Available Software Updates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -1823,7 +1949,8 @@ function checkAvailableSoftwareUpdates() {
                 ;;
             *"Deferred: YES"* )
                 availableSoftwareUpdates="Deferred software available."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update, status: error, statustext: ${availableSoftwareUpdates}"
+                checkStagedUpdate
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
             *"No new software available."* )
@@ -1834,7 +1961,8 @@ function checkAvailableSoftwareUpdates() {
             * )
                 SUList=$( echo "${SUListRaw}" | grep "*" | sed "s/\* Label: //g" | sed "s/,*$//g" )
                 availableSoftwareUpdates="${SUList}"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update, status: error, statustext: ${availableSoftwareUpdates}"
+                checkStagedUpdate
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 ;;
         esac
@@ -1852,7 +1980,8 @@ function checkAvailableSoftwareUpdates() {
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         else
             availableSoftwareUpdates="macOS ${ddmVersionString} (${ddmEnforcedInstallDateHumanReadable})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update, status: error, statustext: ${availableSoftwareUpdates}"
+            checkStagedUpdate
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
         fi
 
@@ -3519,8 +3648,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
-
+        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -3588,7 +3716,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     # set -x
-    checkMdmProfile "0"
+    checkAvailableSoftwareUpdates "0"
     # set +x
 
 else
