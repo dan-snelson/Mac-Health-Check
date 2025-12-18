@@ -168,6 +168,9 @@ fi
 
 # Vendor's MDM Profile UUID
 # You can find this out by using: `sudo profiles show enrollment | grep -A3 -B3 com.apple.mdm`
+# Or
+# Vendor's MDM Profile Identifier (alternative to UUID for MDMs like Mosyle)
+# Find with: `sudo profiles show enrollment | grep "profileIdentifier:"`
 
 case "${serverURL}" in
 
@@ -204,7 +207,7 @@ case "${serverURL}" in
 
     *mosyle* )
         mdmVendor="Mosyle"
-        mdmVendorUuid="7F89B3B9-2BDF-4746-9960-6C30700B0438"
+        mdmProfileIdentifier="com.mosyle.macos.config" 
         ;;
 
     * )
@@ -2232,34 +2235,35 @@ function checkUserDirectorySizeItems() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkMdmProfile() {
-
     local humanReadableCheckName="${mdmVendor} MDM Profile"
     notice "Check ${humanReadableCheckName} …"
-
     dialogUpdate "icon: SF=gear.badge,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
-
     sleep "${anticipationDuration}"
-
-    mdmProfileTest=$( profiles show enrollment | grep $mdmVendorUuid 2>/dev/null )
-
+    
+    # Check for MDM profile
+    if [[ -n "${mdmVendorUuid}" ]]; then
+        # Try UUID first if provided
+        mdmProfileTest=$( profiles show enrollment | grep "${mdmVendorUuid}" 2>/dev/null )
+    fi
+    
+    if [[ -z "${mdmProfileTest}" ]] && [[ -n "${mdmProfileIdentifier}" ]]; then
+        # Fall back to profileIdentifier if UUID check fails or isn't provided
+        mdmProfileTest=$( profiles show enrollment | grep "profileIdentifier: ${mdmProfileIdentifier}" 2>/dev/null )
+    fi
+    
     if [[ -n "${mdmProfileTest}" ]]; then
-
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
         info "${humanReadableCheckName}: Installed"
-
     else
-
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
-        errorOut "Execute the following command to determine the UUID of the MDM Profile:"
-        errorOut "sudo profiles show enrollment | grep -A3 -B3 com.apple.mdm"
-
+        errorOut "Execute the following command to determine the profileIdentifier of the MDM Profile:"
+        errorOut "sudo profiles show enrollment | grep 'profileIdentifier:'"
     fi
-
 }
 
 
@@ -3514,7 +3518,8 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -3582,7 +3587,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     # set -x
-    checkAirPlayReceiver "0"
+    checkMdmProfile "0"
     # set +x
 
 else
