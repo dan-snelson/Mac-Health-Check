@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b46, 18-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0b47, 20-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -27,7 +27,7 @@
 #   - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
 #   - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
 #   - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
-#   - Added detection for staged macOS updates (from DDM-OS-Reminder)
+#   - Added detection for staged macOS updates (from [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder))
 #
 ####################################################################################################
 
@@ -42,7 +42,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b46"
+scriptVersion="3.0.0b47"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -181,14 +181,14 @@ case "${serverURL}" in
         mdmVendorUuid=""
         ;;
 
+    *filewave* )
+        mdmVendor="Filewave"
+        mdmProfileIdentifier="com.filewave.profile"
+        ;;
+
     *fleet* )
         mdmVendor="Fleet"
         mdmVendorUuid="BCA53F9D-5DD2-494D-98D3-0D0F20FF6BA1"
-        ;;
-
-    *kandji* )
-        mdmVendor="Kandji"
-        mdmVendorUuid=""
         ;;
 
     *jamf* | *jss* )
@@ -200,6 +200,11 @@ case "${serverURL}" in
     *jumpcloud* )
         mdmVendor="JumpCloud"
         mdmProfileIdentifier="com.jumpcloud.mdm.enroll"
+        ;;
+
+    *kandji* )
+        mdmVendor="Kandji"
+        mdmProfileIdentifier="io.kandji.mdm.profile"
         ;;
     
     *microsoft* )
@@ -751,6 +756,52 @@ addigyMdmListitemJSON='
 if ! echo "$addigyMdmListitemJSON" | jq . >/dev/null 2>&1; then
   echo "Error: addigyMdmListitemJSON is invalid JSON"
   echo "$addigyMdmListitemJSON"
+  exit 1
+fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Filewave MDM List Items
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+filewaveMdmListitemJSON='
+[
+    {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+]
+'
+# Validate filewaveMdmListitemJSON is valid JSON
+if ! echo "$filewaveMdmListitemJSON" | jq . >/dev/null 2>&1; then
+  echo "Error: filewaveMdmListitemJSON is invalid JSON"
+  echo "$filewaveMdmListitemJSON"
   exit 1
 fi
 
@@ -1515,21 +1566,36 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function dialogInstall() {
-
     # Get the URL of the latest PKG From the Dialog GitHub repo
-    dialogURL=$(curl -L --silent --fail "https://api.github.com/repos/swiftDialog/swiftDialog/releases/latest" | awk -F '"' "/browser_download_url/ && /pkg\"/ { print \$4; exit }")
+    dialogURL=$(curl -L --silent --fail --connect-timeout 10 --max-time 30 \
+        "https://api.github.com/repos/swiftDialog/swiftDialog/releases/latest" \
+        | awk -F '"' "/browser_download_url/ && /pkg\"/ { print \$4; exit }")
+    
+    # Validate URL was retrieved
+    if [[ -z "${dialogURL}" ]]; then
+        fatal "Failed to retrieve swiftDialog download URL from GitHub API"
+    fi
+    
+    # Validate URL format
+    if [[ ! "${dialogURL}" =~ ^https://github\.com/ ]]; then
+        fatal "Invalid swiftDialog URL format: ${dialogURL}"
+    fi
 
     # Expected Team ID of the downloaded PKG
     expectedDialogTeamID="PWA5E9TQ59"
 
-    preFlight "Installing swiftDialog..."
+    preFlight "Installing swiftDialog from ${dialogURL}..."
 
     # Create temporary working directory
     workDirectory=$( basename "$0" )
     tempDirectory=$( mktemp -d "/private/tmp/$workDirectory.XXXXXX" )
 
-    # Download the installer package
-    curl --location --silent "$dialogURL" -o "$tempDirectory/Dialog.pkg"
+    # Download the installer package with timeouts
+    if ! curl --location --silent --fail --connect-timeout 10 --max-time 60 \
+             "$dialogURL" -o "$tempDirectory/Dialog.pkg"; then
+        rm -Rf "$tempDirectory"
+        fatal "Failed to download swiftDialog package"
+    fi
 
     # Verify the download
     teamID=$(spctl -a -vv -t install "$tempDirectory/Dialog.pkg" 2>&1 | awk '/origin=/ {print $NF }' | tr -d '()')
@@ -1546,9 +1612,7 @@ function dialogInstall() {
 
         # Display a so-called "simple" dialog if Team ID fails to validate
         osascript -e 'display dialog "Please advise your Support Representative of the following error:\r\r• Dialog Team ID verification failed\r\r" with title "Mac Health Check Error" buttons {"Close"} with icon caution'
-        completionActionOption="Quit"
-        exitCode="1"
-        quitScript
+        exit "1"
 
     fi
 
@@ -1562,22 +1626,28 @@ function dialogInstall() {
 function dialogCheck() {
 
     # Check for Dialog and install if not found
-    if [ ! -x "/Library/Application Support/Dialog/Dialog.app" ]; then
+    if [[ ! -x "/Library/Application Support/Dialog/Dialog.app" ]]; then
 
-        preFlight "swiftDialog not found. Installing..."
+        preFlight "swiftDialog not found; installing …"
         dialogInstall
+        if [[ ! -x "/usr/local/bin/dialog" ]]; then
+            fatal "swiftDialog still not found; are downloads from GitHub blocked on this Mac?"
+        fi
 
     else
 
         dialogVersion=$(/usr/local/bin/dialog --version)
-        if [[ "${dialogVersion}" < "${swiftDialogMinimumRequiredVersion}" ]]; then
+        if ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
             
-            preFlight "swiftDialog version ${dialogVersion} found but swiftDialog ${swiftDialogMinimumRequiredVersion} or newer is required; updating..."
+            preFlight "swiftDialog version ${dialogVersion} found but swiftDialog ${swiftDialogMinimumRequiredVersion} or newer is required; updating …"
             dialogInstall
-            
+            if [[ ! -x "/usr/local/bin/dialog" ]]; then
+                fatal "Unable to update swiftDialog; are downloads from GitHub blocked on this Mac?"
+            fi
+
         else
 
-        preFlight "swiftDialog version ${dialogVersion} found; proceeding..."
+            preFlight "swiftDialog version ${dialogVersion} found; proceeding …"
 
         fi
     
@@ -2646,6 +2716,9 @@ function checkMdmCertificateExpiration() {
         "Addigy" )
             certificateName="Addigy"
             ;;
+        "Filewave" )
+            certificateName="Filewave"
+            ;;
         "Fleet" )
             certificateName="Fleet Identity"
             ;;
@@ -2654,6 +2727,9 @@ function checkMdmCertificateExpiration() {
             ;;
         "JumpCloud" )
             certificateName="JumpCloud"
+            ;;
+        "Kandji" )
+            certificateName="Kandji"
             ;;
         "Microsoft Intune" )
             certificateName="Microsoft Intune MDM Device CA"
@@ -3469,7 +3545,7 @@ function checkPasswordHint() {
     # If hint is empty, no password hint is set (compliant)
     if [[ -z "${hint}" ]]; then
         info "${humanReadableCheckName}: No hint set"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: (None) Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
     else
         warning "${humanReadableCheckName}: Hint found"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Found (Non-compliant)"
@@ -3648,7 +3724,8 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -3667,12 +3744,13 @@ else
     case ${mdmVendor} in
 
         "Addigy"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$addigyMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Filewave"          ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$filewaveMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
         "Fleet"             ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$fleetMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Kandji"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$kandjiMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
         "Jamf Pro"          ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jamfProListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
         "JumpCloud"         ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jumpcloudMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Mosyle"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$mosyleListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Kandji"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$kandjiMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
         "Microsoft Intune"  ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$microsoftMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Mosyle"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$mosyleListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
         *                   ) warning "Unknown MDM vendor: ${mdmVendor}" ; combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$genericMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
 
     esac
@@ -3716,7 +3794,8 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     # set -x
-    checkAvailableSoftwareUpdates "0"
+    checkMdmProfile "0"
+    checkMdmCertificateExpiration "1"
     # set +x
 
 else
@@ -3766,6 +3845,38 @@ else
                 checkNetworkQuality "29"
                 ;;
 
+            "Filewave" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayReceiver "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkElectronCornerMask "27"
+                checkNetworkQuality "28"
+                ;;
+
             "Fleet" )
                 checkOS "0"
                 checkAvailableSoftwareUpdates "1"
@@ -3795,39 +3906,6 @@ else
                 checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 checkInternal "27" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
-                checkElectronCornerMask "28"
-                checkNetworkQuality "29"
-                ;;
-        
-            "Kandji" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
                 checkElectronCornerMask "28"
                 checkNetworkQuality "29"
                 ;;
@@ -3874,6 +3952,39 @@ else
                 ;;
 
             "JumpCloud" )
+                checkOS "0"
+                checkAvailableSoftwareUpdates "1"
+                checkAppAutoPatch "2"
+                checkSIP "3"
+                checkSSV "4"
+                checkFirewall "5"
+                checkFileVault "6"
+                checkGatekeeperXProtect "7"
+                checkTouchID "8"
+                checkVPN "9"
+                checkUptime "10"
+                checkFreeDiskSpace "11"
+                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
+                checkPasswordHint "15"
+                checkAirDropSettings "16"
+                checkAirPlayReceiver "17"
+                checkBluetoothSharing "18"
+                checkMdmProfile "19"
+                checkMdmCertificateExpiration "20"
+                checkAPNs "21"
+                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkElectronCornerMask "28"
+                checkNetworkQuality "29"
+                ;;
+
+            "Kandji" )
                 checkOS "0"
                 checkAvailableSoftwareUpdates "1"
                 checkAppAutoPatch "2"
