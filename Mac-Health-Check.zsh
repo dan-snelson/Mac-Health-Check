@@ -199,7 +199,7 @@ case "${serverURL}" in
 
     *jumpcloud* )
         mdmVendor="JumpCloud"
-        mdmVendorUuid=""
+        mdmProfileIdentifier="com.jumpcloud.mdm.enroll"
         ;;
     
     *microsoft* )
