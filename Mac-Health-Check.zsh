@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b47, 20-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0b48, 30-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -28,6 +28,7 @@
 #   - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
 #   - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
 #   - Added detection for staged macOS updates (from [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder))
+#   - Updated check for App Auto-Patch to support version 3.5.0
 #
 ####################################################################################################
 
@@ -42,7 +43,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b47"
+scriptVersion="3.0.0b48"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2077,12 +2078,12 @@ function checkAppAutoPatch() {
     sleep "${anticipationDuration}"
     
     # Thresholds in days
-    aap_warning_threshold=7
-    aap_critical_threshold=30
-    
+    local aap_warning_threshold=7
+    local aap_critical_threshold=30
+
     # Path to App Auto-Patch log
-    aap_log_path="/Library/Management/AppAutoPatch/logs/aap.log"
-    
+    local aap_log_path="/Library/Management/AppAutoPatch/logs/aap.log"
+
     # Check if log file exists
     if [[ ! -f "${aap_log_path}" ]]; then
         errorOut "${humanReadableCheckName}: Log file not found"
@@ -2090,39 +2091,64 @@ function checkAppAutoPatch() {
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
-    
-    # Extract the "Days Since" value from the log
-    aap_log_line=$(grep "Days Since" "${aap_log_path}" | tail -1)
-    
-    if [[ -z "${aap_log_line}" ]]; then
-        errorOut "${humanReadableCheckName}: No patching data found in log"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: No patching data found"
-        overallHealth+="${humanReadableCheckName}; "
-        return
-    fi
-    
-    # Extract the number of days (the last number in the line)
-    days_since_patch=$(echo "${aap_log_line}" | awk '{print $NF}')
-    
-    # Validate that we got a number
-    if [[ ! "${days_since_patch}" =~ ^[0-9]+$ ]]; then
-        errorOut "${humanReadableCheckName}: Unable to parse days value"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Invalid data format"
-        overallHealth+="${humanReadableCheckName}; "
-        return
-    fi
-    
-    # Set status based on days since last patch
-    if [ ${days_since_patch} -ge ${aap_critical_threshold} ]; then
-        errorOut "${humanReadableCheckName}: ${days_since_patch} day(s) ago (exceeds critical threshold of ${aap_critical_threshold} days)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: ${days_since_patch} day(s) ago"
-        overallHealth+="${humanReadableCheckName}; "
-    elif [ ${days_since_patch} -ge ${aap_warning_threshold} ]; then
-        warning "${humanReadableCheckName}: ${days_since_patch} day(s) ago (exceeds warning threshold of ${aap_warning_threshold} days)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: error, statustext: ${days_since_patch} day(s) ago"
+
+    # Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
+    local aap_ts_line aap_ts last_run_epoch now_epoch seconds_since_last_run days_since_last_run
+
+    aap_ts_line=$(grep -E "Current time stamp:" "${aap_log_path}" | tail -1)
+
+    if [[ -z "${aap_ts_line}" ]]; then
+        # Fallback: use log mtime if the timestamp line is missing
+        last_run_epoch=$(stat -f %m "${aap_log_path}" 2>/dev/null)
     else
-        info "${humanReadableCheckName}: ${days_since_patch} day(s) ago"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: You can run App Auto-Patch at any time from the ${organizationSelfServiceMarketingName}, status: success, statustext: ${days_since_patch} day(s) ago"
+        aap_ts=$(echo "${aap_ts_line}" | awk '{print $NF}')
+
+        # Validate expected format (14 digits)
+        if [[ ! "${aap_ts}" =~ ^[0-9]{14}$ ]]; then
+            errorOut "${humanReadableCheckName}: Unable to parse AAP timestamp"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Invalid timestamp format"
+            overallHealth+="${humanReadableCheckName}; "
+            return
+        fi
+
+        # Convert YYYYMMDDHHMMSS -> epoch seconds (macOS date)
+        last_run_epoch=$(date -j -f "%Y%m%d%H%M%S" "${aap_ts}" "+%s" 2>/dev/null)
+    fi
+
+    if [[ -z "${last_run_epoch}" || ! "${last_run_epoch}" =~ ^[0-9]+$ ]]; then
+        errorOut "${humanReadableCheckName}: Unable to determine last run time"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Unable to determine last run"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    now_epoch=$(date "+%s")
+    seconds_since_last_run=$(( now_epoch - last_run_epoch ))
+
+    # Guard against clock issues
+    if (( seconds_since_last_run < 0 )); then seconds_since_last_run=0; fi
+
+    days_since_last_run=$(( seconds_since_last_run / 86400 ))
+
+    # Display string (avoid "0 day(s) ago")
+    local days_since_last_run_display
+    if (( days_since_last_run == 0 )); then
+        days_since_last_run_display="Today"
+    else
+        days_since_last_run_display="${days_since_last_run} day(s) ago"
+    fi
+
+    # Set status based on days since last run
+    if (( days_since_last_run >= aap_critical_threshold )); then
+        errorOut "${humanReadableCheckName}: ${days_since_last_run_display} (exceeds critical threshold of ${aap_critical_threshold} days)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: ${days_since_last_run_display}"
+        overallHealth+="${humanReadableCheckName}; "
+    elif (( days_since_last_run >= aap_warning_threshold )); then
+        warning "${humanReadableCheckName}: ${days_since_last_run_display} (exceeds warning threshold of ${aap_warning_threshold} days)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: error, statustext: ${days_since_last_run_display}"
+    else
+        info "${humanReadableCheckName}: ${days_since_last_run_display}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: You can run App Auto-Patch at any time from the ${organizationSelfServiceMarketingName}, status: success, statustext: ${days_since_last_run_display}"
     fi
 
 }
@@ -3724,8 +3750,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -3793,10 +3818,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    # set -x
-    checkMdmProfile "0"
-    checkMdmCertificateExpiration "1"
-    # set +x
+    set -x
+    checkAppAutoPatch "0"
+    set +x
 
 else
 
