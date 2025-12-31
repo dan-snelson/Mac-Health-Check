@@ -2789,6 +2789,9 @@ function checkMdmCertificateExpiration() {
         return
     fi
 
+	# force locale to english so 'date' does not error on any localization formatting issues
+	LANG=en_us_88591;
+
     now_seconds=$(date +%s)
     date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
     expirationDateFormatted=$(date -j -f "%b %d %H:%M:%S %Y GMT" "$expiry" "+%d-%b-%Y")
