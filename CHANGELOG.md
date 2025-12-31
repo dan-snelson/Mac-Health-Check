@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.0.0b49 (30-Dec-2025)
+### 3.0.0b50 (31-Dec-2025)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -14,6 +14,7 @@
 - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
 - Added detection for staged macOS updates (from [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder))
 - Updated check for App Auto-Patch to support version 3.5.0
+- Force locale to English for date command (Pull Request #72; thanks, @aedekuiper!)
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376

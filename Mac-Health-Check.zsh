@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b49, 30-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0b50, 31-Dec-2025, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -29,6 +29,7 @@
 #   - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
 #   - Added detection for staged macOS updates (from [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder))
 #   - Updated check for App Auto-Patch to support version 3.5.0
+#   - Force locale to English for date command (Pull Request #72; thanks, @aedekuiper!)
 #
 ####################################################################################################
 
@@ -43,7 +44,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b49"
+scriptVersion="3.0.0b50"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -53,6 +54,9 @@ autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
 swiftDialogMinimumRequiredVersion="2.5.6.4805"
+
+# Force locale to English (so `date` does not error on localization formatting)
+LANG="en_us_88591"
 
 # Elapsed Time
 SECONDS="0"
@@ -64,7 +68,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
-operationMode="${4:-"Development"}"
+operationMode="${4:-"Self Service"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
@@ -2788,9 +2792,6 @@ function checkMdmCertificateExpiration() {
         overallHealth+="${humanReadableCheckName}; "
         return
     fi
-
-	# force locale to english so 'date' does not error on any localization formatting issues
-	LANG=en_us_88591;
 
     now_seconds=$(date +%s)
     date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
