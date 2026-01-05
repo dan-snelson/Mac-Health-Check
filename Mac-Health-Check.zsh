@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b50, 31-Dec-2025, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0b51, 05-Jan-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -30,6 +30,7 @@
 #   - Added detection for staged macOS updates (from [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder))
 #   - Updated check for App Auto-Patch to support version 3.5.0
 #   - Force locale to English for date command (Pull Request #72; thanks, @aedekuiper!)
+#   - Added "-endUsername" to the Jamf Pro-specific `updateComputerInventory` function
 #
 ####################################################################################################
 
@@ -44,7 +45,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b50"
+scriptVersion="3.0.0b51"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -3718,7 +3719,11 @@ function updateComputerInventory() {
 
     if [[ "${operationMode}" != "Test" ]]; then
 
-        jamf recon # -verbose
+        if [[ -n "${platformSSOeResult}" ]]; then
+            jamf recon -endUsername "${platformSSOeResult}"
+        else
+            jamf recon # -verbose
+        fi
 
     else
 
