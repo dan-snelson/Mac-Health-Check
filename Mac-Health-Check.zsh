@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b51, 05-Jan-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0b52, 08-Jan-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -45,7 +45,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b51"
+scriptVersion="3.0.0b52"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2448,7 +2448,7 @@ function checkUserDirectorySizeItems() {
         percentage=$( echo "scale=2; if (${totalDiskBytes} > 0) ${dirBytes} * 100 / ${totalDiskBytes} else 0" | bc -l 2>/dev/null || echo "0" )
         userDirectoryResult="${userDirectorySize} (${userDirectoryItems} items) — ${percentage}% of disk"
         if (( $( echo ${percentage}'>'${allowedMaximumDirectoryPercentage} | bc -l 2>/dev/null ) )); then
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, Please contact ${supportTeamName} if you need asssitance, status: error, statustext: ${userDirectoryResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please contact ${supportTeamName} if you need assistance, status: error, statustext: ${userDirectoryResult}"
             warning "${humanReadableCheckName}: ${userDirectoryResult}"
             # overallHealth+="${humanReadableCheckName}; " # Uncomment to treat as an error
         else

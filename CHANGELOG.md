@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.0.0b51 (05-Jan-2026)
+### 3.0.0b52 (08-Jan-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
