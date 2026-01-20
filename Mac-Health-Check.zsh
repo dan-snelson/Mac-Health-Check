@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0b52, 08-Jan-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0rc1, 20-Jan-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -45,7 +45,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0b52"
+scriptVersion="3.0.0rc1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -166,9 +166,9 @@ completionTimer="60"
 if [[ -n "$(profiles list -output stdout-xml | awk '/com.apple.mdm/ {print $1}' | tail -1)" ]]; then
     serverURL=$( profiles list -output stdout-xml | grep -a1 'ServerURL' | sed -n 's/.*<string>\(https:\/\/[^\/]*\).*/\1/p' )
     if [[ -n "$serverURL" ]]; then
-        # echo "MDM server address: $serverURL"
+        echo "MDM server address: $serverURL"
     else
-        echo "Failed to get MDM URL!"
+        echo "Failed to get MDM URL"
     fi
 else
     echo "Not enrolled in an MDM server."
