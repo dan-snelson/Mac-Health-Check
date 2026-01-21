@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0rc2, 21-Jan-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0rc3, 21-Jan-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -31,6 +31,8 @@
 #   - Updated check for App Auto-Patch to support version 3.5.0
 #   - Force locale to English for date command (Pull Request #72; thanks, @aedekuiper!)
 #   - Added "-endUsername" to the Jamf Pro-specific `updateComputerInventory` function
+#   - Updated comment to reference MDM's Self Service portal (Pull Request #75; thanks, @nikeshashar!)
+#   - Added retry logic with file existence verification for `dialogJSONFile` and `dialogCommandFile` to address race condition errors (Issue #73; thanks for the heads-up, @sabanessts!)
 #
 ####################################################################################################
 
@@ -45,7 +47,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0rc2"
+scriptVersion="3.0.0rc3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -166,7 +168,7 @@ completionTimer="60"
 if [[ -n "$(profiles list -output stdout-xml | awk '/com.apple.mdm/ {print $1}' | tail -1)" ]]; then
     serverURL=$( profiles list -output stdout-xml | grep -a1 'ServerURL' | sed -n 's/.*<string>\(https:\/\/[^\/]*\).*/\1/p' )
     if [[ -n "$serverURL" ]]; then
-        echo "MDM server address: $serverURL"
+        # echo "MDM server address: $serverURL"
     else
         echo "Failed to get MDM URL"
     fi
@@ -616,6 +618,18 @@ dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}
 
 # Set Permissions on Dialog Command Files
 chmod 644 "${dialogCommandFile}"
+
+# Verify dialogCommandFile exists and is readable
+retryCount=0
+maxRetries=5
+while [[ ! -f "${dialogCommandFile}" || ! -r "${dialogCommandFile}" ]] && [[ ${retryCount} -lt ${maxRetries} ]]; do
+    sleep 0.2
+    ((retryCount++))
+done
+if [[ ! -f "${dialogCommandFile}" || ! -r "${dialogCommandFile}" ]]; then
+    echo "FATAL ERROR: dialogCommandFile (${dialogCommandFile}) is not readable after ${maxRetries} attempts"
+    exit 1
+fi
 
 # The total number of steps for the progress bar (i.e., "progress: increment")
 progressSteps="40"
@@ -3792,6 +3806,19 @@ else
 fi
 
 echo "$combinedJSON" > "$dialogJSONFile"
+
+# Verify dialogJSONFile exists and is readable
+retryCount=0
+maxRetries=5
+while [[ ! -f "${dialogJSONFile}" || ! -r "${dialogJSONFile}" ]] && [[ ${retryCount} -lt ${maxRetries} ]]; do
+    sleep 0.2
+    ((retryCount++))
+done
+if [[ ! -f "${dialogJSONFile}" || ! -r "${dialogJSONFile}" ]]; then
+    fatal "dialogJSONFile (${dialogJSONFile}) is not readable after ${maxRetries} attempts"
+else
+    info "dialogJSONFile verified: ${dialogJSONFile}"
+fi
 
 
 
