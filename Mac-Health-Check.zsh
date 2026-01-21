@@ -6,7 +6,7 @@
 # Mac Health Check
 #
 # A practical and user-friendly approach to surfacing Mac compliance information directly to end-users
-# via Jamf Pro Self Service
+# via your MDM's Self Service portal.
 #
 # https://snelson.us/mhc
 #
