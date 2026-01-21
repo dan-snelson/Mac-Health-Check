@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.0.0rc1 (20-Jan-2026)
+### 3.0.0rc2 (21-Jan-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -16,6 +16,7 @@
 - Updated check for App Auto-Patch to support version 3.5.0
 - Force locale to English for date command (Pull Request #72; thanks, @aedekuiper!)
 - Added "-endUsername" to the Jamf Pro-specific `updateComputerInventory` function
+- Updated comment to reference MDM's Self Service portal (Pull Request #75; thanks, @nikeshashar!)
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
