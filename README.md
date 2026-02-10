@@ -100,10 +100,14 @@ The following health checks and information reporting are included and the scrip
 <img src="images/MHC_3.0.0b24_Helpmessage.png" alt="In progress" width="800"/>
 
 #### IT Support
-- Telephone
-- Email
-- Website
-- Knowledge Base Article
+- Dynamic `supportLabel1` / `supportValue1` through `supportLabel6` / `supportValue6`
+- Empty Label / Value pairs are skipped automatically
+- Legacy fallback still works when all dynamic pairs are empty:
+  - Telephone (`supportTeamPhone`)
+  - Email (`supportTeamEmail`)
+  - Website (`supportTeamWebsite`)
+  - Knowledge Base Article (`supportKBURL`)
+- Info button target now uses the first URL-like dynamic support value; if none is found, it falls back to legacy Knowledge Base values
 
 #### User Information
 - Full Name

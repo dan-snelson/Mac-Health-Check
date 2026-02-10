@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0rc4, 21-Jan-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0rc5, 09-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -33,6 +33,7 @@
 #   - Added "-endUsername" to the Jamf Pro-specific `updateComputerInventory` function
 #   - Updated comment to reference MDM's Self Service portal (Pull Request #75; thanks, @nikeshashar!)
 #   - Added retry logic with file existence verification for `dialogJSONFile` and `dialogCommandFile` to address race condition errors (Issue #73; thanks for the heads-up, @sabanessts!)
+#   - Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries (Feature Request #76; thanks for the suggestion, @sabanessts!)
 #
 ####################################################################################################
 
@@ -47,7 +48,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0rc4"
+scriptVersion="3.0.0rc5"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -71,7 +72,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
-operationMode="${4:-"Self Service"}"
+operationMode="${4:-"Test"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
@@ -669,6 +670,22 @@ supportTeamHyperlink="[${supportTeamWebsite}](${supportTeamWebsite})"
 supportKB="KB8675309"
 infobuttonaction="https://servicenow.domain.org/support?id=kb_article_view&sysparm_article=${supportKB}"
 supportKBURL="[${supportKB}](${infobuttonaction})"
+infobuttontext="${supportKB}"
+
+# Optional dynamic IT support label/value pairs
+# Leave a supportLabel blank (or its matching supportValue blank) to hide that line.
+supportLabel1="Telephone"
+supportValue1="${supportTeamPhone}"
+supportLabel2="Email"
+supportValue2="${supportTeamEmail}"
+supportLabel3="Website"
+supportValue3="${supportTeamWebsite}"
+supportLabel4="Knowledge Base Article"
+supportValue4="${supportKBURL}"
+supportLabel5="supportLabel5"
+supportValue5="supportValue5"
+supportLabel6="supportLabel6"
+supportValue6="supportValue6"
 
 
 
@@ -676,7 +693,63 @@ supportKBURL="[${supportKB}](${infobuttonaction})"
 # Help Message Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>- **Telephone:** ${supportTeamPhone}<br>- **Email:** ${supportTeamEmail}<br>- **Website:** ${supportTeamWebsite}<br>- **Knowledge Base Article:** ${supportKBURL}<br><br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
+# Build support lines dynamically from supportLabelN/supportValueN when configured.
+# If all supportLabelN/supportValueN pairs are empty, fall back to legacy supportTeam* values.
+supportLines=""
+supportFieldsConfigured="false"
+supportButtonText=""
+supportButtonAction=""
+
+for supportIndex in {1..6}; do
+    supportLabelVar="supportLabel${supportIndex}"
+    supportValueVar="supportValue${supportIndex}"
+    supportLabel="${(P)supportLabelVar}"
+    supportValue="${(P)supportValueVar}"
+
+    if [[ -n "${supportLabel}" || -n "${supportValue}" ]]; then
+        supportFieldsConfigured="true"
+    fi
+
+    if [[ -n "${supportLabel}" && -n "${supportValue}" ]]; then
+        supportLines+="- **${supportLabel}:** ${supportValue}<br>"
+
+        if [[ -z "${supportButtonAction}" ]]; then
+            case "${supportValue}" in
+                http://*|https://*|slack://*|msteams://*|teams://*|zoommtg://*|mailto:* )
+                    supportButtonText="${supportLabel}"
+                    supportButtonAction="${supportValue}"
+                    ;;
+            esac
+        fi
+    fi
+done
+
+if [[ "${supportFieldsConfigured}" == "false" ]]; then
+    [[ -n "${supportTeamPhone}" ]] && supportLines+="- **Telephone:** ${supportTeamPhone}<br>"
+    [[ -n "${supportTeamEmail}" ]] && supportLines+="- **Email:** ${supportTeamEmail}<br>"
+    [[ -n "${supportTeamWebsite}" ]] && supportLines+="- **Website:** ${supportTeamWebsite}<br>"
+    [[ -n "${supportKBURL}" ]] && supportLines+="- **Knowledge Base Article:** ${supportKBURL}<br>"
+fi
+
+# Generic info button: prefer first URL-like dynamic value; otherwise use legacy KB defaults.
+if [[ -n "${supportButtonAction}" ]]; then
+    infobuttontext="${supportButtonText}"
+    infobuttonaction="${supportButtonAction}"
+fi
+
+# Disable the button if the resolved action is not URL-like.
+case "${infobuttonaction}" in
+    http://*|https://*|slack://*|msteams://*|teams://*|zoommtg://*|mailto:* )
+        helpimage="qr=${infobuttonaction}"
+        ;;
+    * )
+        infobuttontext=""
+        infobuttonaction=""
+        helpimage=""
+        ;;
+esac
+
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
 
 case ${mdmVendor} in
 
@@ -685,8 +758,6 @@ case ${mdmVendor} in
         ;;
 
 esac
-
-helpimage="qr=${infobuttonaction}"
 
 
 
@@ -710,7 +781,7 @@ mainDialogJSON='
     "message" : "none",
     "iconsize" : "198",
     "infobox" : "**User:** '"{userfullname}"'<br><br>**Computer Model:** '"{computermodel}"'<br><br>**Serial Number:** '"{serialnumber}"'<br><br>**System Memory:** '"${systemMemory}"'<br><br>**System Storage:** '"${systemStorage}"' ",
-    "infobuttontext" : "'"${supportKB}"'",
+    "infobuttontext" : "'"${infobuttontext}"'",
     "infobuttonaction" : "'"${infobuttonaction}"'",
     "button1text" : "Wait",
     "button1disabled" : "true",

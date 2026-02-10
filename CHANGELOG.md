@@ -2,7 +2,12 @@
 
 ## CHANGELOG
 
-### 3.0.0rc4 (21-Jan-2026)
+### Unreleased
+- Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries.
+- Added backward-compatible fallback to legacy support variables (`supportTeamPhone`, `supportTeamEmail`, `supportTeamWebsite`, `supportKBURL`) when all dynamic pairs are empty.
+- Updated main dialog info button behavior to use the first URL-like dynamic support value, with fallback to legacy Knowledge Base button values.
+
+### 3.0.0rc5 (09-Feb-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -18,6 +23,7 @@
 - Added "-endUsername" to the Jamf Pro-specific `updateComputerInventory` function
 - Updated comment to reference MDM's Self Service portal (Pull Request #75; thanks, @nikeshashar!)
 - Added retry logic with file existence verification for `dialogJSONFile` and `dialogCommandFile` to address race condition errors (Issue #73; thanks for the heads-up, @sabanessts!)
+- Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries (Feature Request #76; thanks for the suggestion, @sabanessts!)
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376
