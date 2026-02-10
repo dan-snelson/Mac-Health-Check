@@ -2,11 +2,6 @@
 
 ## CHANGELOG
 
-### Unreleased
-- Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries.
-- Added backward-compatible fallback to legacy support variables (`supportTeamPhone`, `supportTeamEmail`, `supportTeamWebsite`, `supportKBURL`) when all dynamic pairs are empty.
-- Updated main dialog info button behavior to use the first URL-like dynamic support value, with fallback to legacy Knowledge Base button values.
-
 ### 3.0.0rc5 (09-Feb-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
