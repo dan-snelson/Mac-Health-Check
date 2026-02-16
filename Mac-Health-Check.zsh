@@ -643,15 +643,31 @@ else
     icon="SF=desktopcomputer.and.arrow.down,${organizationColorScheme}"
 fi
 
-# Download the overlayicon from ${organizationOverlayiconURL}
+# Process the overlayicon from ${organizationOverlayiconURL}
 if [[ -n "${organizationOverlayiconURL}" ]]; then
-    # echo "Downloading overlayicon from '${organizationOverlayiconURL}' …"
-    curl -o "/var/tmp/overlayicon.png" "${organizationOverlayiconURL}" --silent --show-error --fail
-    if [[ "$?" -ne 0 ]]; then
-        echo "Error: Failed to download the overlayicon from '${brandingImageURL}'."
-        overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
+    # Local file path (file or app bundle)
+    if [[ -e "${organizationOverlayiconURL}" ]]; then
+        overlayicon="${organizationOverlayiconURL}"
+
+    # file:// URI
+    elif [[ "${organizationOverlayiconURL}" == file://* ]]; then
+        overlayIconPath="${organizationOverlayiconURL#file://}"
+        if [[ -e "${overlayIconPath}" ]]; then
+            overlayicon="${overlayIconPath}"
+        else
+            echo "Error: Failed to locate overlayicon at '${overlayIconPath}'"
+            overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
+        fi
+
+    # Remote URL
     else
-        overlayicon="/var/tmp/overlayicon.png"
+        curl -o "/var/tmp/overlayicon.png" "${organizationOverlayiconURL}" --silent --show-error --fail
+        if [[ "$?" -ne 0 ]]; then
+            echo "Error: Failed to download the overlayicon"
+            overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
+        else
+            overlayicon="/var/tmp/overlayicon.png"
+        fi
     fi
 else
     overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
@@ -683,10 +699,10 @@ supportLabel3="Website"
 supportValue3="${supportTeamWebsite}"
 supportLabel4="Knowledge Base Article"
 supportValue4="${supportKBURL}"
-supportLabel5="supportLabel5"
-supportValue5="supportValue5"
-supportLabel6="supportLabel6"
-supportValue6="supportValue6"
+supportLabel5=""
+supportValue5=""
+supportLabel6=""
+supportValue6=""
 
 
 
