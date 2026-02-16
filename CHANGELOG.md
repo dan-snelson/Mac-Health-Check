@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.0.0rc5 (09-Feb-2026)
+### 3.0.0 (16-Feb-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -19,6 +19,7 @@
 - Updated comment to reference MDM's Self Service portal (Pull Request #75; thanks, @nikeshashar!)
 - Added retry logic with file existence verification for `dialogJSONFile` and `dialogCommandFile` to address race condition errors (Issue #73; thanks for the heads-up, @sabanessts!)
 - Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries (Feature Request #76; thanks for the suggestion, @sabanessts!)
+- Hardened `checkTouchID` hardware detection and enrollment parsing for built-in and external Touch ID devices (thanks to the Mac Admins Slack thread contributors!)
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376

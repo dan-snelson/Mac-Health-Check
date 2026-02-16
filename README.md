@@ -2,13 +2,13 @@
 
 # Mac Health Check
 
-> A practical and user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
+> A practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
 
-<img src="images/Mac_Health_Check_3b24_Hero.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_3.0.0_Hero.png" alt="Mac Health Check Hero" width="800"/>
 
 ## Overview
 
-Mac Health Check provides a practical and user-friendly approach to surfacing Mac compliance information directly to end-users via an MDM's Self Service.
+Mac Health Check provides a practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via an MDM's Self Service.
 
 Built using the open-source utility [swiftDialog](https://github.com/swiftDialog/swiftDialog/wiki), the solution acts as a “heads-up display” that presents real-time system health and policy compliance status in a clear and interactive format.
 
@@ -49,7 +49,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Health Checks
 
-<img src="images/MHC_3.0.0b24_Firewall.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.0.0.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
 1. Available Updates (including deferred and DDM-enforced updates)
@@ -97,7 +97,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_3.0.0b24_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_3.0.0_Helpmessage.png" alt="In progress" width="800"/>
 
 #### IT Support
 - Dynamic `supportLabel1` / `supportValue1` through `supportLabel6` / `supportValue6`
@@ -138,7 +138,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2026-01-21 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0): 2026-02-16 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
