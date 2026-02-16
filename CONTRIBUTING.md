@@ -1,4 +1,4 @@
-# Contributing to Mac Health Check
+# Contributing to Mac Health Check (3.0.0)
 
 First, thank you for your interest in contributing to  **Mac Health Check**!
 
@@ -11,7 +11,6 @@ When submitting a Pull Request, please submit against the `development` branch a
 ### Branching Strategy
 - `main`: The default branch for the latest production release.
 - `development`: Contains ongoing development work and new features.
-- `MDM-Agnostic`: A special branch for MDM-agnostic features and improvements.
 - Additional branches may be created for new features and testing.
 
 
@@ -19,3 +18,7 @@ When submitting a Pull Request, please submit against the `development` branch a
 Please use the [Issues](https://github.com/dan-snelson/Mac-Health-Check/issues) section to report bugs or request new features.
 
 When reporting a bug, include as much detail as possible, including steps to reproduce the issue, expected behavior, and any relevant logs or screenshots.
+
+## Invitation to Collaborate
+
+[From Beneficiary to Maintainer](https://tonyyo11.github.io/posts/102406-DanKSnelson-OpenSource-Community/)

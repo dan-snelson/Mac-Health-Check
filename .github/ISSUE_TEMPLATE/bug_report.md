@@ -20,7 +20,7 @@ A clear, concise description of the bug.
 
 **To Reproduce**
  - Please describe how the script was executed (i.e., via macOS Terminal, via in a Jamf Pro Self Service policy, etc.).
- - Please detail any modififications.
+ - Please detail any modifications.
  
 **Expected behavior**
 A clear, concise description of what you expected to happen.
@@ -32,8 +32,8 @@ Please supply the full command used, and if applicable, add full output from Ter
 If applicable, add screenshots to help explain your problem.
 
 **Environment (please complete the following information):**
- - OS version (i.e., 15.6)
- - Script version (i.e., 2.0.0) - please upgrade to the latest version before submitting a bug report.
+ - OS version (i.e., 26.3)
+ - Script version (i.e., 3.0.0) - please upgrade to the latest version before submitting a bug report.
 
 **Additional context**
 Add any other context about the problem here.
