@@ -83,7 +83,7 @@ The following health checks and information reporting are included and the scrip
     - Apple Identity and Content Services
     - Jamf Hosts
 1. App Auto-Patch :new:
-1. Electron Corner Mask
+1. Electron Corner Mask [🔗](https://avarayr.github.io/shamelectron/)
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*
