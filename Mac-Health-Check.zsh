@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 16-Feb-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0rc6, 17-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -35,6 +35,8 @@
 #   - Added retry logic with file existence verification for `dialogJSONFile` and `dialogCommandFile` to address race condition errors (Issue #73; thanks for the heads-up, @sabanessts!)
 #   - Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries (Feature Request #76; thanks for the suggestion, @sabanessts!)
 #   - Hardened `checkTouchID` hardware detection and enrollment parsing for built-in and external Touch ID devices (thanks to the Mac Admins Slack thread contributors!)
+#   - Added dock-enabled swiftDialog launch in non-`Silent` modes with configurable `dockIcon` and copied `${humanReadableScriptName}.app` launch support for Dock hover text
+#   - Added dynamic `dockiconbadge` countdown support to show remaining checks, decrement after each completed check, and remove the badge at completion / quit
 #
 ####################################################################################################
 
@@ -49,7 +51,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0"
+scriptVersion="3.0.0rc6"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -58,7 +60,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.0.4933"
+swiftDialogMinimumRequiredVersion="3.0.0.4934"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -104,6 +106,9 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-textu
 
 # Organization's Overlayicon URL
 organizationOverlayiconURL="/System/Library/CoreServices/Apple Diagnostics.app"
+
+# Organization's Dock Icon URL / Path [ default | file://path | /local/path | https://... ]
+dockIcon="https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91"
 
 # Organization's Defaults Domain for External Checks
 organizationDefaultsDomain="org.churchofjesuschrist.external"
@@ -607,10 +612,21 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # swiftDialog Binary Path
+dialogAppBundle="/Library/Application Support/Dialog/Dialog.app"
 dialogBinary="/usr/local/bin/dialog"
 
 # Enable debugging options for swiftDialog
-[[ "${operationMode}" == "Debug" ]] && dialogBinary="${dialogBinary} --verbose --resizable --debug red"
+dialogBinaryDebugArgs=()
+[[ "${operationMode}" == "Debug" ]] && dialogBinaryDebugArgs=(--verbose --resizable --debug red)
+
+# Dock-enabled launch defaults
+dialogDockNamedApp="/Library/Application Support/Dialog/${humanReadableScriptName}.app"
+dialogLaunchBinary="${dialogBinary}"
+dialogDockIcon="default"
+dialogDockIconFile="/var/tmp/dockicon.png"
+listitemLength="0"
+remainingChecks="0"
+completedCheckIndicesCsv=","
 
 # swiftDialog JSON File
 dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
@@ -1280,13 +1296,162 @@ function quitOut()      { updateScriptLog "[QUIT]            ${1}"; }
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Dock-enabled swiftDialog helpers
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function resolveDockIcon() {
+
+    local requestedDockIcon="${1}"
+    local resolvedDockIcon="default"
+    local localDockIconPath=""
+
+    if [[ -z "${requestedDockIcon}" || "${requestedDockIcon:l}" == "default" ]]; then
+        echo "${resolvedDockIcon}"
+        return
+    fi
+
+    if [[ -e "${requestedDockIcon}" ]]; then
+        echo "${requestedDockIcon}"
+        return
+    fi
+
+    if [[ "${requestedDockIcon}" == file://* ]]; then
+        localDockIconPath="${requestedDockIcon#file://}"
+        if [[ -e "${localDockIconPath}" ]]; then
+            echo "${localDockIconPath}"
+            return
+        fi
+        notice "WARNING: Failed to locate dock icon at ${localDockIconPath}; falling back to default."
+        echo "${resolvedDockIcon}"
+        return
+    fi
+
+    if [[ "${requestedDockIcon}" == http://* || "${requestedDockIcon}" == https://* ]]; then
+        if curl -o "${dialogDockIconFile}" "${requestedDockIcon}" --silent --show-error --fail; then
+            echo "${dialogDockIconFile}"
+            return
+        fi
+        notice "WARNING: Failed to download dock icon from ${requestedDockIcon}; falling back to default."
+        echo "${resolvedDockIcon}"
+        return
+    fi
+
+    notice "WARNING: Invalid dockIcon value (${requestedDockIcon}); falling back to default."
+    echo "${resolvedDockIcon}"
+
+}
+
+function writeDockBadge() {
+
+    local requestedBadgeValue="${1}"
+
+    if [[ -z "${requestedBadgeValue}" ]] || [[ "${requestedBadgeValue:l}" == "remove" ]]; then
+        echo "dockiconbadge: remove" >> "${dialogCommandFile}"
+    else
+        echo "dockiconbadge: ${requestedBadgeValue}" >> "${dialogCommandFile}"
+    fi
+
+}
+
+function prepareDockNamedDialogApp() {
+
+    local sourceApp="${dialogAppBundle}"
+    local destinationApp="${dialogDockNamedApp}"
+    local destinationMacOSDirectory="${destinationApp}/Contents/MacOS"
+    local destinationDialogCliBinary="${destinationApp}/Contents/MacOS/dialogcli"
+    local destinationDialogBinary="${destinationMacOSDirectory}/Dialog"
+    local destinationExpectedBinary="${destinationMacOSDirectory}/${humanReadableScriptName}"
+
+    if [[ ! -d "${sourceApp}" ]]; then
+        notice "WARNING: swiftDialog app bundle not found at ${sourceApp}; using ${dialogBinary}."
+        echo "${dialogBinary}"
+        return
+    fi
+
+    if [[ "${destinationApp}" != "${sourceApp}" ]]; then
+        if [[ -e "${destinationApp}" ]]; then
+            rm -rf "${destinationApp}" 2>/dev/null
+            if [[ -e "${destinationApp}" ]]; then
+                notice "WARNING: Unable to replace ${destinationApp}; using ${dialogBinary}."
+                echo "${dialogBinary}"
+                return
+            fi
+        fi
+
+        if ! cp -R "${sourceApp}" "${destinationApp}" 2>/dev/null; then
+            notice "WARNING: Failed to copy ${sourceApp} to ${destinationApp}; using ${dialogBinary}."
+            echo "${dialogBinary}"
+            return
+        fi
+    fi
+
+    if [[ -x "${destinationDialogCliBinary}" && -x "${destinationDialogBinary}" ]]; then
+        # dialogcli resolves the app binary by app-name; provide that expected name.
+        if [[ ! -x "${destinationExpectedBinary}" ]]; then
+            ln -s "Dialog" "${destinationExpectedBinary}" 2>/dev/null || \
+                cp -f "${destinationDialogBinary}" "${destinationExpectedBinary}" 2>/dev/null
+            chmod 755 "${destinationExpectedBinary}" 2>/dev/null
+        fi
+
+        if [[ ! -x "${destinationExpectedBinary}" ]]; then
+            notice "WARNING: Failed to create ${destinationExpectedBinary}; using ${dialogBinary}."
+            echo "${dialogBinary}"
+            return
+        fi
+
+        echo "${destinationDialogCliBinary}"
+    else
+        notice "WARNING: Required dialog binaries missing in ${destinationMacOSDirectory}; using ${dialogBinary}."
+        echo "${dialogBinary}"
+    fi
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Update the running dialog
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function dialogUpdate(){
     if [[ "${operationMode}" != "Silent" ]]; then
+        local dialogCommand="${1}"
+        local listItemIndexRaw=""
+        local listItemIndex=""
+        local listItemStatusRaw=""
+        local listItemStatus=""
+
         sleep 0.3
-        echo "$1" >> "$dialogCommandFile"
+        echo "${dialogCommand}" >> "${dialogCommandFile}"
+
+        # Track check completion from listitem status transitions and update dock badge.
+        if [[ "${dialogCommand}" == listitem:* ]]; then
+            listItemIndexRaw="${dialogCommand#*index: }"
+            listItemIndex="${listItemIndexRaw%%,*}"
+            listItemIndex="${listItemIndex//[^0-9]/}"
+
+            listItemStatusRaw="${dialogCommand#*status: }"
+            listItemStatus="${listItemStatusRaw%%,*}"
+            listItemStatus="${listItemStatus//[[:space:]]/}"
+            listItemStatus="${listItemStatus:l}"
+
+            if [[ "${remainingChecks}" != <-> ]]; then
+                remainingChecks="0"
+            fi
+
+            if [[ -n "${listItemIndex}" ]] && [[ -n "${listItemStatus}" ]] && [[ "${listItemStatus}" != "wait" ]]; then
+                if [[ "${completedCheckIndicesCsv}" != *",${listItemIndex},"* ]]; then
+                    completedCheckIndicesCsv="${completedCheckIndicesCsv}${listItemIndex},"
+                    (( remainingChecks > 0 )) && (( remainingChecks-- ))
+
+                    if (( remainingChecks > 0 )); then
+                        writeDockBadge "${remainingChecks}"
+                    else
+                        writeDockBadge "remove"
+                    fi
+                fi
+            fi
+        fi
     else
         # info "Operation Mode is 'Silent'; not updating dialog."
     fi
@@ -1549,33 +1714,36 @@ function quitScript() {
             if [[ ${completionTimer} -lt 0 ]]; then break; fi
             if ! kill -0 "${dialogPID}" 2>/dev/null; then break; fi
         done
+        writeDockBadge "remove"
         dialogUpdate "quit:"
     fi
 
-    # Remove the dialog command file
+    # Remove runtime artifacts created by this script.
     rm -f "${dialogCommandFile}"
+    rm -f -- /var/tmp/dialogCommandFile_${organizationScriptName}.*(N)
 
-    # Remove the dialog JSON file
-    if [[ "${operationMode}" == "Self Service" ]] || [[ "${operationMode}" == "Silent" ]]; then
-        rm -f /var/tmp/dialogJSONFile_*
-    else
-        notice "${operationMode} mode: NOT deleting dialogJSONFile ${dialogJSONFile}"
-    fi
+    rm -f "${dialogJSONFile}"
+    rm -f -- /var/tmp/dialogJSONFile_${organizationScriptName}.*(N)
 
-    # Remove overlay icon
     if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Apple Diagnostics.app" ]]; then
         rm -f "${overlayicon}"
     fi
+    rm -f "/var/tmp/overlayicon.png"
+    rm -f "${dialogDockIconFile}"
 
-    # Remove default dialog.log
+    # Remove copied Dock-named swiftDialog app bundle (never remove source Dialog.app).
+    if [[ -n "${dialogDockNamedApp}" ]] && [[ "${dialogDockNamedApp}" != "${dialogAppBundle}" ]] && [[ -d "${dialogDockNamedApp}" ]]; then
+        rm -Rf "${dialogDockNamedApp}"
+    fi
+
+    rm -f "/var/tmp/networkQualityTest"
+    rm -f "/var/tmp/app-sso.plist"
     rm -f /var/tmp/dialog.log
 
-    # Remove SOFA JSON cache directory
-    if [[ "${operationMode}" == "Self Service" ]] || [[ "${operationMode}" == "Silent" ]]; then
+    if [[ -n "${json_cache_dir}" ]]; then
         rm -Rf "${json_cache_dir}"
-    else
-        notice "${operationMode} mode: NOT deleting json_cache_dir ${json_cache_dir}"
     fi
+    rm -Rf "/var/tmp/sofa"
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
@@ -1733,22 +1901,22 @@ function dialogInstall() {
 function dialogCheck() {
 
     # Check for Dialog and install if not found
-    if [[ ! -x "/Library/Application Support/Dialog/Dialog.app" ]]; then
+    if [[ ! -d "${dialogAppBundle}" ]]; then
 
         preFlight "swiftDialog not found; installing …"
         dialogInstall
-        if [[ ! -x "/usr/local/bin/dialog" ]]; then
+        if [[ ! -x "${dialogBinary}" ]]; then
             fatal "swiftDialog still not found; are downloads from GitHub blocked on this Mac?"
         fi
 
     else
 
-        dialogVersion=$(/usr/local/bin/dialog --version)
+        dialogVersion=$("${dialogBinary}" --version)
         if ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
             
             preFlight "swiftDialog version ${dialogVersion} found but swiftDialog ${swiftDialogMinimumRequiredVersion} or newer is required; updating …"
             dialogInstall
-            if [[ ! -x "/usr/local/bin/dialog" ]]; then
+            if [[ ! -x "${dialogBinary}" ]]; then
                 fatal "Unable to update swiftDialog; are downloads from GitHub blocked on this Mac?"
             fi
 
@@ -1825,7 +1993,7 @@ function checkOS() {
 
         # URL to the online JSON data
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
-        user_agent="Mac-Health-Check-checkOS/3.0.0"
+        user_agent="Mac-Health-Check-checkOS/3.0.0rc6"
 
         # local store
         json_cache_dir="/var/tmp/sofa"
@@ -3919,6 +4087,14 @@ else
 
 fi
 
+# Runtime check counters for dock badge updates
+listitemLength=$(get_json_value "${combinedJSON}" "listitem.length")
+if [[ "${listitemLength}" != <-> ]]; then
+    listitemLength="0"
+fi
+remainingChecks="${listitemLength}"
+completedCheckIndicesCsv=","
+
 echo "$combinedJSON" > "$dialogJSONFile"
 
 # Set Permissions on dialogJSONFile
@@ -3945,14 +4121,50 @@ fi
 
 if [[ "${operationMode}" != "Silent" ]]; then
 
-    eval ${dialogBinary} --jsonfile ${dialogJSONFile} &
+    dialogLaunchArgs=()
+    dialogLaunchSucceeded="false"
+    namedDialogPID=""
+    dialogDockIcon=$(resolveDockIcon "${dockIcon}")
+    dialogLaunchBinary=$(prepareDockNamedDialogApp)
+    dialogLaunchArgs=( "${dialogBinaryDebugArgs[@]}" --jsonfile "${dialogJSONFile}" --showdockicon --dockicon "${dialogDockIcon}" )
+    if (( remainingChecks > 0 )); then
+        dialogLaunchArgs+=( --dockiconbadge "${remainingChecks}" )
+    fi
+
+    info "Launching dialog binary: ${dialogLaunchBinary}"
+    info "Dock icon source: ${dialogDockIcon}"
+
+    "${dialogLaunchBinary}" "${dialogLaunchArgs[@]}" &
     dialogPID=$!
+    sleep 0.8
+
+    if kill -0 "${dialogPID}" 2>/dev/null; then
+        dialogLaunchSucceeded="true"
+    else
+        if [[ "${dialogLaunchBinary}" != "${dialogBinary}" ]]; then
+            namedDialogPID=$(pgrep -f "${dialogDockNamedApp}/Contents/MacOS/" 2>/dev/null | head -n 1)
+            if [[ -n "${namedDialogPID}" ]]; then
+                dialogPID="${namedDialogPID}"
+                dialogLaunchSucceeded="true"
+            fi
+        fi
+    fi
+
+    if [[ "${dialogLaunchSucceeded}" != "true" ]]; then
+        notice "WARNING: Dock-enabled launch exited early; falling back to ${dialogBinary}."
+        "${dialogBinary}" "${dialogLaunchArgs[@]}" &
+        dialogPID=$!
+    fi
+
     info "Dialog PID: ${dialogPID}"
     dialogUpdate "progresstext: Initializing …"
 
     # Band-Aid for macOS 15+ `withAnimation` SwiftUI bug
     dialogUpdate "list: hide"
     dialogUpdate "list: show"
+    if (( remainingChecks > 0 )); then
+        writeDockBadge "${remainingChecks}"
+    fi
 
 else
 
@@ -4300,7 +4512,6 @@ else
 
         # Operation Mode: Test
         dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-        listitemLength=$(get_json_value "${combinedJSON}" "listitem.length")
 
         for (( i=0; i<listitemLength; i++ )); do
             notice "[Operation Mode: ${operationMode}] Check ${i} …"

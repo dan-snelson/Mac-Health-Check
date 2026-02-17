@@ -1,4 +1,4 @@
-# Mac Health Check (3.0.0)
+# Mac Health Check (3.0.0rc6)
 
 ## External Checks
 

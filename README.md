@@ -4,7 +4,7 @@
 
 > A practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
 
-<img src="images/MHC_3.0.0_Hero.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_3.0.0rc6_Hero.png" alt="Mac Health Check Hero" width="800"/>
 
 ## Overview
 
@@ -44,12 +44,20 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Ideal for background compliance reporting
 - Complements existing MDM compliance frameworks
 
+### Dock Integration :new:
+
+- Non-`Silent` modes launch swiftDialog with `--showdockicon` and `--dockicon`
+- `dockIcon` is configurable and supports `default`, local paths, `file://` paths and `http(s)` URLs
+- Mac Health Check copies `Dialog.app` to `/Library/Application Support/Dialog/${humanReadableScriptName}.app` and launches `dialogcli` from that bundle so Dock hover text matches the script name
+- `dockiconbadge` shows the number of remaining checks, decreases after each completed check and is removed when checks complete
+- If dock icon setup fails, Mac Health Check logs a warning and falls back to the default `/usr/local/bin/dialog` launch path
+
 ## Features
 The following health checks and information reporting are included and the script operates in “test” mode by default. (Change `operationMode` to `production` when ready to deploy in production.)
 
 ### Health Checks
 
-<img src="images/MHC_3.0.0.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.0.0rc6.png" alt="Health Checks" width="800"/>
 
 1. macOS Version
 1. Available Updates (including deferred and DDM-enforced updates)
@@ -97,7 +105,7 @@ The following health checks and information reporting are included and the scrip
 
 ### Information Reporting
 
-<img src="images/MHC_3.0.0_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_3.0.0rc6_Helpmessage.png" alt="In progress" width="800"/>
 
 #### IT Support
 - Dynamic `supportLabel1` / `supportValue1` through `supportLabel6` / `supportValue6`
@@ -138,7 +146,7 @@ The following health checks and information reporting are included and the scrip
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2026-02-16 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.0.0rc6): 2026-02-16 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
@@ -186,8 +194,8 @@ Deployment of Mac Health Check involves configuring organizational defaults, emb
 
 A new "Development" Operation Mode has been added to aid in developing Health Checks, allowing the easy execution of a _single_ Health Check.
 
-<img src="images/MHC_3.0.0_Development_1.png" alt="Health Checks" width="800"/>
-<img src="images/MHC_3.0.0_Development_2.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.0.0rc6_Development_1.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.0.0rc6_Development_2.png" alt="Health Checks" width="800"/>
 
 When `operationMode` is set to `Development`, a dedicated `developmentListitemJSON` is used to allow developers to focus on a specific check, instead of running the entire suite.
 
