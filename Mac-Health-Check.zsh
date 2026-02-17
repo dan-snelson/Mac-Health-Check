@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0rc6, 17-Feb-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0rc7, 17-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -37,6 +37,7 @@
 #   - Hardened `checkTouchID` hardware detection and enrollment parsing for built-in and external Touch ID devices (thanks to the Mac Admins Slack thread contributors!)
 #   - Added dock-enabled swiftDialog launch in non-`Silent` modes with configurable `dockIcon` and copied `${humanReadableScriptName}.app` launch support for Dock hover text
 #   - Added dynamic `dockiconbadge` countdown support to show remaining checks, decrement after each completed check, and remove the badge at completion / quit
+#   - Added Rosetta-required app reporting to `quitScript` summary output using `mdfind` architecture comparison
 #
 ####################################################################################################
 
@@ -51,7 +52,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0rc6"
+scriptVersion="3.0.0rc7"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -303,6 +304,16 @@ locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/c
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
+rosettaRequiredAppsRaw=$(
+    comm -23 \
+        <( mdfind 'kMDItemExecutableArchitectures == x86_64' | sort ) \
+        <( mdfind 'kMDItemExecutableArchitectures == arm64' | sort )
+)
+if [[ -n "${rosettaRequiredAppsRaw}" ]]; then
+    rosettaRequiredApps=$( echo "${rosettaRequiredAppsRaw}" | awk 'NF {printf "%s%s", sep, $0; sep=", "}' )
+else
+    rosettaRequiredApps="None detected"
+fi
 
 
 
@@ -1665,7 +1676,7 @@ function quitScript() {
 
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; Security Mode: ${bootPoliciesSecurityMode}; DEP-allowed MDM Control: ${bootPoliciesDepAllowedMdmControl}; Activation Lock: ${activationLockStatus}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; Security Mode: ${bootPoliciesSecurityMode}; DEP-allowed MDM Control: ${bootPoliciesDepAllowedMdmControl}; Activation Lock: ${activationLockStatus}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Rosetta-required apps: ${rosettaRequiredApps}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}"
 
     case ${mdmVendor} in
 
@@ -1993,7 +2004,7 @@ function checkOS() {
 
         # URL to the online JSON data
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
-        user_agent="Mac-Health-Check-checkOS/3.0.0rc6"
+        user_agent="Mac-Health-Check-checkOS/3.0.0rc7"
 
         # local store
         json_cache_dir="/var/tmp/sofa"

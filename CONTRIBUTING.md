@@ -1,4 +1,4 @@
-# Contributing to Mac Health Check (3.0.0rc6)
+# Contributing to Mac Health Check (3.0.0rc7)
 
 First, thank you for your interest in contributing to  **Mac Health Check**!
 

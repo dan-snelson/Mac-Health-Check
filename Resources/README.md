@@ -1,4 +1,4 @@
-# Mac Health Check (3.0.0rc6)
+# Mac Health Check (3.0.0rc7)
 
 ## Resources Build Utilities
 
