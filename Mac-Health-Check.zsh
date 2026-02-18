@@ -108,6 +108,9 @@ organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-textu
 # Organization's Overlayicon URL
 organizationOverlayiconURL="/System/Library/CoreServices/Apple Diagnostics.app"
 
+# Enable Dock integration in non-Silent modes [ true | false ]
+enableDockIntegration="true"
+
 # Organization's Dock Icon URL / Path [ default | file://path | /local/path | https://... ]
 dockIcon="https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91"
 
@@ -1355,6 +1358,10 @@ function resolveDockIcon() {
 function writeDockBadge() {
 
     local requestedBadgeValue="${1}"
+
+    if [[ "${enableDockIntegration:l}" != "true" ]]; then
+        return
+    fi
 
     if [[ -z "${requestedBadgeValue}" ]] || [[ "${requestedBadgeValue:l}" == "remove" ]]; then
         echo "dockiconbadge: remove" >> "${dialogCommandFile}"
@@ -4135,15 +4142,22 @@ if [[ "${operationMode}" != "Silent" ]]; then
     dialogLaunchArgs=()
     dialogLaunchSucceeded="false"
     namedDialogPID=""
-    dialogDockIcon=$(resolveDockIcon "${dockIcon}")
-    dialogLaunchBinary=$(prepareDockNamedDialogApp)
-    dialogLaunchArgs=( "${dialogBinaryDebugArgs[@]}" --jsonfile "${dialogJSONFile}" --showdockicon --dockicon "${dialogDockIcon}" )
-    if (( remainingChecks > 0 )); then
-        dialogLaunchArgs+=( --dockiconbadge "${remainingChecks}" )
+
+    if [[ "${enableDockIntegration:l}" == "true" ]]; then
+        dialogDockIcon=$(resolveDockIcon "${dockIcon}")
+        dialogLaunchBinary=$(prepareDockNamedDialogApp)
+        dialogLaunchArgs=( "${dialogBinaryDebugArgs[@]}" --jsonfile "${dialogJSONFile}" --showdockicon --dockicon "${dialogDockIcon}" )
+        if (( remainingChecks > 0 )); then
+            dialogLaunchArgs+=( --dockiconbadge "${remainingChecks}" )
+        fi
+        info "Dock icon source: ${dialogDockIcon}"
+    else
+        dialogLaunchBinary="${dialogBinary}"
+        dialogLaunchArgs=( "${dialogBinaryDebugArgs[@]}" --jsonfile "${dialogJSONFile}" )
+        info "Dock integration disabled by configuration."
     fi
 
     info "Launching dialog binary: ${dialogLaunchBinary}"
-    info "Dock icon source: ${dialogDockIcon}"
 
     "${dialogLaunchBinary}" "${dialogLaunchArgs[@]}" &
     dialogPID=$!
@@ -4162,7 +4176,11 @@ if [[ "${operationMode}" != "Silent" ]]; then
     fi
 
     if [[ "${dialogLaunchSucceeded}" != "true" ]]; then
-        notice "WARNING: Dock-enabled launch exited early; falling back to ${dialogBinary}."
+        if [[ "${dialogLaunchBinary}" != "${dialogBinary}" ]]; then
+            notice "WARNING: Dock-enabled launch exited early; falling back to ${dialogBinary}."
+        else
+            notice "WARNING: Dialog launch exited early; retrying ${dialogBinary}."
+        fi
         "${dialogBinary}" "${dialogLaunchArgs[@]}" &
         dialogPID=$!
     fi
