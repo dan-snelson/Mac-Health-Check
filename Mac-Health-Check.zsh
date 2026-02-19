@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 17-Feb-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0rc8, 18-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
