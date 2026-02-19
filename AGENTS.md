@@ -6,7 +6,7 @@ Guidance for coding agents working in this repository.
 
 - Project: Mac Health Check
 - Primary artifact: `Mac-Health-Check.zsh`
-- Current release objective: ship the official `3.0.0rc7` release (promote from `3.0.0rc7rc*` to production-ready documentation and behavior)
+- Current release objective: ship the official `3.0.0` release (promote from `3.0.0rc*` to production-ready documentation and behavior)
 - Reference plan: `Resources/projectPlan.md`
 
 ## Mission
@@ -73,10 +73,10 @@ Maintain the established style of `Mac-Health-Check.zsh` unless the user explici
 3. Update docs/changelog when behavior or configuration changes.
 4. Do not add new production dependencies without explicit user confirmation.
 
-## 3.0.0rc7 Release Checklist
+## 3.0.0 Release Checklist
 
-1. Set `VERSION.txt` to `3.0.0rc7`.
-2. Ensure `CHANGELOG.md` has accurate `3.0.0rc7` final-release notes and date.
+1. Set `VERSION.txt` to `3.0.0`.
+2. Ensure `CHANGELOG.md` has accurate `3.0.0` final-release notes and date.
 3. Remove or update stale release-candidate references in docs.
 4. Confirm README content matches current script behavior and parameters.
 5. Verify no debug/development-only defaults leaked into production paths.

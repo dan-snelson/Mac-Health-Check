@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.0.0rc7, 17-Feb-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.0.0, 17-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - First (attempt at a) MDM-agnostic release
 #   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
 #   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -52,7 +52,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0rc7"
+scriptVersion="3.0.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2011,7 +2011,7 @@ function checkOS() {
 
         # URL to the online JSON data
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
-        user_agent="Mac-Health-Check-checkOS/3.0.0rc7"
+        user_agent="Mac-Health-Check-checkOS/3.0.0"
 
         # local store
         json_cache_dir="/var/tmp/sofa"

@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.0.0rc7 (17-Feb-2026)
+### 3.0.0 (17-Feb-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
@@ -80,7 +80,7 @@
 - Updated SSID code (thanks, ZP!)
 - Added troubleshooting code for common JSON issues
 - Additional troubleshooting tweaks
-- Updates to leverage new features of [swiftDialog 3.0.0rc7](https://github.com/swiftDialog/swiftDialog/releases/tag/v3.0.0rc7Preview2)
+- Updates to leverage new features of [swiftDialog 3.0.0](https://github.com/swiftDialog/swiftDialog/releases/tag/v3.0.0Preview2)
 - Updated `listitem` icon colour to reflect status
 - Added Organization's Color Schemes based on light or dark mode (Pull Request #37; thanks, @AndrewMBarnett!)
 

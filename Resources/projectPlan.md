@@ -4,7 +4,7 @@
 
 **Author**: Dan K. Snelson  
 **Date**: 2026-02-17  
-**Version**: 3.0.0rc7  
+**Version**: 3.0.0  
 **Status**: In Progress
 
 ---
@@ -436,7 +436,7 @@ Mac-Health-Check/
 
 ## Maintenance & Updates
 ### Version Strategy
-- **Version Format**: Semantic versioning (major.minor.patch, e.g., 3.0.0rc7)
+- **Version Format**: Semantic versioning (major.minor.patch, e.g., 3.0.0)
 - **Version Increments**:
     - Major: Breaking changes or major new features
     - Minor: New checks/features, backward compatible
