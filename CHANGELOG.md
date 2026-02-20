@@ -8,7 +8,7 @@
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
 - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
 - Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
-- Refactored many other functions, adding instructive "listitem" "subtitle" self-remedidation instructions
+- Refactored many other functions, adding instructive "listitem" "subtitle" self-remediation instructions
 - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
 - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
 - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
@@ -23,6 +23,10 @@
 - Added dock-enabled swiftDialog launch in non-`Silent` modes with configurable `dockIcon` and copied `${humanReadableScriptName}.app` launch support for Dock hover text
 - Added dynamic `dockiconbadge` countdown support to show remaining checks, decrement after each completed check, and remove the badge at completion / quit
 - Added Rosetta-required app reporting to `quitScript` summary output using `mdfind` architecture comparison
+
+> :warning: **Breaking Change** :warning:
+> 
+> The `checkExternal` function has been renamed to `checkExternalJamfPro` in version `3.0.0` to reflect its Jamf Pro-specific functionality. Please update any existing code that uses this function accordingly.
 
 ### 2.6.0 (06-Nov-2025)
 - Added check for "Electron Corner Mask" https://github.com/electron/electron/pull/48376

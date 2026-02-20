@@ -186,7 +186,7 @@ Community-supplied, best-effort support is available on the [Mac Admins Slack](
 ## Deployment
 
 <a href="https://snelson.us/mhc" target="_blank"><img src="images/Deployment.png" alt="Deployment" width="600"/></a><br />
-Deployment of Mac Health Check involves configuring organizational defaults, embedding the script in Jamf Pro, creating a policy to run it on demand and testing to ensure proper output and behavior.
+Deployment of Mac Health Check involves configuring organizational defaults, uploading the script to your MDM server, creating a policy to run it on demand and testing to ensure proper output and behavior.
 
 <a href="https://snelson.us/mhc" target="_blank">Continue reading …</a>
 
