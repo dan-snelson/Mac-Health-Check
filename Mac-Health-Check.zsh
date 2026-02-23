@@ -61,7 +61,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.0.4934"
+swiftDialogMinimumRequiredVersion="3.0.0.4952"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
