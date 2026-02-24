@@ -345,13 +345,13 @@ if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WA
 loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory | awk -F ' ' '{print $2}' )
 
 # Volume Owners
-volumeOwnerUUIDs=$( /usr/sbin/diskutil apfs listUsers / 2>/dev/null | /usr/bin/awk '/\+-- [-0-9A-F]+$/ {print $2}' )
+volumeOwnerUUIDs=$( diskutil apfs listUsers / 2>/dev/null | awk '/\+-- [-0-9A-F]+$/ {print $2}' )
 allLocalUsers=( ${(f)"$( dscl . list /Users | grep -v '^_' )"} )
 volumeOwnerUsers=()
 for eachUser in "${allLocalUsers[@]}"; do
-    userUUID=$( /usr/bin/dscl . -read /Users/"${eachUser}" GeneratedUID 2>/dev/null | /usr/bin/awk '{print $2}' )
+    userUUID=$( dscl . -read /Users/"${eachUser}" GeneratedUID 2>/dev/null | awk '{print $2}' )
     if [[ -n "${userUUID}" ]]; then
-        if echo "${volumeOwnerUUIDs}" | /usr/bin/grep -q "${userUUID}"; then
+        if echo "${volumeOwnerUUIDs}" | grep -q "${userUUID}"; then
             volumeOwnerUsers+=( "${eachUser}" )
         fi
     fi
