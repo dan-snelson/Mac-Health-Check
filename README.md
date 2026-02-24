@@ -1,6 +1,6 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check)
 
-# Mac Health Check (3.0.0)
+# Mac Health Check (3.1.0b2)
 
 > A practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
 
@@ -44,7 +44,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - Ideal for background compliance reporting
 - Complements existing MDM compliance frameworks
 
-### Dock Integration :new:
+### Dock Integration
 
 - Non-`Silent` modes launch swiftDialog with `--showdockicon` and `--dockicon`
 - `dockIcon` is configurable and supports `default`, local paths, `file://` paths and `http(s)` URLs
@@ -67,10 +67,10 @@ The following health checks and information reporting are included in version `3
 1. FileVault Encryption
 1. Gatekeeper / XProtect
 1. Touch ID
-1. Password Hint :new:
-1. AirDrop :new:
-1. AirPlay Receiver :new:
-1. Bluetooth Sharing :new:
+1. Password Hint
+1. AirDrop
+1. AirPlay Receiver
+1. Bluetooth Sharing
 1. VPN Client
 1. Last Reboot
 1. Free Disk Space
@@ -90,7 +90,7 @@ The following health checks and information reporting are included in version `3
     - Apple Certificate Validation
     - Apple Identity and Content Services
     - Jamf Hosts
-1. App Auto-Patch :new:
+1. App Auto-Patch
 1. Electron Corner Mask [🔗](https://avarayr.github.io/shamelectron/)
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
@@ -121,6 +121,7 @@ The following health checks and information reporting are included in version `3
 - Full Name
 - User Name
 - User ID
+- Volume Owners :new:
 - Secure Token
 - Location Services
 - Microsoft OneDrive Sync Date
@@ -146,7 +147,7 @@ The following health checks and information reporting are included in version `3
 ### Policy Log Reporting
 
 ```
-MHC (3.0.0): 2026-02-16 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.1.0): 2026-02-24 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
@@ -164,9 +165,9 @@ Network Time Server: time.apple.com; Jamf Pro Computer ID: 007; Site: Servers
 1. Warning when logged-in user is a member of `admin`
 1. Deferred Software Updates
 1. Logged-In User Group Membership
-1. Security Mode :new:
-1. DEP-allowed MDM Control :new:
-1. Activation Lock :new:
+1. Security Mode
+1. DEP-allowed MDM Control
+1. Activation Lock
 1. Bootstrap Token
 1. sudoers
 1. Kerberos SSOe
@@ -190,7 +191,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 <a href="https://snelson.us/mhc" target="_blank">Continue reading …</a>
 
-## Operation Mode: Development :new:
+## Operation Mode: Development
 
 A new "Development" Operation Mode has been added to aid in developing Health Checks, allowing the easy execution of a _single_ Health Check.
 

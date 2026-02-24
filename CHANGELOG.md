@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 3.1.0b1 (24-Feb-2026)
+### 3.1.0b2 (24-Feb-2026)
 - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
 - Added Volume Owners to `helpmessage`
 
