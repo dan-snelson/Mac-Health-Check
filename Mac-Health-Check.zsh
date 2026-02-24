@@ -18,7 +18,7 @@
 # HISTORY
 #
 # Version 3.1.0b1, 24-Feb-2026, Dan K. Snelson (@dan-snelson)
-#   - Refactored code to more reliably display $humanReadableScriptName in the Dock
+#   - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
 #
 ####################################################################################################
 

@@ -2,7 +2,10 @@
 
 ## CHANGELOG
 
-### 3.0.0 (19-Feb-2026)
+### 3.1.0b1 (24-Feb-2026)
+- Refactored code to more reliably display `$humanReadableScriptName` in the Dock
+
+### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**
 - Added a new `Development` Operation Mode to aid in developing / testing individual Health Checks. (See: [README.md](README.md) for details.)
 - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
