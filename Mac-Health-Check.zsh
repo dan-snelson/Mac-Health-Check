@@ -17,8 +17,9 @@
 #
 # HISTORY
 #
-# Version 3.1.0b1, 24-Feb-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.1.0b2, 24-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
+#   - Added Volume Owners to `helpmessage`
 #
 ####################################################################################################
 
@@ -33,7 +34,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.1.0b1"
+scriptVersion="3.1.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -342,6 +343,24 @@ loggedInUserID=$( id -u "${loggedInUser}" )
 loggedInUserGroupMembership=$( id -Gn "${loggedInUser}" )
 if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WARNING: '$loggedInUser' IS A MEMBER OF 'admin'; "; fi
 loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory | awk -F ' ' '{print $2}' )
+
+# Volume Owners
+volumeOwnerUUIDs=$( /usr/sbin/diskutil apfs listUsers / 2>/dev/null | /usr/bin/awk '/\+-- [-0-9A-F]+$/ {print $2}' )
+allLocalUsers=( ${(f)"$( dscl . list /Users | grep -v '^_' )"} )
+volumeOwnerUsers=()
+for eachUser in "${allLocalUsers[@]}"; do
+    userUUID=$( /usr/bin/dscl . -read /Users/"${eachUser}" GeneratedUID 2>/dev/null | /usr/bin/awk '{print $2}' )
+    if [[ -n "${userUUID}" ]]; then
+        if echo "${volumeOwnerUUIDs}" | /usr/bin/grep -q "${userUUID}"; then
+            volumeOwnerUsers+=( "${eachUser}" )
+        fi
+    fi
+done
+if [[ ${#volumeOwnerUsers[@]} -eq 0 ]]; then
+    volumeOwnerList="None"
+else
+    volumeOwnerList="${(j:, :)volumeOwnerUsers}"
+fi
 
 # Secure Token Status
 secureTokenStatus=$( sysadminctl -secureTokenStatus ${loggedInUser} 2>&1 )
@@ -777,7 +796,7 @@ case "${infobuttonaction}" in
         ;;
 esac
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Volume Owners:** ${volumeOwnerList}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
 
 case ${mdmVendor} in
 

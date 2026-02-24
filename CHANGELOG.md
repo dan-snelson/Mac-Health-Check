@@ -4,6 +4,7 @@
 
 ### 3.1.0b1 (24-Feb-2026)
 - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
+- Added Volume Owners to `helpmessage`
 
 ### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**
