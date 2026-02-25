@@ -19,7 +19,7 @@
 #
 # Version 3.1.0b2, 24-Feb-2026, Dan K. Snelson (@dan-snelson)
 #   - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
-#   - Added Volume Owners to `helpmessage`
+#   - Added Volume Owners to `$helpmessage`
 #
 ####################################################################################################
 
