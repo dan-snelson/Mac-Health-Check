@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.1.0b2, 24-Feb-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.1.0, 03-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
 #   - Added Volume Owners to `$helpmessage`
 #
@@ -34,7 +34,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.1.0b2"
+scriptVersion="3.1.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
