@@ -17,27 +17,9 @@
 #
 # HISTORY
 #
-# Version 3.0.0, 19-Feb-2026, Dan K. Snelson (@dan-snelson)
-#   - First (attempt at a) MDM-agnostic release
-#   - Added a new "Development" Operation Mode to aid in developing / testing individual Health Checks
-#   - Minor update to host check curl logic (Pull Request #60; thanks, @ecubrooks!)
-#   - Refactored "Palo Alto Networks GlobalProtect VPN Information" (in an _attempt_ to address Issue #61; thanks, @RussCollis)
-#   - Refactored "checkElectronCornerMask" to display the list o' apps as the "listitem" "subtitle" (and removed dedicated "Electron Corner Mask" reporting)
-#   - Refactored many other functions, adding instructive "listitem" "subtitle" self-remediation instructions
-#   - Refactored AirPlay Receiver logic (Pull Request #66; thanks for another one, @bigdoodr!)
-#   - Update System Memory and System Storage sidebar calculations (Pull Request #68 to address Issue #69; thanks, @HowardGMac and @mallej!)
-#   - Added `mdmProfileIdentifier` to `checkMdmProfile` function (Pull Request #70; thanks for yet another one, @bigdoodr!)
-#   - Added detection for staged macOS updates (from [DDM-OS-Reminder](https://github.com/dan-snelson/DDM-OS-Reminder))
-#   - Updated check for App Auto-Patch to support version 3.5.0
-#   - Force locale to English for date command (Pull Request #72; thanks, @aedekuiper!)
-#   - Added "-endUsername" to the Jamf Pro-specific `updateComputerInventory` function
-#   - Updated comment to reference MDM's Self Service portal (Pull Request #75; thanks, @nikeshashar!)
-#   - Added retry logic with file existence verification for `dialogJSONFile` and `dialogCommandFile` to address race condition errors (Issue #73; thanks for the heads-up, @sabanessts!)
-#   - Refactored IT Support help message construction to support dynamic `supportLabelN` / `supportValueN` pairs (`N=1..6`), skipping empty entries (Feature Request #76; thanks for the suggestion, @sabanessts!)
-#   - Hardened `checkTouchID` hardware detection and enrollment parsing for built-in and external Touch ID devices (thanks to the Mac Admins Slack thread contributors!)
-#   - Added dock-enabled swiftDialog launch in non-`Silent` modes with configurable `dockIcon` and copied `${humanReadableScriptName}.app` launch support for Dock hover text
-#   - Added dynamic `dockiconbadge` countdown support to show remaining checks, decrement after each completed check, and remove the badge at completion / quit
-#   - Added Rosetta-required app reporting to `quitScript` summary output using `mdfind` architecture comparison
+# Version 3.1.0, 03-Mar-2026, Dan K. Snelson (@dan-snelson)
+#   - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
+#   - Added Volume Owners to `$helpmessage`
 #
 ####################################################################################################
 
@@ -52,7 +34,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.0.0"
+scriptVersion="3.1.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -361,6 +343,24 @@ loggedInUserID=$( id -u "${loggedInUser}" )
 loggedInUserGroupMembership=$( id -Gn "${loggedInUser}" )
 if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WARNING: '$loggedInUser' IS A MEMBER OF 'admin'; "; fi
 loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory | awk -F ' ' '{print $2}' )
+
+# Volume Owners
+volumeOwnerUUIDs=$( diskutil apfs listUsers / 2>/dev/null | awk '/\+-- [-0-9A-F]+$/ {print $2}' )
+allLocalUsers=( ${(f)"$( dscl . list /Users | grep -v '^_' )"} )
+volumeOwnerUsers=()
+for eachUser in "${allLocalUsers[@]}"; do
+    userUUID=$( dscl . -read /Users/"${eachUser}" GeneratedUID 2>/dev/null | awk '{print $2}' )
+    if [[ -n "${userUUID}" ]]; then
+        if echo "${volumeOwnerUUIDs}" | grep -q "${userUUID}"; then
+            volumeOwnerUsers+=( "${eachUser}" )
+        fi
+    fi
+done
+if [[ ${#volumeOwnerUsers[@]} -eq 0 ]]; then
+    volumeOwnerList="None"
+else
+    volumeOwnerList="${(j:, :)volumeOwnerUsers}"
+fi
 
 # Secure Token Status
 secureTokenStatus=$( sysadminctl -secureTokenStatus ${loggedInUser} 2>&1 )
@@ -796,7 +796,7 @@ case "${infobuttonaction}" in
         ;;
 esac
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Volume Owners:** ${volumeOwnerList}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
 
 case ${mdmVendor} in
 
@@ -1381,7 +1381,7 @@ function prepareDockNamedDialogApp() {
     local destinationExpectedBinary="${destinationMacOSDirectory}/${humanReadableScriptName}"
 
     if [[ ! -d "${sourceApp}" ]]; then
-        notice "WARNING: swiftDialog app bundle not found at ${sourceApp}; using ${dialogBinary}."
+        notice "WARNING: swiftDialog app bundle not found at ${sourceApp}; using ${dialogBinary}." 1>&2
         echo "${dialogBinary}"
         return
     fi
@@ -1390,17 +1390,21 @@ function prepareDockNamedDialogApp() {
         if [[ -e "${destinationApp}" ]]; then
             rm -rf "${destinationApp}" 2>/dev/null
             if [[ -e "${destinationApp}" ]]; then
-                notice "WARNING: Unable to replace ${destinationApp}; using ${dialogBinary}."
+                notice "WARNING: Unable to replace ${destinationApp}; using ${dialogBinary}." 1>&2
                 echo "${dialogBinary}"
                 return
             fi
         fi
 
         if ! cp -R "${sourceApp}" "${destinationApp}" 2>/dev/null; then
-            notice "WARNING: Failed to copy ${sourceApp} to ${destinationApp}; using ${dialogBinary}."
+            notice "WARNING: Failed to copy ${sourceApp} to ${destinationApp}; using ${dialogBinary}." 1>&2
             echo "${dialogBinary}"
             return
         fi
+
+        # Remove resource forks and Finder metadata copied from the source bundle;
+        # codesign refuses to sign bundles containing such detritus.
+        xattr -cr "${destinationApp}" 2>/dev/null
     fi
 
     if [[ -x "${destinationDialogCliBinary}" && -x "${destinationDialogBinary}" ]]; then
@@ -1408,18 +1412,27 @@ function prepareDockNamedDialogApp() {
         if [[ ! -x "${destinationExpectedBinary}" ]]; then
             ln -s "Dialog" "${destinationExpectedBinary}" 2>/dev/null || \
                 cp -f "${destinationDialogBinary}" "${destinationExpectedBinary}" 2>/dev/null
-            chmod 755 "${destinationExpectedBinary}" 2>/dev/null
         fi
 
         if [[ ! -x "${destinationExpectedBinary}" ]]; then
-            notice "WARNING: Failed to create ${destinationExpectedBinary}; using ${dialogBinary}."
+            notice "WARNING: Failed to create ${destinationExpectedBinary}; using ${dialogBinary}." 1>&2
+            echo "${dialogBinary}"
+            return
+        fi
+
+        # Adding a file to Contents/MacOS invalidates the bundle's sealed resources;
+        # re-sign with an ad-hoc identity to restore a valid seal before launching.
+        # --deep is intentionally omitted: inner binaries retain their original signatures;
+        # only the outer bundle seal needs to be updated to include the new symlink.
+        if ! codesign --force --sign - "${destinationApp}" 2>/dev/null; then
+            notice "WARNING: Failed to re-sign ${destinationApp}; using ${dialogBinary}." 1>&2
             echo "${dialogBinary}"
             return
         fi
 
         echo "${destinationDialogCliBinary}"
     else
-        notice "WARNING: Required dialog binaries missing in ${destinationMacOSDirectory}; using ${dialogBinary}."
+        notice "WARNING: Required dialog binaries missing in ${destinationMacOSDirectory}; using ${dialogBinary}." 1>&2
         echo "${dialogBinary}"
     fi
 
