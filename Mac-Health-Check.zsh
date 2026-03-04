@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.1.1, 04-Mar-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.1.1b1, 04-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username
 #     is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO
 #     environments, and added explicit inventory notices that log whether `-endUsername` was used
@@ -37,7 +37,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.1.1"
+scriptVersion="3.1.1b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
