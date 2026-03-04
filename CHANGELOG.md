@@ -2,6 +2,9 @@
 
 ## CHANGELOG
 
+### 3.1.1 (04-Mar-2026)
+- Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO environments, and added explicit inventory notices that log whether `-endUsername` was used plus its source (Kerberos SSOe, Platform SSOe, or None) and resolved value (`<empty>` when not used) in a single line (Issue #81; sorry for any Dan-induced headaches, @tonyyo11!)
+
 ### 3.1.0 (03-Mar-2026)
 - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
 - Added Volume Owners to `$helpmessage`

@@ -17,9 +17,12 @@
 #
 # HISTORY
 #
-# Version 3.1.0, 03-Mar-2026, Dan K. Snelson (@dan-snelson)
-#   - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
-#   - Added Volume Owners to `$helpmessage`
+# Version 3.1.1, 04-Mar-2026, Dan K. Snelson (@dan-snelson)
+#   - Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username
+#     is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO
+#     environments, and added explicit inventory notices that log whether `-endUsername` was used
+#     plus its source (Kerberos SSOe, Platform SSOe, or None) and resolved value (`<empty>` when not used).
+#     Issue #81; sorry for any Dan-induced headaches, @tonyyo11!
 #
 ####################################################################################################
 
@@ -34,7 +37,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.1.0"
+scriptVersion="3.1.1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -58,7 +61,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
-operationMode="${4:-"Self Service"}"
+operationMode="${4:-"Development"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
@@ -370,23 +373,44 @@ case "${secureTokenStatus}" in
     *)              secureToken="Unknown"   ;;
 esac
 
+# Initialize Jamf Pro inventory endUsername variable (thanks, @tonyyo11!)
+inventoryEndUsername=""
+inventoryEndUsernameSource="None"
+kerberosSSOeResult="Not configured"
+
 # Kerberos Single Sign-on Extension
 if [[ -n "${kerberosRealm}" ]]; then
-    su \- "${loggedInUser}" -c "app-sso -i ${kerberosRealm}" > /var/tmp/app-sso.plist
-    ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
-    if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
-        kerberosSSOeResult="${loggedInUser} NOT logged in"
+    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > /var/tmp/app-sso.plist
+    if xmllint --noout /var/tmp/app-sso.plist >/dev/null 2>&1; then
+        ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
+        if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
+            kerberosSSOeResult="${loggedInUser} NOT logged in"
+        else
+            username=$( /usr/libexec/PlistBuddy -c "Print:upn" /var/tmp/app-sso.plist 2>/dev/null | awk -F@ '{print $1}' )
+            if [[ -n "${username}" ]]; then
+                kerberosSSOeResult="${username}"
+                inventoryEndUsername="${username}"
+                inventoryEndUsernameSource="Kerberos SSOe"
+            else
+                kerberosSSOeResult="${loggedInUser} NOT logged in"
+            fi
+        fi
     else
-        username=$( /usr/libexec/PlistBuddy -c "Print:upn" /var/tmp/app-sso.plist | awk -F@ '{print $1}' )
-        kerberosSSOeResult="${username}"
+        kerberosSSOeResult="${loggedInUser} NOT logged in"
     fi
     rm -f /var/tmp/app-sso.plist
 fi
 
 # Platform Single Sign-on Extension
-pssoeEmail=$( dscl . read /Users/"${loggedInUser}" dsAttrTypeStandard:AltSecurityIdentities 2>/dev/null | awk -F'SSO:' '/PlatformSSO/ {print $2}' )
+pssoeEmail=$( dscl . read /Users/"${loggedInUser}" dsAttrTypeStandard:AltSecurityIdentities 2>/dev/null | awk -F'SSO:' '/PlatformSSO/ {print $2}' | tail -1 | awk '{$1=$1; print}' )
 if [[ -n "${pssoeEmail}" ]]; then
     platformSSOeResult="${pssoeEmail}"
+    if [[ -z "${inventoryEndUsername}" ]]; then
+        inventoryEndUsername=$( echo "${pssoeEmail}" | awk -F@ '{print $1}' )
+        if [[ -n "${inventoryEndUsername}" ]]; then
+            inventoryEndUsernameSource="Platform SSOe"
+        fi
+    fi
 else
     platformSSOeResult="${loggedInUser} NOT logged in"
 fi
@@ -4046,9 +4070,11 @@ function updateComputerInventory() {
 
     if [[ "${operationMode}" != "Test" ]]; then
 
-        if [[ -n "${platformSSOeResult}" ]]; then
-            jamf recon -endUsername "${platformSSOeResult}"
+        if [[ -n "${inventoryEndUsername}" ]]; then
+            notice "Jamf recon -endUsername used (source: ${inventoryEndUsernameSource}; value: ${inventoryEndUsername})"
+            jamf recon -endUsername "${inventoryEndUsername}"
         else
+            notice "Jamf recon -endUsername not used (source: ${inventoryEndUsernameSource}; value: <empty>)"
             jamf recon # -verbose
         fi
 
@@ -4086,7 +4112,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4225,9 +4251,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    # set -x
-    checkTouchID "0"
-    # set +x
+    set -x
+    updateComputerInventory "0"
+    set +x
 
 else
 
