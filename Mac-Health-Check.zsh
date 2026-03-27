@@ -17,6 +17,10 @@
 #
 # HISTORY
 #
+# Version 3.2.0b2, 27-Mar-2026, Dan K. Snelson (@dan-snelson)
+#   - Added `displayFailureNotification` function to present a `--notification --style pseudo-alert`
+#     (swiftDialog 3.1.0.4970) summary of failed health checks when failures are detected
+#
 # Version 3.2.0b1, 17-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username
 #     is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO
@@ -38,7 +42,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.2.0b1"
+scriptVersion="3.2.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -47,7 +51,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.0.4952"
+swiftDialogMinimumRequiredVersion="3.1.0.4970"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -653,6 +657,9 @@ fi
 # swiftDialog Binary Path
 dialogAppBundle="/Library/Application Support/Dialog/Dialog.app"
 dialogBinary="/usr/local/bin/dialog"
+
+# Notification Icon URL (used by displayFailureNotification)
+notificationIconURL="https://raw.githubusercontent.com/dan-snelson/Mac-Health-Check/refs/heads/main/images/MHC_icon.png"
 
 # Enable debugging options for swiftDialog
 dialogBinaryDebugArgs=()
@@ -1717,6 +1724,39 @@ EOF
 # Quit Script (thanks, @bartreadon!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Display Failure Notification (swiftDialog 3.1.0.4970+)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function displayFailureNotification() {
+
+    notice "Displaying failure notification …"
+
+    local failureList=""
+    local -a failedItems
+    failedItems=( "${(s/; /)overallHealth}" )
+    for item in "${failedItems[@]}"; do
+        [[ -n "${item}" ]] && failureList+="\n• ${item}"
+    done
+
+    local notificationMessage="Items failed during this health check. Please [contact support](${supportTeamWebsite}) for assistance.${failureList}"
+
+    "${dialogBinary}" \
+        --notification \
+        --style pseudo-alert \
+        --icon "${notificationIconURL}" \
+        --title "${humanReadableScriptName} Failures" \
+        --message "${notificationMessage}" \
+        --button1text "Close" \
+        --button2text "Contact Support" \
+        --button2action "${supportTeamWebsite}" &
+
+}
+
+
+
 function quitScript() {
 
     quitOut "Exiting …"
@@ -1735,6 +1775,7 @@ function quitScript() {
         if [[ "${operationMode}" != "Silent" ]]; then
             dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
             dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
+            displayFailureNotification
         fi
         if [[ -n "${webhookURL}" ]]; then
             info "Sending webhook message"
@@ -4122,7 +4163,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4262,7 +4303,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
-    checkOS "0"
+    checkAirDropSettings "0"
     set +x
 
 else
