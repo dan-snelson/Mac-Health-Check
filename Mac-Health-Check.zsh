@@ -3028,19 +3028,37 @@ idAssocHosts=(
 )
 
 # Jamf Pro Cloud & On-prem Endpoints
+# https://learn.jamf.com/r/en-US/jamf-domains-safelist-reference/Jamf_Domains_Safelist_Reference
+# https://learn.jamf.com/r/en-US/jamf-ip-address-list/Jamf_Public_IP_Address_List
 jamfHosts=(
     "jamf.com,443"
     "test.jamfcloud.com,443"
-    "use1-jcdsdownloads.services.jamfcloud.com,443"
-    "use1-jcds.services.jamfcloud.com,443"
-    "euc1-jcdsdownloads.services.jamfcloud.com,443"
-    "euc1-jcds.services.jamfcloud.com,443"
-    "euw2-jcdsdownloads.services.jamfcloud.com,443"
-    "euw2-jcds.services.jamfcloud.com,443"
-    "apse2-jcdsdownloads.services.jamfcloud.com,443"
-    "apse2-jcds.services.jamfcloud.com,443"
-    "apne1-jcdsdownloads.services.jamfcloud.com,443"
-    "apne1-jcds.services.jamfcloud.com,443"
+    "account.jamf.com,443"
+    "idpcs.jamf.com,443"
+    "account-cdn.jamf.com,443"
+    "cdn.mfe.jamf.io,443"
+    "api.apigw.jamf.com,443"
+    "us.apigw.jamf.com,443"
+    "eu.apigw.jamf.com,443"
+    "apac.apigw.jamf.com,443"
+    "appinstallers-packages.services.jamfcloud.com,443"
+    "registration.cloudconnector.gov.services.jamfcloud.com,443"
+    "registration.cloudconnector.services.jamfcloud.com,443"
+    "ics.services.jamfcloud.com,443"
+    "csa.services.jamfcloud.com,443"
+    "jcds.apne1.inf.jamf.one,443"
+    "jcds.apse2.inf.jamf.one,443"
+    "jcds.euw2.inf.jamf.one,443"
+    "jcds.euc1.inf.jamf.one,443"
+    "jcds.use1.inf.jamf.one,443"
+    "packages.soup.services.jamfcloud.com,443"
+    "packages.soup.services.jamfcloud.com,443"
+    "www.jamfroutines.com,443"
+    "icon-staging-production-use1-ics-application.s3.amazonaws.com,443"
+    "clientstream.launchdarkly.com,443"
+    "mobile.launchdarkly.com,443"
+    "app.launchdarkly.com,443"
+    "nom.telemetrydeck.com,443"
 )
 
 # Generic network-host tester: uses `nc` for ports or `curl` for URLs
