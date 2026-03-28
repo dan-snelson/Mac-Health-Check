@@ -380,8 +380,8 @@ kerberosSSOeResult="Not configured"
 
 # Kerberos Single Sign-on Extension
 if [[ -n "${kerberosRealm}" ]]; then
-    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > /var/tmp/app-sso.plist
-    if xmllint --noout /var/tmp/app-sso.plist >/dev/null 2>&1; then
+    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > /var/tmp/app-sso.plist 2>/dev/null
+    if [[ -f /var/tmp/app-sso.plist ]] && xmllint --noout /var/tmp/app-sso.plist >/dev/null 2>&1; then
         ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
         if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
             kerberosSSOeResult="${loggedInUser} NOT logged in"
@@ -396,9 +396,9 @@ if [[ -n "${kerberosRealm}" ]]; then
             fi
         fi
     else
-        kerberosSSOeResult="${loggedInUser} NOT logged in"
+        kerberosSSOeResult="Kerberos SSO not configured"
     fi
-    rm -f /var/tmp/app-sso.plist
+    rm -f /var/tmp/app-sso.plist 2>/dev/null
 fi
 
 # Platform Single Sign-on Extension
@@ -412,7 +412,7 @@ if [[ -n "${pssoeEmail}" ]]; then
         fi
     fi
 else
-    platformSSOeResult="${loggedInUser} NOT logged in"
+    platformSSOeResult="Platform SSO not configured"
 fi
 
 # Last modified time of user's Microsoft OneDrive sync file (thanks, @pbowden-msft!)
