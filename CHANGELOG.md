@@ -2,10 +2,10 @@
 
 ## CHANGELOG
 
-Version 3.2.0b2, 27-Mar-2026, Dan K. Snelson (@dan-snelson)
-- Added `displayFailureNotification` function to present a `--notification --style pseudo-alert` (swiftDialog 3.1.0.4970) summary of failed health checks when failures are detected; bumped `swiftDialogMinimumRequiredVersion` to `3.1.0.4970`
-
-Version 3.2.0b1, 17-Mar-2026, Dan K. Snelson (@dan-snelson)
+### 3.2.0b3 (28-Mar-2026)
+- Updated Jamf Pro Cloud & On-prem Endpoints (Pull Request #83; thanks for yet another one, @HowardGMac!)
+- Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent (Pull Request #82; thanks for yet another one, @bigdoodr!)
+- Added `displayFailureNotification` function to present a `--notification --style pseudo-alert` (swiftDialog 3.1.0) summary of failed health checks when failures are detected
 - Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO environments, and added explicit inventory notices that log whether `-endUsername` was used plus its source (Kerberos SSOe, Platform SSOe, or None) and resolved value (`<empty>` when not used). Issue #81; sorry for any Dan-induced headaches, @tonyyo11!
 - Refactored `checkOS()` to better handle beta versions vs. Background Security Improvement versions
 

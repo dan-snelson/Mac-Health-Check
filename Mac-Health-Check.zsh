@@ -17,6 +17,10 @@
 #
 # HISTORY
 #
+# Version 3.2.0b3, 28-Mar-2026, Dan K. Snelson (@dan-snelson)
+#   - Updated Jamf Pro Cloud & On-prem Endpoints (Pull Request #83; thanks for yet another one, @HowardGMac!)
+#   - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent (Pull Request #82; thanks for yet another one, @bigdoodr!)
+#
 # Version 3.2.0b2, 27-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Added `displayFailureNotification` function to present a `--notification --style pseudo-alert`
 #     (swiftDialog 3.1.0.4970) summary of failed health checks when failures are detected
@@ -42,7 +46,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.2.0b2"
+scriptVersion="3.2.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -51,7 +55,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.0.4970"
+swiftDialogMinimumRequiredVersion="3.0.1.4955"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -1721,13 +1725,7 @@ EOF
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Quit Script (thanks, @bartreadon!)
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Display Failure Notification (swiftDialog 3.1.0.4970+)
+# Display Failure Notification (Requires swiftDialog 3.1.0.4970+)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function displayFailureNotification() {
@@ -1756,6 +1754,10 @@ function displayFailureNotification() {
 }
 
 
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Quit Script (thanks, @bartreadon!)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function quitScript() {
 
@@ -3052,7 +3054,6 @@ jamfHosts=(
     "jcds.euc1.inf.jamf.one,443"
     "jcds.use1.inf.jamf.one,443"
     "packages.soup.services.jamfcloud.com,443"
-    "packages.soup.services.jamfcloud.com,443"
     "www.jamfroutines.com,443"
     "icon-staging-production-use1-ics-application.s3.amazonaws.com,443"
     "clientstream.launchdarkly.com,443"
@@ -4181,7 +4182,8 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4322,6 +4324,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
     checkAirDropSettings "0"
+    checkNetworkHosts "1" "Jamf Hosts" "${jamfHosts[@]}"
     set +x
 
 else
