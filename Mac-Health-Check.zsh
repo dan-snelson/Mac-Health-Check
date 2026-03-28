@@ -20,6 +20,7 @@
 # Version 3.2.0b3, 28-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Updated Jamf Pro Cloud & On-prem Endpoints (Pull Request #83; thanks for yet another one, @HowardGMac!)
 #   - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent (Pull Request #82; thanks for yet another one, @bigdoodr!)
+#   - Updated `checkFreeDiskSpace()` to prefer Finder-aligned available capacity via `NSURLVolumeAvailableCapacityForImportantUsageKey`, improving visibility of purgeable space such as local Time Machine snapshots and iCloud-managed capacity (thanks for the cross-project [Pull Request](https://github.com/dan-snelson/DDM-OS-Reminder/pull/80), @huexley!)
 #
 # Version 3.2.0b2, 27-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Added `displayFailureNotification` function to present a `--notification --style pseudo-alert`
@@ -2761,6 +2762,13 @@ function checkUptime() {
 function checkFreeDiskSpace() {
 
     local humanReadableCheckName="Free Disk Space"
+    local diskRawValues=""
+    local diskutilInfo=""
+    local freeSpace=""
+    local diskBytes=""
+    local freeBytes=""
+    local freePercentage=""
+    local diskSpace=""
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=externaldrive.fill.badge.checkmark,${organizationColorScheme}"
@@ -2770,15 +2778,41 @@ function checkFreeDiskSpace() {
 
     sleep "${anticipationDuration}"
 
-    freeSpace=$( diskutil info / | grep -E 'Free Space|Available Space|Container Free Space' | awk -F ":\s*" '{ print $2 }' | awk -F "(" '{ print $1 }' | xargs )
-    diskBytes=$( diskutil info / | grep -E 'Total Space' | sed -E 's/.*\(([0-9]+) Bytes\).*/\1/' )
-    freeBytes=$( diskutil info / | grep -E 'Free Space|Available Space|Container Free Space' | sed -E 's/.*\(([0-9]+) Bytes\).*/\1/' )
-    freePercentage=$( echo "scale=2; ( $freeBytes * 100 ) / $diskBytes" | bc )
-    diskSpace="$freeSpace free (${freePercentage}% available)"
+    diskRawValues=$( osascript -l JavaScript -e "ObjC.import('Foundation'); var url = \$.NSURL.fileURLWithPath('/'); var result = url.resourceValuesForKeysError(['NSURLVolumeAvailableCapacityForImportantUsageKey','NSURLVolumeTotalCapacityKey'], null); [result.valueForKey('NSURLVolumeAvailableCapacityForImportantUsageKey').js, result.valueForKey('NSURLVolumeTotalCapacityKey').js].join(' ');" 2>/dev/null )
+    read freeBytes diskBytes <<< "${diskRawValues}"
 
-    diskMessage="${humanReadableCheckName}: ${diskSpace}"
+    if [[ "${freeBytes}" == <-> && "${diskBytes}" == <-> ]] && (( freeBytes > 0 && diskBytes >= freeBytes )); then
 
-    if (( $( echo ${freePercentage}'<'${allowedMinimumFreeDiskPercentage} | bc -l ) )); then
+        freeSpace=$( echo "scale=1; ${freeBytes} / 1000000000" | bc )
+        freeSpace="${freeSpace} GB"
+        freePercentage=$( echo "scale=2; (${freeBytes} * 100) / ${diskBytes}" | bc )
+
+    else
+
+        warning "JXA disk space query returned invalid data; falling back to diskutil. diskBytes=${diskBytes}, freeBytes=${freeBytes}"
+        diskutilInfo=$( diskutil info / 2>/dev/null )
+        freeSpace=$( echo "${diskutilInfo}" | grep -E 'Free Space|Available Space|Container Free Space' | awk -F ":\s*" '{ print $2 }' | awk -F "(" '{ print $1 }' | xargs )
+        diskBytes=$( echo "${diskutilInfo}" | grep -E 'Total Space' | sed -E 's/.*\(([0-9]+) Bytes\).*/\1/' )
+        freeBytes=$( echo "${diskutilInfo}" | grep -E 'Free Space|Available Space|Container Free Space' | sed -E 's/.*\(([0-9]+) Bytes\).*/\1/' )
+
+        if [[ "${freeBytes}" == <-> && "${diskBytes}" == <-> ]] && (( diskBytes > 0 && diskBytes >= freeBytes )); then
+
+            freePercentage=$( echo "scale=2; (${freeBytes} * 100) / ${diskBytes}" | bc )
+
+        else
+
+            warning "Invalid disk space data: diskBytes=${diskBytes}, freeBytes=${freeBytes}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: error, statustext: Unable to determine"
+            warning "${humanReadableCheckName}: Unable to determine"
+            return
+
+        fi
+
+    fi
+
+    diskSpace="${freeSpace} free (${freePercentage}% available)"
+
+    if (( $( echo "${freePercentage} < ${allowedMinimumFreeDiskPercentage}" | bc -l ) )); then
 
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: See KB0080685 Disk Usage to help identify the 50 largest directories, status: fail, statustext: ${diskSpace}"
         errorOut "${humanReadableCheckName}: ${diskSpace}"
@@ -4183,7 +4217,11 @@ if [[ "${operationMode}" == "Development" ]]; then
     developmentListitemJSON='
     [
         {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5}
+        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+        {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4325,6 +4363,10 @@ if [[ "${operationMode}" == "Development" ]]; then
     set -x
     checkAirDropSettings "0"
     checkNetworkHosts "1" "Jamf Hosts" "${jamfHosts[@]}"
+    checkFreeDiskSpace "2"
+    checkUserDirectorySizeItems "3" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+    checkUserDirectorySizeItems "4" "Downloads" "arrow.down.circle.fill" "Downloads"
+    checkUserDirectorySizeItems "5" ".Trash" "trash.fill" "Trash"
     set +x
 
 else

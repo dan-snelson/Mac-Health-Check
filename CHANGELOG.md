@@ -8,6 +8,9 @@
 - Added `displayFailureNotification` function to present a `--notification --style pseudo-alert` (swiftDialog 3.1.0) summary of failed health checks when failures are detected
 - Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO environments, and added explicit inventory notices that log whether `-endUsername` was used plus its source (Kerberos SSOe, Platform SSOe, or None) and resolved value (`<empty>` when not used). Issue #81; sorry for any Dan-induced headaches, @tonyyo11!
 - Refactored `checkOS()` to better handle beta versions vs. Background Security Improvement versions
+- Updated `checkFreeDiskSpace()` to prefer Finder-aligned available capacity via `NSURLVolumeAvailableCapacityForImportantUsageKey`, improving visibility of purgeable space such as local Time Machine snapshots and iCloud-managed capacity (thanks for the cross-project [Pull Request](https://github.com/dan-snelson/DDM-OS-Reminder/pull/80), @huexley!)
+    - Added sanity checks and automatic fallback to `diskutil info /` when the JXA/Foundation query returns invalid data, preserving safe behavior on affected systems
+    - Retained `allowedMinimumFreeDiskPercentage` as the threshold while updating the human-readable free-space display to use decimal `GB` formatting when the Finder-aligned result is valid
 
 ### 3.1.0 (03-Mar-2026)
 - Refactored code to more reliably display `$humanReadableScriptName` in the Dock
