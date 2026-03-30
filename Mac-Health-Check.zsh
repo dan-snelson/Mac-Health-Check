@@ -17,6 +17,12 @@
 #
 # HISTORY
 #
+# Version 3.2.0b4, 30-Mar-2026, Dan K. Snelson (@dan-snelson)
+#   - Hardened DDM OS enforcement detection in `checkAvailableSoftwareUpdates()`: replaced naive
+#     `grep EnforcedInstallDate` (which matched `ddmConflictsWithMDMCommandWithCompletion` log
+#     lines, causing false-positive pending-update reports) with a priority-ranked `awk` resolver
+#     (adapted from [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) `3.0.0`.)
+#
 # Version 3.2.0b3, 28-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Updated Jamf Pro Cloud & On-prem Endpoints (Pull Request #83; thanks for yet another one, @HowardGMac!)
 #   - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent (Pull Request #82; thanks for yet another one, @bigdoodr!)
@@ -47,7 +53,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.2.0b3"
+scriptVersion="3.2.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -2346,6 +2352,151 @@ function checkStagedUpdate() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Resolve DDM Enforcement from install.log
+# Adapated from DDM OS Reminder 3.0.0
+# Returns tab-separated: sourceType, logTimestamp, enforcedInstallDate, versionString, buildVersionString
+# Fails closed (non-zero) when no trustworthy DDM enforcement state can be resolved
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function resolveDDMEnforcementFromInstallLog() {
+
+    local installLogPath="/var/log/install.log"
+    local ddmResolverLookbackLines="4000"
+
+    if [[ ! -r "${installLogPath}" ]]; then
+        return 1
+    fi
+
+    /usr/bin/tail -n "${ddmResolverLookbackLines}" "${installLogPath}" 2>/dev/null | /usr/bin/awk '
+        function extractField(line, field,    needle, rest, pos) {
+            needle = "|" field ":"
+            pos = index(line, needle)
+            if (!pos) {
+                return ""
+            }
+
+            rest = substr(line, pos + length(needle))
+            pos = index(rest, "|")
+            if (pos) {
+                return substr(rest, 1, pos - 1)
+            }
+
+            return rest
+        }
+
+        function extractRequestedVersion(line,    pos, rest) {
+            pos = index(line, "requestedPMV=")
+            if (!pos) {
+                return ""
+            }
+
+            rest = substr(line, pos + 13)
+            if (match(rest, /^[0-9]+\.[0-9]+(\.[0-9]+)?/)) {
+                return substr(rest, RSTART, RLENGTH)
+            }
+
+            return ""
+        }
+
+        {
+            if (index($0, "requestedPMV=")) {
+                activeRequestedVersion = extractRequestedVersion($0)
+                next
+            }
+
+            if (activeRequestedVersion != "" && (index($0, "MADownloadNoMatchFound") || index($0, "pallasNoPMVMatchFound=true") || index($0, "No available updates found. Please try again later."))) {
+                noMatchVersion[activeRequestedVersion] = 1
+            }
+
+            sourceType = ""
+            sourcePriority = 0
+
+            if (index($0, "declarationFromKeys]: Falling back to default applicable declaration")) {
+                sourceType = "defaultApplicableDeclaration"
+                sourcePriority = 3
+            } else if (index($0, "Found DDM enforced install (")) {
+                sourceType = "foundDdmEnforcedInstall"
+                sourcePriority = 2
+            } else if (index($0, "EnforcedInstallDate:")) {
+                sourceType = "genericEnforcedInstallDate"
+                sourcePriority = 1
+            } else {
+                next
+            }
+
+            logTimestamp = substr($0, 1, 22)
+            if (logTimestamp !~ /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}$/) {
+                next
+            }
+
+            enforcedInstallDate = extractField($0, "EnforcedInstallDate")
+            versionString = extractField($0, "VersionString")
+            buildVersionString = extractField($0, "BuildVersionString")
+
+            if (enforcedInstallDate == "" || versionString == "" || buildVersionString == "") {
+                next
+            }
+
+            candidateKey = sourceType SUBSEP enforcedInstallDate SUBSEP versionString SUBSEP buildVersionString
+            if (!(candidateKey in candidateTimestamp) || logTimestamp > candidateTimestamp[candidateKey]) {
+                candidateTimestamp[candidateKey] = logTimestamp
+                candidateSourceType[candidateKey] = sourceType
+                candidateEnforcedInstallDate[candidateKey] = enforcedInstallDate
+                candidateVersionString[candidateKey] = versionString
+                candidateBuildVersionString[candidateKey] = buildVersionString
+                candidatePriority[candidateKey] = sourcePriority
+            }
+        }
+
+        END {
+            highestPriority = 0
+            for (candidateKey in candidateTimestamp) {
+                if (candidatePriority[candidateKey] > highestPriority) {
+                    highestPriority = candidatePriority[candidateKey]
+                }
+            }
+
+            if (highestPriority == 0) {
+                exit 20
+            }
+
+            filteredCount = 0
+            for (candidateKey in candidateTimestamp) {
+                if (candidatePriority[candidateKey] == highestPriority) {
+                    filteredCount++
+                    filteredCandidate[filteredCount] = candidateKey
+                }
+            }
+
+            if (filteredCount != 1) {
+                exit 21
+            }
+
+            candidateKey = filteredCandidate[1]
+            versionString = candidateVersionString[candidateKey]
+
+            if (versionString !~ /^[0-9]{1,3}\.[0-9]{1,3}(\.[0-9]{1,3})?$/) {
+                exit 22
+            }
+
+            if (versionString in noMatchVersion) {
+                exit 23
+            }
+
+            printf "%s\t%s\t%s\t%s\t%s\n", \
+                candidateSourceType[candidateKey], \
+                candidateTimestamp[candidateKey], \
+                candidateEnforcedInstallDate[candidateKey], \
+                candidateVersionString[candidateKey], \
+                candidateBuildVersionString[candidateKey]
+        }
+    '
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Available Software Updates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -2368,20 +2519,19 @@ function checkAvailableSoftwareUpdates() {
         info "${mdmClientAvailableOSUpdates}"
     fi
 
-    # DDM-enforced OS Version
-    ddmEnforcedInstallDateRaw=$( grep EnforcedInstallDate /var/log/install.log | tail -n 1 )
-    if [[ -n "$ddmEnforcedInstallDateRaw" ]]; then
-        
-        # DDM-enforced Install Date
-        tmp=${ddmEnforcedInstallDateRaw##*|EnforcedInstallDate:}
-        ddmEnforcedInstallDate=${tmp%%|*}
-        
-        # DDM-enforced Version
-        tmp=${ddmEnforcedInstallDateRaw##*|VersionString:}
-        ddmVersionString=${tmp%%|*}
+    # DDM-enforced OS Version (priority-ranked resolver; fails closed on ambiguous or conflicting state)
+    local ddmResolvedCandidate=""
+    local ddmResolverExitCode=0
+    ddmResolvedCandidate="$( resolveDDMEnforcementFromInstallLog )"
+    ddmResolverExitCode=$?
 
-        ddmEnforcedInstallDateHumanReadable=$(date -jf "%Y-%m-%dT%H" "$ddmEnforcedInstallDate" "+%d-%b-%Y" 2>/dev/null)
-
+    local ddmResolverSource="" ddmDeclarationLogTimestamp="" ddmEnforcedInstallDate="" ddmVersionString="" ddmBuildVersionString=""
+    if (( ddmResolverExitCode == 0 )) && [[ -n "${ddmResolvedCandidate}" ]]; then
+        IFS=$'\t' read -r ddmResolverSource ddmDeclarationLogTimestamp ddmEnforcedInstallDate ddmVersionString ddmBuildVersionString <<< "${ddmResolvedCandidate}"
+        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDate} | version=${ddmVersionString} | build=${ddmBuildVersionString}"
+        ddmEnforcedInstallDateHumanReadable=$(date -jf "%Y-%m-%dT%H" "${ddmEnforcedInstallDate}" "+%d-%b-%Y" 2>/dev/null)
+    else
+        info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode})"
     fi
 
     # Software Update Recommended Updates
@@ -2428,6 +2578,10 @@ function checkAvailableSoftwareUpdates() {
             availableSoftwareUpdates="None"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+        elif [[ -n "${ddmBuildVersionString}" && "${ddmBuildVersionString}" != "(null)" && "${osBuild}" == "${ddmBuildVersionString}" ]]; then
+            availableSoftwareUpdates="Up-to-date"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
+            info "${humanReadableCheckName}: ${availableSoftwareUpdates} (build match)"
         elif is-at-least "${ddmVersionString}" "${osVersion}"; then
             availableSoftwareUpdates="Up-to-date"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
@@ -4216,6 +4370,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
+        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
         {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
@@ -4361,13 +4516,14 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
-    checkAirDropSettings "0"
-    checkNetworkHosts "1" "Jamf Hosts" "${jamfHosts[@]}"
-    checkFreeDiskSpace "2"
-    checkUserDirectorySizeItems "3" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-    checkUserDirectorySizeItems "4" "Downloads" "arrow.down.circle.fill" "Downloads"
-    checkUserDirectorySizeItems "5" ".Trash" "trash.fill" "Trash"
+    checkAvailableSoftwareUpdates "0"
     set +x
+    checkAirDropSettings "1"
+    checkNetworkHosts "2" "Jamf Hosts" "${jamfHosts[@]}"
+    checkFreeDiskSpace "3"
+    checkUserDirectorySizeItems "4" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+    checkUserDirectorySizeItems "5" "Downloads" "arrow.down.circle.fill" "Downloads"
+    checkUserDirectorySizeItems "6" ".Trash" "trash.fill" "Trash"
 
 else
 
