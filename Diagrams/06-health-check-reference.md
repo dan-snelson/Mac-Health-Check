@@ -4,6 +4,17 @@ This text-only reference documents all configurable organization defaults and al
 
 ---
 
+## 3.2.0 Runtime Notes
+
+- `operationMode` is documented for the `3.2.0` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
+- Non-`Silent` runs with failures trigger `displayFailureNotification()`, which presents a persistent swiftDialog pseudo-alert summary of failed health checks.
+- Pre-flight requires swiftDialog `3.0.1.4955` or newer.
+- `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling.
+- `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
+- `updateComputerInventory()` is the final Jamf Pro-specific check in the Jamf Pro check set.
+
+---
+
 ## Organization Defaults Reference
 
 All variables are located in `Mac-Health-Check.zsh`, lines 90–172. Edit these before uploading the script to your MDM.

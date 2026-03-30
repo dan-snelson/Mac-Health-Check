@@ -133,7 +133,7 @@ Core macOS security and compliance checks that every deployment should include. 
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkOS()` | macOS Version | Compliant if within `previousMinorOS` versions of latest release |
-| `checkAvailableSoftwareUpdates()` | Available Updates | Reports count of pending macOS/app updates |
+| `checkAvailableSoftwareUpdates()` | Available Updates | Reports pending macOS/app updates, including deferred and DDM-enforced OS updates |
 | `checkSIP()` | System Integrity Protection | Checks `csrutil status` |
 | `checkSSV()` | Signed System Volume | Checks `csrutil authenticated-root status` |
 | `checkGatekeeperXProtect()` | Gatekeeper / XProtect | Validates Gatekeeper status and XProtect version/date |
@@ -158,7 +158,7 @@ Storage checks. Thresholds are configurable via organization defaults.
 
 | Function | Human-Readable Name | Notes |
 |---|---|---|
-| `checkFreeDiskSpace()` | Free Disk Space | Errors if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
+| `checkFreeDiskSpace()` | Free Disk Space | Uses Finder-aligned available capacity when valid, falls back to `diskutil info /`, and errors if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
 | `checkUserDirectorySizeItems()` | Desktop / Downloads / Trash Size | Warns if any user directory exceeds `allowedMaximumDirectoryPercentage` (default: 5%) |
 
 ### MDM

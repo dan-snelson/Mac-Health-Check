@@ -31,15 +31,15 @@ graph TB
     end
 
     subgraph Development["🔧 Development"]
-        DV_DESC["Trigger: Manual / MDM policy<br>UI: swiftDialog — single check only<br>Anticipation: 0s<br>Dock badge: No<br>Completion timer: N/A<br>Logging: Minimal"]
-        DV_USE["Use case:<br>Authoring and validating<br>a single new health check"]
+        DV_DESC["Trigger: Manual / MDM policy<br>UI: swiftDialog — curated dev subset<br>Anticipation: 2s between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s auto-close<br>Logging: Full structured log"]
+        DV_USE["Use case:<br>Iterating on a curated set of<br>high-signal health checks"]
 
         style DV_DESC fill:#fff4e6
         style DV_USE fill:#ffecb3
     end
 
     subgraph Test["🧪 Test"]
-        TS_DESC["Trigger: Manual / MDM policy<br>UI: Full swiftDialog dialog<br>Anticipation: 2s between checks<br>Dock badge: Yes<br>Completion timer: 60s auto-close<br>Logging: Minimal — simulated results"]
+        TS_DESC["Trigger: Manual / MDM policy<br>UI: Full swiftDialog dialog<br>Anticipation: 2s between checks<br>Dock badge: Yes<br>Completion timer: 60s auto-close<br>Logging: Full structured log — simulated results"]
         TS_USE["Use case:<br>Validating UI layout and<br>check labels without real data"]
 
         style TS_DESC fill:#f3e5f5
@@ -65,12 +65,12 @@ graph TB
 |---|---|---|---|---|---|
 | **Parameter 4 value** | `Self Service` | `Silent` | `Debug` | `Development` | `Test` |
 | **Is default?** | Yes | No | No | No | No |
-| **swiftDialog UI** | Full dialog | None | Full dialog | Single check | Full dialog |
-| **Anticipation delay** | 2 seconds | 0 seconds | 2 seconds | 0 seconds | 2 seconds |
-| **Dock badge** | Yes | No | Yes | No | Yes |
-| **Completion timer** | 60s (configurable) | N/A | 60s (configurable) | N/A | 60s (configurable) |
-| **Logging** | Full | Full | Full + `set -x` | Minimal | Minimal |
-| **Real check data** | Yes | Yes | Yes | Yes (one check) | No (simulated) |
+| **swiftDialog UI** | Full dialog | None | Full dialog | Curated dev subset | Full dialog |
+| **Anticipation delay** | 2 seconds | 0 seconds | 2 seconds | 2 seconds | 2 seconds |
+| **Dock badge** | Yes | No | Yes | Yes (when enabled) | Yes |
+| **Completion timer** | 60s (configurable) | N/A | 60s (configurable) | 60s (configurable) | 60s (configurable) |
+| **Logging** | Full | Full | Full + `set -x` | Full structured log | Full structured log |
+| **Real check data** | Yes | Yes | Yes | Yes (curated subset) | No (simulated) |
 | **Intended actor** | End user | Automated | Administrator | Developer | Developer |
 
 ---
@@ -99,9 +99,9 @@ Identical to Self Service, but with `set -x` shell tracing enabled. All bash com
 ---
 
 ### Development
-Runs only a single health check function in isolation, displaying the result in a minimal swiftDialog window. Used when writing or modifying a check function to verify its behavior without running the full suite.
+Runs a curated development subset of checks in a normal non-`Silent` dialog flow. In `3.2.0`, that subset covers Available Updates, AirDrop, Jamf Hosts, Free Disk Space, and the Desktop / Downloads / Trash size checks, making it useful for iterating on high-signal list items without running the full vendor-specific suite.
 
-**When to use:** Writing a new health check or tuning an existing check's threshold or remediation message.
+**When to use:** Tuning check behavior, remediation copy, or dialog presentation while keeping the run shorter than a full production policy.
 
 ---
 

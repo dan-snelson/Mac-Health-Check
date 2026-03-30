@@ -7,7 +7,7 @@ graph TB
     START(["▶ Script Invoked<br>via MDM Policy"])
 
     subgraph Params["📋 Parameter Parsing"]
-        P4["Parameter 4:<br>operationMode<br>default: 'Self Service'"]
+        P4["Parameter 4:<br>operationMode<br>intended default: 'Self Service'"]
         P5["Parameter 5:<br>webhookURL<br>default: empty"]
         START --> P4
         START --> P5
@@ -32,7 +32,7 @@ graph TB
         PREFLIGHT_START["Initialize client log<br>/var/log/org.example.log"]
         ROOTCHECK{"Running as root?"}
         JQCHECK{"jq installed?"}
-        SDCHECK{"swiftDialog<br>≥ 3.0.0.4934?"}
+        SDCHECK{"swiftDialog<br>≥ 3.0.1.4955?"}
         SDINSTALL["Download & install<br>swiftDialog from GitHub"]
         KILLSD["Kill existing<br>Dialog instances"]
         DOCKBADGE["Initialize Dock icon badge<br>(non-Silent modes)"]
@@ -91,7 +91,7 @@ graph TB
     subgraph ModeCheck2["🎛️ Operation Mode Branch"]
         MODESWITCH{"operationMode?"}
         ISSILENT["Silent Mode<br>Skip UI — log only"]
-        ISDEV["Development Mode<br>Run single check only"]
+        ISDEV["Development Mode<br>Run curated dev subset<br>(Updates, AirDrop, Jamf Hosts,<br>Disk and user folders)"]
         ISTEST["Test Mode<br>Simulate all checks"]
         NORMAL["Self Service / Debug<br>Full interactive run"]
 
@@ -139,31 +139,39 @@ graph TB
 
     subgraph Final["🏁 Final State & Output"]
         FINALSTATE["Evaluate overall compliance<br>Update dialog to final state"]
-        COMPLETIONTIMER["Display completion timer<br>N-second auto-close countdown"]
-        POLICYLOG["Write policy log entry<br>Full compliance snapshot"]
+        FAILURES{"Failures detected?"}
+        FAILNOTICE{"Non-Silent mode?"}
+        NOTIFY["Display persistent failure notification<br>swiftDialog pseudo-alert"]
         WEBHOOK{"webhookURL<br>configured?"}
         SENDWEBHOOK["Post failure summary<br>to Teams or Slack"]
-        INVENTORY{"Jamf Pro &<br>updateInventory?"}
-        RECON["Trigger Jamf Pro<br>recon (inventory update)"]
+        COMPLETIONUI{"Non-Silent mode?"}
+        COMPLETIONTIMER["Display completion timer<br>enable Close button"]
+        CLEANUP["Remove temp files<br>clear Dock badge"]
         EXIT(["⏹ Script Exits"])
 
-        FINALSTATE --> COMPLETIONTIMER
-        COMPLETIONTIMER --> POLICYLOG
-        POLICYLOG --> WEBHOOK
+        FINALSTATE --> FAILURES
+        FAILURES -->|Yes| FAILNOTICE
+        FAILURES -->|No| COMPLETIONUI
+        FAILNOTICE -->|Yes| NOTIFY
+        FAILNOTICE -->|No| WEBHOOK
+        NOTIFY --> WEBHOOK
         WEBHOOK -->|Yes| SENDWEBHOOK
-        WEBHOOK -->|No| INVENTORY
-        SENDWEBHOOK --> INVENTORY
-        INVENTORY -->|Yes| RECON
-        INVENTORY -->|No| EXIT
-        RECON --> EXIT
+        WEBHOOK -->|No| COMPLETIONUI
+        SENDWEBHOOK --> COMPLETIONUI
+        COMPLETIONUI -->|Yes| COMPLETIONTIMER
+        COMPLETIONUI -->|No| CLEANUP
+        COMPLETIONTIMER --> CLEANUP
+        CLEANUP --> EXIT
 
         style FINALSTATE fill:#b2dfdb
-        style COMPLETIONTIMER fill:#cfd8dc
-        style POLICYLOG fill:#c8e6c9
+        style FAILURES fill:#ffecb3
+        style FAILNOTICE fill:#ffecb3
+        style NOTIFY fill:#c8e6c9
         style WEBHOOK fill:#ffecb3
         style SENDWEBHOOK fill:#c8e6c9
-        style INVENTORY fill:#ffecb3
-        style RECON fill:#c8e6c9
+        style COMPLETIONUI fill:#ffecb3
+        style COMPLETIONTIMER fill:#cfd8dc
+        style CLEANUP fill:#c8e6c9
     end
 
     classDef default font-size:11px
@@ -174,7 +182,7 @@ graph TB
 ## Key Decision Points
 
 ### 1. Operation Mode (Parameter 4)
-Set via MDM policy parameter. Determines UI behavior and which checks execute. Defaults to `Self Service` if not supplied.
+Set via MDM policy parameter. Determines UI behavior and which checks execute. The intended release default is `Self Service`.
 
 ### 2. Root Validation
 The script must run as root. If not, it calls `fatal()` and exits immediately with a log entry.
@@ -183,7 +191,7 @@ The script must run as root. If not, it calls `fatal()` and exits immediately wi
 The `jq` JSON processor is required for building the swiftDialog JSON payload. The script exits with a fatal error if not found.
 
 ### 4. swiftDialog Version
-The script requires swiftDialog ≥ 3.0.0.4934. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
+The script requires swiftDialog ≥ 3.0.1.4955. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
 
 ### 5. MDM Vendor Detection
 The script reads installed configuration profiles to identify the MDM platform. Each vendor maps to a specific ordered list of health checks. Unrecognized or no MDM vendor falls through to a generic baseline check set.
@@ -196,7 +204,10 @@ Each health check function returns one of four statuses posted to swiftDialog vi
 - `skipped` — Check not applicable (e.g., VPN vendor set to `none`)
 
 ### 7. Webhook Delivery
-If `webhookURL` (Parameter 5) is populated, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing failed checks. The payload auto-detects the webhook type from the URL.
+If `webhookURL` (Parameter 5) is populated and failures are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing failed checks. The payload auto-detects the webhook type from the URL.
+
+### 8. Failure Notification
+When non-`Silent` runs detect failures, `displayFailureNotification()` launches a persistent swiftDialog pseudo-alert summarizing the failed health checks and offering a support action link.
 
 ---
 
@@ -208,5 +219,5 @@ If `webhookURL` (Parameter 5) is populated, `quitScript()` posts a JSON payload 
 | Fatal: jq missing | `jq` not found | Yes (`[FATAL ERROR]`) |
 | Normal: Silent | All checks complete, no UI | Yes |
 | Normal: Self Service | User dismisses or timer expires | Yes |
-| Normal: With webhook | Webhook posted after dialog closes | Yes |
-| Normal: With recon | Jamf recon triggered after webhook | Yes |
+| Normal: With failure notification | Non-`Silent` failures trigger pseudo-alert summary | Yes |
+| Normal: With webhook | Failed run posts webhook before final countdown/cleanup | Yes |

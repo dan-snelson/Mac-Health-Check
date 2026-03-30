@@ -111,7 +111,7 @@ graph TB
 
     subgraph Phase7["Phase 7: Testing"]
         P7A["Run in Debug mode<br>Parameter 4 = 'Debug'<br>Review set -x output"]
-        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Test individual checks"]
+        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise curated dev subset"]
         P7C["Run in Test mode<br>Parameter 4 = 'Test'<br>Validate UI with simulated results"]
         P7D{"All checks<br>render correctly?"}
         P7FIX["Review Organization Defaults<br>and re-test"]
@@ -136,16 +136,19 @@ graph TB
         P8["Promote to production scope"]
         P8A["Monitor /var/log/ entries<br>Review structured log output"]
         P8B["Review webhook alerts<br>(if configured)"]
-        P8C["Check MDM inventory<br>for compliance trends"]
+        P8C["Validate persistent failure notification<br>on unhealthy non-Silent runs"]
+        P8D["Check MDM inventory<br>for compliance trends"]
 
         P8 --> P8A
         P8 --> P8B
         P8 --> P8C
+        P8 --> P8D
 
         style P8 fill:#c8e6c9
         style P8A fill:#c8e6c9
         style P8B fill:#c8e6c9
         style P8C fill:#c8e6c9
+        style P8D fill:#c8e6c9
     end
 
     classDef default font-size:11px
@@ -235,7 +238,7 @@ Use the three developer-oriented modes to validate behavior before rolling out t
 | Mode | Purpose | How to Use |
 |---|---|---|
 | `Debug` | Shell tracing (`set -x`) for troubleshooting | Run policy and review MDM logs |
-| `Development` | Run a single health check in isolation | Set Parameter 4 to `Development` |
+| `Development` | Exercise the curated development check subset | Set Parameter 4 to `Development` |
 | `Test` | Full run with simulated (non-real) check results | Validate UI layout and messages |
 
 ---
@@ -245,6 +248,7 @@ Use the three developer-oriented modes to validate behavior before rolling out t
 After production deployment, monitor:
 
 - **Client logs** at `/var/log/` on managed Macs — look for `[WARNING]` and `[ERROR]` entries
+- **Persistent failure notifications** on test Macs in non-`Silent` modes — confirm failed runs show the `3.2.0` pseudo-alert summary and support action
 - **Webhook notifications** in Teams or Slack (if configured) — review failure summaries
 - **MDM inventory** — for Jamf Pro, each run can trigger a recon; use Smart Group criteria based on extension attributes for fleet-wide compliance visibility
 
