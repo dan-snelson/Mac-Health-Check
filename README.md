@@ -1,6 +1,6 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check)
 
-# Mac Health Check (3.2.0b3)
+# Mac Health Check (3.2.0)
 
 > A practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
 
@@ -53,14 +53,20 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 - If dock icon setup fails, Mac Health Check logs a warning and falls back to the default `/usr/local/bin/dialog` launch path
 
 ## Features
-The following health checks and information reporting are included in version `3.0.0`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
+The following health checks and information reporting are included in version `3.2.0`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
+
+> :new: Mac Health Check version `3.2.0` introduces a new persistent notification of failed health checks, which remains visible until user-dismissed
+ 
+<img src="images/MHC_3.2.0_failure_notification.png" alt="Health Checks" width="400"/>
 
 ### Health Checks
 
 <img src="images/MHC_3.0.0.png" alt="Health Checks" width="800"/>
 
+:tada: Improved in version `3.2.0`
+
 1. macOS Version
-1. Available Updates (including deferred and DDM-enforced updates)
+1. :tada: Available Updates (including deferred and DDM-enforced updates)
 1. System Integrity Protection
 1. Signed System Volume (SSV)
 1. Firewall
@@ -73,7 +79,7 @@ The following health checks and information reporting are included in version `3
 1. Bluetooth Sharing
 1. VPN Client
 1. Last Reboot
-1. Free Disk Space
+1. :tada: Free Disk Space
 1. User's Directory Size and Item Count
     - Desktop
     - Downloads
@@ -89,7 +95,7 @@ The following health checks and information reporting are included in version `3
     - Apple Software and Carrier Updates
     - Apple Certificate Validation
     - Apple Identity and Content Services
-    - Jamf Hosts
+    - :tada: Jamf Hosts
 1. App Auto-Patch
 1. Electron Corner Mask [🔗](https://avarayr.github.io/shamelectron/)
 1. Organizationally required Applications (i.e., Microsoft Teams)
@@ -98,7 +104,7 @@ The following health checks and information reporting are included in version `3
 1. CrowdStrike Falcon*
 1. Palo Alto GlobalProtect*
 1. Network Quality Test
-1. Update Computer Inventory**
+1. :tada: Update Computer Inventory**
 
 *Requires [external check](/external-checks/README.md)
 **Requires Jamf Pro
@@ -121,7 +127,7 @@ The following health checks and information reporting are included in version `3
 - Full Name
 - User Name
 - User ID
-- Volume Owners :new:
+- Volume Owners
 - Secure Token
 - Location Services
 - Microsoft OneDrive Sync Date
@@ -147,7 +153,7 @@ The following health checks and information reporting are included in version `3
 ### Policy Log Reporting
 
 ```
-MHC (3.2.0b3): 2026-03-28 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (3.2.0): 2026-03-28 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
 admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
 com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers

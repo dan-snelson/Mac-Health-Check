@@ -17,22 +17,16 @@
 #
 # HISTORY
 #
-# Version 3.2.0b4, 30-Mar-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.2.0, 30-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Hardened DDM OS enforcement detection in `checkAvailableSoftwareUpdates()`: replaced naive
 #     `grep EnforcedInstallDate` (which matched `ddmConflictsWithMDMCommandWithCompletion` log
 #     lines, causing false-positive pending-update reports) with a priority-ranked `awk` resolver
 #     (adapted from [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) `3.0.0`.)
-#
-# Version 3.2.0b3, 28-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Updated Jamf Pro Cloud & On-prem Endpoints (Pull Request #83; thanks for yet another one, @HowardGMac!)
 #   - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent (Pull Request #82; thanks for yet another one, @bigdoodr!)
 #   - Updated `checkFreeDiskSpace()` to prefer Finder-aligned available capacity via `NSURLVolumeAvailableCapacityForImportantUsageKey`, improving visibility of purgeable space such as local Time Machine snapshots and iCloud-managed capacity (thanks for the cross-project [Pull Request](https://github.com/dan-snelson/DDM-OS-Reminder/pull/80), @huexley!)
-#
-# Version 3.2.0b2, 27-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Added `displayFailureNotification` function to present a `--notification --style pseudo-alert`
 #     (swiftDialog 3.1.0.4970) summary of failed health checks when failures are detected
-#
-# Version 3.2.0b1, 17-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username
 #     is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO
 #     environments, and added explicit inventory notices that log whether `-endUsername` was used
@@ -53,7 +47,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.2.0b4"
+scriptVersion="3.2.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
