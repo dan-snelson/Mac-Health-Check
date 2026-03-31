@@ -71,7 +71,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
-operationMode="${4:-"Self Service"}"
+operationMode="${4:-"Development"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
@@ -4450,10 +4450,10 @@ function updateComputerInventory() {
     if [[ "${operationMode}" != "Test" ]]; then
 
         if [[ -n "${inventoryEndUsername}" ]]; then
-            notice "Jamf recon -endUsername used (source: ${inventoryEndUsernameSource}; value: ${inventoryEndUsername})"
+            notice "Including '-endUsername' in 'jamf recon' (source: ${inventoryEndUsernameSource}; value: ${inventoryEndUsername})"
             jamf recon -endUsername "${inventoryEndUsername}"
         else
-            notice "Jamf recon -endUsername not used (source: ${inventoryEndUsernameSource}; value: <empty>)"
+            warning "NOT including '-endUsername' in 'jamf recon' since no SSO username is available for ${loggedInUser} (source: ${inventoryEndUsernameSource}; value: <empty>)"
             jamf recon # -verbose
         fi
 
@@ -4491,7 +4491,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4631,7 +4631,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
-    checkOS "0"
+    updateComputerInventory "0"
     set +x
 
 else

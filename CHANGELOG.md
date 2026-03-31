@@ -3,6 +3,7 @@
 ## CHANGELOG
 
 ### 3.2.0 (31-Mar-2026)
+- Corrected Jamf Pro inventory warning text for non-SSO sessions so omitted `-endUsername` logging now explains that no SSO username was available for the logged-in user.
 - Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the newest trustworthy declaration timestamp, recognize currently applicable declarations, and use future padded enforcement deadlines when valid.
 - Updated Jamf Pro Cloud & On-prem Endpoints ([Pull Request #83](https://github.com/dan-snelson/Mac-Health-Check/pull/83); thanks for yet another one, @HowardGMac!)
 - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent ([Pull Request #82](https://github.com/dan-snelson/Mac-Health-Check/pull/82); thanks for yet another one, @bigdoodr!)
