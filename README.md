@@ -61,7 +61,7 @@ The following health checks and information reporting are included in version `3
 
 ### Health Checks
 
-<img src="images/MHC_3.0.0.png" alt="Health Checks" width="800"/>
+<img src="images/MHC_3.2.0.png" alt="Health Checks" width="800"/>
 
 :tada: Improved in version `3.2.0`
 
@@ -111,7 +111,7 @@ The following health checks and information reporting are included in version `3
 
 ### Information Reporting
 
-<img src="images/MHC_3.0.0_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_3.2.0_Helpmessage.png" alt="In progress" width="800"/>
 
 #### IT Support
 - Dynamic `supportLabel1` / `supportValue1` through `supportLabel6` / `supportValue6`
