@@ -152,7 +152,12 @@ allowedMaximumDirectoryPercentage="5"
 # Network Quality Test Maximum Age
 # Leverages `date -v-`; One of either y, m, w, d, H, M or S
 # must be used to specify which part of the date is to be adjusted
-networkQualityTestMaximumAge="1H"
+networkQualityTestMaximumAge="4H"
+
+# SOFA Cache Maximum Age
+# Leverages `date -v-`; One of either y, m, w, d, H, M or S
+# must be used to specify which part of the date is to be adjusted
+sofaCacheMaximumAge="1d"
 
 # Allowed number of uptime minutes
 # - 1 day = 24 hours × 60 minutes/hour = 1,440 minutes
@@ -1836,14 +1841,8 @@ function quitScript() {
         rm -Rf "${dialogDockNamedApp}"
     fi
 
-    rm -f "/var/tmp/networkQualityTest"
     rm -f "/var/tmp/app-sso.plist"
     rm -f /var/tmp/dialog.log
-
-    if [[ -n "${json_cache_dir}" ]]; then
-        rm -Rf "${json_cache_dir}"
-    fi
-    rm -Rf "/var/tmp/sofa"
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
@@ -2112,20 +2111,37 @@ function checkOS() {
         # ensure local cache folder exists
         mkdir -p "$json_cache_dir"
 
-        # check local vs online using etag
-        if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
-            logComment "e-tag stored, will download only if e-tag doesn’t match"
-            etag_old=$(cat "$etag_cache")
-            curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
-            etag_new=$(cat "$etag_cache")
-            if [[ "$etag_old" == "$etag_new" ]]; then
-                logComment "Cached ETag matched online ETag - cached json file is up to date"
+        # use cached SOFA data if still fresh; otherwise fall through to ETag check or download
+        sofaDataCached="false"
+        if [[ -f "$json_cache" ]]; then
+            sofaCacheFileEpoch=$( stat -f "%m" "$json_cache" )
+            sofaCacheMaximumEpoch=$( date -v-"${sofaCacheMaximumAge}" +%s )
+            if [[ "${sofaCacheFileEpoch}" -gt "${sofaCacheMaximumEpoch}" ]]; then
+                logComment "Using cached SOFA data (age within ${sofaCacheMaximumAge})"
+                sofaDataCached="true"
             else
-                logComment "Cached ETag did not match online ETag, so downloaded new SOFA json file"
+                logComment "Cached SOFA data is stale; removing …"
+                rm -Rf "$json_cache_dir"
+                mkdir -p "$json_cache_dir"
             fi
-        else
-            logComment "No e-tag cached, proceeding to download SOFA json file"
-            curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
+        fi
+
+        # check local vs online using etag (skipped if using fresh cache)
+        if [[ "${sofaDataCached}" != "true" ]]; then
+            if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
+                logComment "e-tag stored, will download only if e-tag doesn’t match"
+                etag_old=$(cat "$etag_cache")
+                curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
+                etag_new=$(cat "$etag_cache")
+                if [[ "$etag_old" == "$etag_new" ]]; then
+                    logComment "Cached ETag matched online ETag - cached json file is up to date"
+                else
+                    logComment "Cached ETag did not match online ETag, so downloaded new SOFA json file"
+                fi
+            else
+                logComment "No e-tag cached, proceeding to download SOFA json file"
+                curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
+            fi
         fi
 
         # 1. Get model (DeviceID)
@@ -2700,6 +2716,7 @@ function checkAvailableSoftwareUpdates() {
     fi
 
 }
+
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -4474,13 +4491,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-        {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4620,14 +4631,8 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
-    checkAvailableSoftwareUpdates "0"
+    checkOS "0"
     set +x
-    checkAirDropSettings "1"
-    checkNetworkHosts "2" "Jamf Hosts" "${jamfHosts[@]}"
-    checkFreeDiskSpace "3"
-    checkUserDirectorySizeItems "4" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-    checkUserDirectorySizeItems "5" "Downloads" "arrow.down.circle.fill" "Downloads"
-    checkUserDirectorySizeItems "6" ".Trash" "trash.fill" "Trash"
 
 else
 
