@@ -18,10 +18,10 @@
 # HISTORY
 #
 # Version 3.2.0, 30-Mar-2026, Dan K. Snelson (@dan-snelson)
-#   - Hardened DDM OS enforcement detection in `checkAvailableSoftwareUpdates()`: replaced naive
-#     `grep EnforcedInstallDate` (which matched `ddmConflictsWithMDMCommandWithCompletion` log
-#     lines, causing false-positive pending-update reports) with a priority-ranked `awk` resolver
-#     (adapted from [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) `3.0.0`.)
+#   - Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer
+#     [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the
+#     newest trustworthy declaration timestamp, recognize currently applicable declarations, and
+#     use future padded enforcement deadlines when valid.
 #   - Updated Jamf Pro Cloud & On-prem Endpoints (Pull Request #83; thanks for yet another one, @HowardGMac!)
 #   - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent (Pull Request #82; thanks for yet another one, @bigdoodr!)
 #   - Updated `checkFreeDiskSpace()` to prefer Finder-aligned available capacity via `NSURLVolumeAvailableCapacityForImportantUsageKey`, improving visibility of purgeable space such as local Time Machine snapshots and iCloud-managed capacity (thanks for the cross-project [Pull Request](https://github.com/dan-snelson/DDM-OS-Reminder/pull/80), @huexley!)
@@ -2347,7 +2347,7 @@ function checkStagedUpdate() {
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Resolve DDM Enforcement from install.log
-# Adapated from DDM OS Reminder 3.0.0
+# Adapted from DDM OS Reminder 3.1.0b3
 # Returns tab-separated: sourceType, logTimestamp, enforcedInstallDate, versionString, buildVersionString
 # Fails closed (non-zero) when no trustworthy DDM enforcement state can be resolved
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -2405,7 +2405,10 @@ function resolveDDMEnforcementFromInstallLog() {
             sourceType = ""
             sourcePriority = 0
 
-            if (index($0, "declarationFromKeys]: Falling back to default applicable declaration")) {
+            if (index($0, "declarationFromKeys]: Found currently applicable declaration")) {
+                sourceType = "currentApplicableDeclaration"
+                sourcePriority = 4
+            } else if (index($0, "declarationFromKeys]: Falling back to default applicable declaration")) {
                 sourceType = "defaultApplicableDeclaration"
                 sourcePriority = 3
             } else if (index($0, "Found DDM enforced install (")) {
@@ -2443,20 +2446,27 @@ function resolveDDMEnforcementFromInstallLog() {
         }
 
         END {
-            highestPriority = 0
+            latestTimestamp = ""
             for (candidateKey in candidateTimestamp) {
-                if (candidatePriority[candidateKey] > highestPriority) {
+                if (latestTimestamp == "" || candidateTimestamp[candidateKey] > latestTimestamp) {
+                    latestTimestamp = candidateTimestamp[candidateKey]
+                }
+            }
+
+            if (latestTimestamp == "") {
+                exit 20
+            }
+
+            highestPriority = 0
+            filteredCount = 0
+            for (candidateKey in candidateTimestamp) {
+                if (candidateTimestamp[candidateKey] == latestTimestamp && candidatePriority[candidateKey] > highestPriority) {
                     highestPriority = candidatePriority[candidateKey]
                 }
             }
 
-            if (highestPriority == 0) {
-                exit 20
-            }
-
-            filteredCount = 0
             for (candidateKey in candidateTimestamp) {
-                if (candidatePriority[candidateKey] == highestPriority) {
+                if (candidateTimestamp[candidateKey] == latestTimestamp && candidatePriority[candidateKey] == highestPriority) {
                     filteredCount++
                     filteredCandidate[filteredCount] = candidateKey
                 }
@@ -2491,6 +2501,95 @@ function resolveDDMEnforcementFromInstallLog() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Resolve Padded DDM Enforcement Date from install.log
+# Returns a raw padded enforcement date only when it matches the selected declaration and is still future-valid
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function resolvePaddedEnforcementDateForCandidate() {
+
+    local declarationTimestamp="${1}"
+    local declarationSignature="${2}"
+    local installLogPath="/var/log/install.log"
+    local ddmResolverLookbackLines="4000"
+    local paddedDateRaw=""
+    local paddedEpoch=""
+    local nowEpoch=""
+
+    paddedDateRaw="$(
+        /usr/bin/tail -n "${ddmResolverLookbackLines}" "${installLogPath}" 2>/dev/null | /usr/bin/awk -v chosenTimestamp="${declarationTimestamp}" -v chosenSignature="${declarationSignature}" '
+            function extractField(line, field,    needle, rest, pos) {
+                needle = "|" field ":"
+                pos = index(line, needle)
+                if (!pos) {
+                    return ""
+                }
+
+                rest = substr(line, pos + length(needle))
+                pos = index(rest, "|")
+                if (pos) {
+                    return substr(rest, 1, pos - 1)
+                }
+
+                return rest
+            }
+
+            {
+                logTimestamp = substr($0, 1, 22)
+                if (logTimestamp !~ /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}$/) {
+                    next
+                }
+
+                if (logTimestamp < chosenTimestamp) {
+                    next
+                }
+
+                if (index($0, "EnforcedInstallDate:")) {
+                    enforcedInstallDate = extractField($0, "EnforcedInstallDate")
+                    versionString = extractField($0, "VersionString")
+                    buildVersionString = extractField($0, "BuildVersionString")
+
+                    if (enforcedInstallDate != "" && versionString != "" && buildVersionString != "") {
+                        if (enforcedInstallDate "|" versionString "|" buildVersionString != chosenSignature) {
+                            conflictDetected = 1
+                        }
+                    }
+                }
+
+                if (index($0, "setPastDuePaddedEnforcementDate is set: ")) {
+                    paddedDateRaw = substr($0, index($0, "setPastDuePaddedEnforcementDate is set: ") + 39)
+                    sub(/^[[:space:]]+/, "", paddedDateRaw)
+                    sub(/[[:space:]]+$/, "", paddedDateRaw)
+                }
+            }
+
+            END {
+                if (!conflictDetected && paddedDateRaw != "") {
+                    print paddedDateRaw
+                }
+            }
+        '
+    )"
+
+    if [[ -z "${paddedDateRaw}" ]]; then
+        return 1
+    fi
+
+    paddedEpoch="$(
+        /bin/date -jf "%a %b %d %H:%M:%S %Y" "${paddedDateRaw}" "+%s" 2>/dev/null \
+        || echo ""
+    )"
+    nowEpoch="$(/bin/date +%s)"
+
+    if [[ -z "${paddedEpoch}" || ! "${paddedEpoch}" =~ ^[0-9]+$ ]] || (( paddedEpoch <= nowEpoch )); then
+        return 1
+    fi
+
+    printf '%s\n' "${paddedDateRaw}"
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Available Software Updates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -2520,10 +2619,21 @@ function checkAvailableSoftwareUpdates() {
     ddmResolverExitCode=$?
 
     local ddmResolverSource="" ddmDeclarationLogTimestamp="" ddmEnforcedInstallDate="" ddmVersionString="" ddmBuildVersionString=""
+    local ddmPaddedEnforcementDateRaw="" ddmEnforcedInstallDateDisplay="" ddmEnforcedInstallDateHumanReadable="" ddmDateSource="raw"
     if (( ddmResolverExitCode == 0 )) && [[ -n "${ddmResolvedCandidate}" ]]; then
         IFS=$'\t' read -r ddmResolverSource ddmDeclarationLogTimestamp ddmEnforcedInstallDate ddmVersionString ddmBuildVersionString <<< "${ddmResolvedCandidate}"
-        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDate} | version=${ddmVersionString} | build=${ddmBuildVersionString}"
-        ddmEnforcedInstallDateHumanReadable=$(date -jf "%Y-%m-%dT%H" "${ddmEnforcedInstallDate}" "+%d-%b-%Y" 2>/dev/null)
+        ddmEnforcedInstallDateDisplay="${ddmEnforcedInstallDate}"
+        ddmPaddedEnforcementDateRaw="$( resolvePaddedEnforcementDateForCandidate "${ddmDeclarationLogTimestamp}" "${ddmEnforcedInstallDate}|${ddmVersionString}|${ddmBuildVersionString}" )"
+        if [[ -n "${ddmPaddedEnforcementDateRaw}" ]]; then
+            ddmEnforcedInstallDateDisplay="${ddmPaddedEnforcementDateRaw}"
+            ddmDateSource="padded"
+            ddmEnforcedInstallDateHumanReadable="$(date -jf "%a %b %d %H:%M:%S %Y" "${ddmPaddedEnforcementDateRaw}" "+%d-%b-%Y" 2>/dev/null)"
+        else
+            ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
+        fi
+
+        [[ -z "${ddmEnforcedInstallDateHumanReadable}" ]] && ddmEnforcedInstallDateHumanReadable="${ddmEnforcedInstallDateDisplay}"
+        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionString}"
     else
         info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode})"
     fi

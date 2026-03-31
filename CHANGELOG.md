@@ -3,7 +3,7 @@
 ## CHANGELOG
 
 ### 3.2.0 (30-Mar-2026)
-- Hardened DDM OS enforcement detection in `checkAvailableSoftwareUpdates()`: replaced naive `grep EnforcedInstallDate` (which matched `ddmConflictsWithMDMCommandWithCompletion` log lines, causing false-positive pending-update reports) with a priority-ranked `awk` resolver (adapted from [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) `3.0.0`.)
+- Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the newest trustworthy declaration timestamp, recognize currently applicable declarations, and use future padded enforcement deadlines when valid.
 - Updated Jamf Pro Cloud & On-prem Endpoints ([Pull Request #83](https://github.com/dan-snelson/Mac-Health-Check/pull/83); thanks for yet another one, @HowardGMac!)
 - Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent ([Pull Request #82](https://github.com/dan-snelson/Mac-Health-Check/pull/82); thanks for yet another one, @bigdoodr!)
 - Added `displayFailureNotification` function to present a `--notification --style pseudo-alert` (swiftDialog 3.1.0) summary of failed health checks when failures are detected
