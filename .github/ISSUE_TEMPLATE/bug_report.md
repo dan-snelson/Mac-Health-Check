@@ -32,8 +32,8 @@ Please supply the full command used, and if applicable, add full output from Ter
 If applicable, add screenshots to help explain your problem.
 
 **Environment (please complete the following information):**
- - OS version (i.e., 26.3)
- - Script version (i.e., 3.0.0) - please upgrade to the latest version before submitting a bug report.
+ - OS version (i.e., 26.4)
+ - Script version (i.e., 3.2.0) - please upgrade to the latest version before submitting a bug report.
 
 **Additional context**
 Add any other context about the problem here.
