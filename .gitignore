@@ -1,38 +1,34 @@
-# macOS
+# Mac Health Check
+## Version 3.2.0
+
+
+
+### macOS
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Thumbnails
+Icon?
 ._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
 .Spotlight-V100
-.TemporaryItems
 .Trashes
+.fseventsd
+.TemporaryItems
+.DocumentRevisions-V100
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
 .apdisk
 
-# Local deployment script (contains versioning logic)
+
+
+### Zsh
+.zsh_history
+.zsh_sessions/
+.zcompdump*
+.zcompcache/
+*.zwc
+
+
+
+### Project temp
 .deployMacHealthCheck.zsh
-
-# Version tracking (local only)
 VERSION.txt
-
-# IDE
-.vscode/
-.idea/
-
-# Temp files
-*.swp
-*.swo
-*~

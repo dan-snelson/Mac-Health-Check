@@ -1,5 +1,4 @@
-# Mac Health Check (3.0.0)
-
+# Mac Health Check (3.2.0)
 ## External Checks
 
 This directory contains scripts that perform external checks for the services of various third-party applications. 

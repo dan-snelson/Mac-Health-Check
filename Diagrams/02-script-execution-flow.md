@@ -1,10 +1,10 @@
 # Mac Health Check: Script Execution Flow
 
-This flowchart documents the complete decision logic executed each time Mac Health Check runs — from the initial invocation through pre-flight validation, health check execution, and final output.
+This flowchart documents the `3.2.0` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
 
 ```mermaid
 graph TB
-    START(["▶ Script Invoked<br>via MDM Policy"])
+    START(["▶ Script Invoked<br>via MDM policy or local test"])
 
     subgraph Params["📋 Parameter Parsing"]
         P4["Parameter 4:<br>operationMode<br>intended default: 'Self Service'"]
@@ -29,13 +29,13 @@ graph TB
     end
 
     subgraph PreFlight["✈️ Pre-flight Checks"]
-        PREFLIGHT_START["Initialize client log<br>/var/log/org.example.log"]
+        PREFLIGHT_START["Initialize client log<br>/var/log/org.churchofjesuschrist.log"]
         ROOTCHECK{"Running as root?"}
         JQCHECK{"jq installed?"}
         SDCHECK{"swiftDialog<br>≥ 3.0.1.4955?"}
         SDINSTALL["Download & install<br>swiftDialog from GitHub"]
         KILLSD["Kill existing<br>Dialog instances"]
-        DOCKBADGE["Initialize Dock icon badge<br>(non-Silent modes)"]
+        DOCKBADGE["Prepare Dock launch state<br>and initial badge<br>(non-Silent when enabled)"]
 
         SETX --> PREFLIGHT_START
         PREFLIGHT_START --> ROOTCHECK
@@ -90,9 +90,9 @@ graph TB
 
     subgraph ModeCheck2["🎛️ Operation Mode Branch"]
         MODESWITCH{"operationMode?"}
-        ISSILENT["Silent Mode<br>Skip UI — log only"]
+        ISSILENT["Silent Mode<br>Skip main dialog — log only"]
         ISDEV["Development Mode<br>Run curated dev subset<br>(Updates, AirDrop, Jamf Hosts,<br>Disk and user folders)"]
-        ISTEST["Test Mode<br>Simulate all checks"]
+        ISTEST["Test Mode<br>Simulate current vendor list items<br>without running real checks"]
         NORMAL["Self Service / Debug<br>Full interactive run"]
 
         JAMF --> MODESWITCH
@@ -115,7 +115,7 @@ graph TB
     end
 
     subgraph CheckLoop["🔄 Health Check Execution Loop"]
-        INITDIALOG["Initialize swiftDialog<br>with loading state"]
+        INITDIALOG["Initialize swiftDialog<br>with loading state<br>and optional Dock badge"]
         RUNCHECK["Execute next check<br>in vendor check set"]
         DIALOGUPDATE["dialogUpdate:<br>Post result to swiftDialog<br>(pass / warning / error / skipped)"]
         MORECHECKS{"More checks<br>remaining?"}
@@ -193,20 +193,23 @@ The `jq` JSON processor is required for building the swiftDialog JSON payload. T
 ### 4. swiftDialog Version
 The script requires swiftDialog ≥ 3.0.1.4955. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
 
-### 5. MDM Vendor Detection
+### 5. Dock Integration
+If `enableDockIntegration` is `true` and the mode is not `Silent`, the script resolves the Dock icon, attempts a named `Dialog.app` launch so Dock hover text matches the script name, initializes `dockiconbadge`, and falls back to the standard dialog binary if the Dock-enabled launch fails.
+
+### 6. MDM Vendor Detection
 The script reads installed configuration profiles to identify the MDM platform. Each vendor maps to a specific ordered list of health checks. Unrecognized or no MDM vendor falls through to a generic baseline check set.
 
-### 6. Individual Check Results
+### 7. Individual Check Results
 Each health check function returns one of four statuses posted to swiftDialog via `dialogUpdate`:
 - `pass` — Check succeeded, requirement met
 - `warning` — Check found a non-critical condition
 - `error` — Check found a compliance failure
 - `skipped` — Check not applicable (e.g., VPN vendor set to `none`)
 
-### 7. Webhook Delivery
+### 8. Webhook Delivery
 If `webhookURL` (Parameter 5) is populated and failures are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing failed checks. The payload auto-detects the webhook type from the URL.
 
-### 8. Failure Notification
+### 9. Failure Notification
 When non-`Silent` runs detect failures, `displayFailureNotification()` launches a persistent swiftDialog pseudo-alert summarizing the failed health checks and offering a support action link.
 
 ---
@@ -219,5 +222,6 @@ When non-`Silent` runs detect failures, `displayFailureNotification()` launches 
 | Fatal: jq missing | `jq` not found | Yes (`[FATAL ERROR]`) |
 | Normal: Silent | All checks complete, no UI | Yes |
 | Normal: Self Service | User dismisses or timer expires | Yes |
+| Normal: Test | Current vendor list items simulated as success | Yes |
 | Normal: With failure notification | Non-`Silent` failures trigger pseudo-alert summary | Yes |
 | Normal: With webhook | Failed run posts webhook before final countdown/cleanup | Yes |

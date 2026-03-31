@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 3.2.0, 30-Mar-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.2.0, 31-Mar-2026, Dan K. Snelson (@dan-snelson)
 #   - Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer
 #     [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the
 #     newest trustworthy declaration timestamp, recognize currently applicable declarations, and

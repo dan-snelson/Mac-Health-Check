@@ -1,12 +1,12 @@
 # Mac Health Check: System Architecture
 
-This diagram shows the complete Mac Health Check ecosystem — from an administrator customizing the script through MDM deployment, client-side execution, user interaction, and results output.
+This diagram shows the `3.2.0` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
 
 ```mermaid
 graph TB
     subgraph Admin["⚙️ Administrator Configuration"]
-        SCRIPT["Mac-Health-Check.zsh<br>Core script (4,800+ lines)"]
-        ORGVARS["Organization Defaults<br>Branding, thresholds, VPN type,<br>firewall type, webhook URL"]
+        SCRIPT["Mac-Health-Check.zsh<br>Core script (4,900+ lines)"]
+        ORGVARS["Organization + Support Defaults<br>Branding, Dock, thresholds,<br>VPN / firewall, support links"]
         EXTCHECKS["external-checks/<br>Optional third-party plugins<br>(BeyondTrust, CrowdStrike, etc.)"]
         RESOURCES["Resources/<br>Build utilities & Makefile"]
 
@@ -59,7 +59,7 @@ graph TB
     end
 
     subgraph Runtime["▶️ Runtime Execution"]
-        DIALOG["swiftDialog<br>Interactive health check dialog<br>with live status updates"]
+        DIALOG["swiftDialog<br>Interactive health check dialog<br>with live status updates<br>and optional Dock integration"]
         CHECKLOOP["Health Check Loop<br>System · User · Disk · MDM<br>Network · Apps · External"]
         STATUSES["Check Statuses<br>✅ pass · ⚠️ warning<br>❌ error · ⏭️ skipped"]
         FINAL["Final Summary Dialog<br>Healthy / Unhealthy state<br>with countdown timer"]
@@ -76,7 +76,7 @@ graph TB
     end
 
     subgraph Output["📤 Output"]
-        LOG["Client Log<br>/var/log/org.example.log<br>Structured entries with prefixes:<br>PRE-FLIGHT · NOTICE · INFO<br>WARNING · ERROR · FATAL"]
+        LOG["Client Log<br>/var/log/org.churchofjesuschrist.log<br>Structured entries with prefixes:<br>PRE-FLIGHT · NOTICE · INFO<br>WARNING · ERROR · FATAL ERROR"]
         FAILNOTE["Failure Notification<br>Persistent swiftDialog pseudo-alert<br>(non-Silent, failures only)"]
         WEBHOOK["Webhook Notification<br>Microsoft Teams or Slack<br>(optional — param 5)"]
         INVENTORY["MDM Inventory Update<br>Via updateComputerInventory()<br>(Jamf Pro only)"]
@@ -102,15 +102,17 @@ graph TB
 ### Administrator Configuration
 
 **`Mac-Health-Check.zsh`**
-The single deployable artifact (4,800+ lines). Contains all health check logic, the swiftDialog UI layer, logging helpers, and the webhook integration. Administrators customize the **Organization Defaults** block (lines 90–172) before uploading to MDM.
+The single deployable artifact (4,900+ lines). Contains the health check logic, swiftDialog UI layer, Dock handling, logging helpers, webhook delivery, and vendor-specific branching. Administrators typically customize the **Organization Variables** and **IT Support Variables** sections before uploading it to MDM.
 
-**Organization Defaults**
+**Organization + Support Defaults**
 Key settings administrators configure before deployment:
 - `organizationBrandingBannerURL` / `organizationOverlayiconURL` — Branding
+- `enableDockIntegration` / `dockIcon` — Dock launch behavior and badge icon
 - `vpnClientVendor` — VPN type (`paloalto`, `cisco`, `tailscale`, `none`)
 - `organizationFirewall` — Firewall type (`socketfilterfw` or `pf`)
 - `allowedMinimumFreeDiskPercentage` — Free disk threshold
 - `allowedUptimeMinutes` — Uptime warning threshold
+- `supportLabel1`–`supportLabel6` / `supportValue1`–`supportValue6` — Dynamic support lines and Info button target
 - `completionTimer` — Dialog auto-close delay
 
 **`external-checks/`**
@@ -123,7 +125,7 @@ Optional plugin scripts for third-party tools (BeyondTrust, Cisco Umbrella, Crow
 Mac Health Check is MDM-agnostic and has been tested with eight MDM platforms. The script is uploaded as a policy script and executed with two optional parameters:
 
 - **Parameter 4 (`operationMode`)** — Intended production default is `Self Service`; other supported modes are `Silent`, `Debug`, `Development`, and `Test`
-- **Parameter 5 (`webhookURL`)** — Optional Microsoft Teams or Slack webhook URL for failure notifications
+- **Parameter 5 (`webhookURL`)** — Optional Microsoft Teams or Slack webhook URL used when unhealthy runs need to post a failure summary
 
 ---
 
@@ -143,13 +145,13 @@ The script inspects installed configuration profiles to identify the MDM vendor,
 
 ### Runtime Execution
 
-Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`). Checks report one of four statuses: **pass**, **warning**, **error**, or **skipped**. After all checks complete, a final summary dialog appears with a countdown timer, and non-`Silent` runs with failures also trigger a persistent swiftDialog pseudo-alert notification.
+Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`). When Dock integration is enabled, non-`Silent` runs also show a Dock icon with a decreasing badge count. Checks report one of four statuses: **pass**, **warning**, **error**, or **skipped**. After all checks complete, a final summary dialog appears with a countdown timer, and non-`Silent` runs with failures also trigger a persistent swiftDialog pseudo-alert notification.
 
 ---
 
 ### Output
 
-**Client Log** — Every run writes structured log entries to `/var/log/` using prefixed log levels (`[PRE-FLIGHT]`, `[NOTICE]`, `[INFO]`, `[WARNING]`, `[ERROR]`, `[FATAL ERROR]`). Logs include computer name, serial number, user, OS version, and all check results.
+**Client Log** — Every run writes structured log entries to `/var/log/org.churchofjesuschrist.log` using prefixed log levels (`[PRE-FLIGHT]`, `[NOTICE]`, `[INFO]`, `[WARNING]`, `[ERROR]`, `[FATAL ERROR]`). Logs include computer name, serial number, user, OS version, and all check results.
 
 **Failure Notification** — When a non-`Silent` run detects failures, `displayFailureNotification()` presents a persistent swiftDialog pseudo-alert listing the failed health checks and offering a support link.
 

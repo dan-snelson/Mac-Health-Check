@@ -2,9 +2,9 @@
 
 # Mac Health Check (3.2.0)
 
-> A practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's Self Service
+> Another pleasant update to the practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users via your MDM's self-service app
 
-<img src="images/MHC_3.0.0_Hero.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_3.2.0_Poster.png" alt="Mac Health Check Hero" width="800"/>
 
 ## Overview
 

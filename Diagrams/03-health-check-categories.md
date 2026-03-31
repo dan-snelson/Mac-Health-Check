@@ -1,6 +1,6 @@
 # Mac Health Check: Health Check Categories
 
-This diagram shows all Mac Health Check health checks organized by category. Each check is listed with its function name and the human-readable label shown in the swiftDialog interface.
+This diagram shows the `3.2.0` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
 
 ```mermaid
 graph LR
@@ -44,9 +44,9 @@ graph LR
 
     subgraph Disk["💾 Disk"]
         D1["checkFreeDiskSpace()<br>Free Disk Space"]
-        D2["checkUserDirectorySizeItems()<br>Desktop Size"]
-        D3["checkUserDirectorySizeItems()<br>Downloads Size"]
-        D4["checkUserDirectorySizeItems()<br>Trash Size"]
+        D2["checkUserDirectorySizeItems()<br>Desktop Size and Item Count"]
+        D3["checkUserDirectorySizeItems()<br>Downloads Size and Item Count"]
+        D4["checkUserDirectorySizeItems()<br>Trash Size and Item Count"]
 
         style D1 fill:#fff4e6
         style D2 fill:#fff4e6
@@ -58,9 +58,9 @@ graph LR
         M1["checkMdmProfile()<br>MDM Profile"]
         M2["checkAPNs()<br>Apple Push Notification service"]
         M3["checkMdmCertificateExpiration()<br>MDM Certificate Expiration"]
-        M4["checkJamfProCheckIn()<br>Last Jamf Pro Check-in"]
-        M5["checkJamfProInventory()<br>Last Jamf Pro Inventory"]
-        M6["checkMosyleCheckIn()<br>Last Mosyle Check-in"]
+        M4["checkJamfProCheckIn()<br>Jamf Pro Check-In"]
+        M5["checkJamfProInventory()<br>Jamf Pro Inventory"]
+        M6["checkMosyleCheckIn()<br>Mosyle Check-In"]
 
         style M1 fill:#b2dfdb
         style M2 fill:#b2dfdb
@@ -73,9 +73,9 @@ graph LR
     subgraph Network["🌐 Network"]
         N1["checkNetworkHosts()<br>Apple Push Notification Hosts"]
         N2["checkNetworkHosts()<br>Apple Device Management"]
-        N3["checkNetworkHosts()<br>Apple Software & Carrier Updates"]
+        N3["checkNetworkHosts()<br>Apple Software and Carrier Updates"]
         N4["checkNetworkHosts()<br>Apple Certificate Validation"]
-        N5["checkNetworkHosts()<br>Apple Identity & Content Services"]
+        N5["checkNetworkHosts()<br>Apple Identity and Content Services"]
         N6["checkNetworkHosts()<br>Jamf Hosts"]
         N7["checkNetworkQuality()<br>Network Quality Test"]
 
@@ -99,7 +99,7 @@ graph LR
     end
 
     subgraph External["🔌 External"]
-        E1["checkExternalJamfPro()<br>BeyondTrust PAM"]
+        E1["checkExternalJamfPro()<br>BeyondTrust Privilege Management"]
         E2["checkExternalJamfPro()<br>Cisco Umbrella"]
         E3["checkExternalJamfPro()<br>CrowdStrike Falcon"]
         E4["checkExternalJamfPro()<br>Palo Alto GlobalProtect"]
@@ -110,6 +110,12 @@ graph LR
         style E4 fill:#ffcdd2
     end
 
+    subgraph Inventory["🗂️ Inventory"]
+        I1["updateComputerInventory()<br>Computer Inventory"]
+
+        style I1 fill:#cfd8dc
+    end
+
     MHC --> System
     MHC --> User
     MHC --> Disk
@@ -117,6 +123,7 @@ graph LR
     MHC --> Network
     MHC --> Apps
     MHC --> External
+    MHC --> Inventory
 
     style MHC fill:#e1f5ff
 
@@ -159,7 +166,7 @@ Storage checks. Thresholds are configurable via organization defaults.
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkFreeDiskSpace()` | Free Disk Space | Uses Finder-aligned available capacity when valid, falls back to `diskutil info /`, and errors if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
-| `checkUserDirectorySizeItems()` | Desktop / Downloads / Trash Size | Warns if any user directory exceeds `allowedMaximumDirectoryPercentage` (default: 5%) |
+| `checkUserDirectorySizeItems()` | Desktop / Downloads / Trash Size and Item Count | Warns if any user directory exceeds `allowedMaximumDirectoryPercentage` (default: 5%) |
 
 ### MDM
 MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro check-in/inventory, Mosyle check-in) appear only in the matching vendor's check set.
@@ -169,9 +176,9 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | `checkMdmProfile()` | MDM Profile | Verifies MDM enrollment profile is present |
 | `checkAPNs()` | Apple Push Notification service | Validates APNs connectivity |
 | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
-| `checkJamfProCheckIn()` | Last Jamf Pro Check-in | Jamf Pro only |
-| `checkJamfProInventory()` | Last Jamf Pro Inventory | Jamf Pro only |
-| `checkMosyleCheckIn()` | Last Mosyle Check-in | Mosyle only |
+| `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
+| `checkJamfProInventory()` | Jamf Pro Inventory | Jamf Pro only |
+| `checkMosyleCheckIn()` | Mosyle Check-In | Mosyle only |
 
 ### Network
 Validates reachability to Apple infrastructure and (for Jamf Pro) Jamf Cloud hosts. `checkNetworkQuality()` runs an `networkQuality` speed test, caching results for up to `networkQualityTestMaximumAge` (default: 1 hour) to avoid repeated tests.
@@ -184,7 +191,10 @@ Optional plugin checks for third-party security tools. These require separate MD
 
 | Trigger | Tool | Required App |
 |---|---|---|
-| `symvBeyondTrustPMfM` | BeyondTrust Privileged Access Management | `PrivilegeManagement.app` |
+| `symvBeyondTrustPMfM` | BeyondTrust Privilege Management | `PrivilegeManagement.app` |
 | `symvCiscoUmbrella` | Cisco Umbrella | `Cisco Secure Client.app` |
 | `symvCrowdStrikeFalcon` | CrowdStrike Falcon | `Falcon.app` |
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
+
+### Inventory
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in `3.2.0`.
