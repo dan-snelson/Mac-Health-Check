@@ -17,7 +17,9 @@
 #
 # HISTORY
 #
-# Version 3.2.0, 31-Mar-2026, Dan K. Snelson (@dan-snelson)
+# Version 3.2.0, 02-Apr-2026, Dan K. Snelson (@dan-snelson)
+#   - Preserve user-provided local `organizationOverlayiconURL` files by downloading remote overlay
+#     icons to a per-run temp path and only removing that script-managed asset during cleanup. (Thanks for the heads-up, @brian_b!)
 #   - Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer
 #     [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the
 #     newest trustworthy declaration timestamp, recognize currently applicable declarations, and
@@ -680,6 +682,7 @@ dialogDockNamedApp="/Library/Application Support/Dialog/${humanReadableScriptNam
 dialogLaunchBinary="${dialogBinary}"
 dialogDockIcon="default"
 dialogDockIconFile="/var/tmp/dockicon.png"
+dialogOverlayIconFile="/var/tmp/overlayicon_${organizationScriptName}_$$.png"
 listitemLength="0"
 remainingChecks="0"
 completedCheckIndicesCsv=","
@@ -716,6 +719,7 @@ else
 fi
 
 # Process the overlayicon from ${organizationOverlayiconURL}
+overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
 if [[ -n "${organizationOverlayiconURL}" ]]; then
     # Local file path (file or app bundle)
     if [[ -e "${organizationOverlayiconURL}" ]]; then
@@ -733,16 +737,14 @@ if [[ -n "${organizationOverlayiconURL}" ]]; then
 
     # Remote URL
     else
-        curl -o "/var/tmp/overlayicon.png" "${organizationOverlayiconURL}" --silent --show-error --fail
+        curl -o "${dialogOverlayIconFile}" "${organizationOverlayiconURL}" --silent --show-error --fail
         if [[ "$?" -ne 0 ]]; then
             echo "Error: Failed to download the overlayicon"
             overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
         else
-            overlayicon="/var/tmp/overlayicon.png"
+            overlayicon="${dialogOverlayIconFile}"
         fi
     fi
-else
-    overlayicon="/System/Library/CoreServices/Apple Diagnostics.app"
 fi
 
 
@@ -1830,10 +1832,7 @@ function quitScript() {
     rm -f "${dialogJSONFile}"
     rm -f -- /var/tmp/dialogJSONFile_${organizationScriptName}.*(N)
 
-    if [[ -f "${overlayicon}" ]] && [[ "${overlayicon}" != "/System/Library/CoreServices/Apple Diagnostics.app" ]]; then
-        rm -f "${overlayicon}"
-    fi
-    rm -f "/var/tmp/overlayicon.png"
+    rm -f "${dialogOverlayIconFile}"
     rm -f "${dialogDockIconFile}"
 
     # Remove copied Dock-named swiftDialog app bundle (never remove source Dialog.app).

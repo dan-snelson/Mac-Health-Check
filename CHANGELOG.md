@@ -2,7 +2,8 @@
 
 ## CHANGELOG
 
-### 3.2.0 (31-Mar-2026)
+### 3.2.0 (02-Apr-2026)
+- Preserved user-provided local `organizationOverlayiconURL` files by downloading remote overlay icons to a per-run temporary file and only cleaning up that script-managed asset at exit (Thanks for the heads-up, @brian_b!)
 - Corrected Jamf Pro inventory warning text for non-SSO sessions so omitted `-endUsername` logging now explains that no SSO username was available for the logged-in user.
 - Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the newest trustworthy declaration timestamp, recognize currently applicable declarations, and use future padded enforcement deadlines when valid.
 - Updated Jamf Pro Cloud & On-prem Endpoints ([Pull Request #83](https://github.com/dan-snelson/Mac-Health-Check/pull/83); thanks for yet another one, @HowardGMac!)

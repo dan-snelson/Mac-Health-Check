@@ -28,7 +28,7 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 | `organizationSelfServiceMarketingName` | `"Workforce App Store"` | Your MDM Self Service portal name | Any string |
 | `organizationBoilerplateComplianceMessage` | `"Meets organizational standards"` | Subtitle shown for passing checks | Any string |
 | `organizationBrandingBannerURL` | Freepik sample URL | Banner image displayed at the top of the dialog | HTTPS URL or local path |
-| `organizationOverlayiconURL` | `"/System/Library/CoreServices/Apple Diagnostics.app"` | Icon overlaid on the dialog banner | App path \| local path \| `file://` path \| `http(s)` URL |
+| `organizationOverlayiconURL` | `"/System/Library/CoreServices/Apple Diagnostics.app"` | Icon overlaid on the dialog banner; local paths and `file://` targets are used in place, while remote URLs download to a script-managed temporary file that is removed at exit | App path \| local path \| `file://` path \| `http(s)` URL |
 | `enableDockIntegration` | `"true"` | Show a Dock icon with countdown badge in non-`Silent` modes | `true` \| `false` |
 | `dockIcon` | Jamf Cloud icon URL | Icon source for Dock integration | `default` \| local path \| `file://` path \| `http(s)` URL |
 | `organizationDefaultsDomain` | `"org.churchofjesuschrist.external"` | Defaults domain shared with external check policies | Reverse-domain string |
