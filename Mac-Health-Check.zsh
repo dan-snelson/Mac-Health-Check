@@ -3769,7 +3769,7 @@ function checkInternal() {
         
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, subtitle: Visit the ${organizationSelfServiceMarketingName} to install ${checkInternalTargetFileDisplayName}, status: fail, statustext: NOT Installed"
         errorOut "${checkInternalTargetFileDisplayName} NOT Installed"
         overallHealth+="${checkInternalTargetFileDisplayName}; "
 
@@ -4491,7 +4491,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -4631,7 +4631,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
-    updateComputerInventory "0"
+    checkInternal "0" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
     set +x
 
 else
