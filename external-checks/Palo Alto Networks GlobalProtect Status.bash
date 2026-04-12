@@ -32,7 +32,7 @@ if [[ -d "${vpnAppPath}" ]]; then
                 globalProtectUserResult=$( defaults read /Users/"${loggedInUser}"/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
                 if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
                     globalProtectUserResult="${loggedInUser} NOT logged-in"
-                elif [[ ! -z "${globalProtectUserResult}" ]]; then
+                elif [[ -n "${globalProtectUserResult}" ]]; then
                     globalProtectUserResult="\"${loggedInUser}\" logged-in"
                 fi
                 ;;
