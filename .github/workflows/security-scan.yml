@@ -42,24 +42,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Semgrep Action (Blocking)
-        id: semgrep_action
-        # Requested official action. It is archived upstream, so a CLI step below handles SARIF export.
-        continue-on-error: true
-        uses: semgrep/semgrep-action@v1
-        env:
-          SEMGREP_BASELINE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-        with:
-          config: >-
-            p/r2c-security-audit
-            p/ci
-            p/secrets
-
       - name: Install Semgrep CLI
-        # The archived action does not emit SARIF for GitHub code scanning, so install the CLI explicitly.
+        # Use the CLI directly so the blocking scan and SARIF export come from the same execution path.
         run: python3 -m pip install --upgrade semgrep
 
-      - name: Generate Semgrep SARIF
+      - name: Run Semgrep CLI (Blocking + SARIF)
         id: semgrep_sarif
         # Always attempt SARIF generation so findings can land in the Security tab even when blocking scan fails.
         continue-on-error: true
@@ -119,7 +106,7 @@ jobs:
 
       - name: Upload Semgrep Findings To Code Scanning
         id: upload_sarif
-        if: hashFiles('semgrep.sarif') != ''
+        if: hashFiles('semgrep.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         # Repo Actions permissions must allow SARIF uploads or this step will fail even with security-events: write.
         uses: github/codeql-action/upload-sarif@v4
         with:
@@ -130,18 +117,34 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-          action_outcome="${{ steps.semgrep_action.outcome }}"
           sarif_outcome="${{ steps.semgrep_sarif.outcome }}"
           upload_outcome="${{ steps.upload_sarif.outcome }}"
+          trusted_upload_context="${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}"
 
-          if [[ "${action_outcome}" == "success" && "${sarif_outcome}" == "success" && "${upload_outcome}" == "success" ]]; then
+          if [[ "${sarif_outcome}" == "success" ]]; then
+            if [[ "${trusted_upload_context}" == "true" && "${upload_outcome}" != "success" ]]; then
+              {
+                echo "### Semgrep"
+                echo
+                echo "❌ Semgrep scan passed, but SARIF upload needs attention."
+                echo
+                echo "Coverage: full repository scan, including Mac-Health-Check.zsh, external-checks/, and Resources/."
+                echo "SARIF upload did not complete in a trusted context. Check repository Actions permissions and upload step logs."
+              } >> "${GITHUB_STEP_SUMMARY}"
+              exit 1
+            fi
+
             {
               echo "### Semgrep"
               echo
               echo "✅ No issues found"
               echo
               echo "Coverage: full repository scan, including Mac-Health-Check.zsh, external-checks/, and Resources/."
-              echo "SARIF uploaded to GitHub code scanning successfully."
+              if [[ "${trusted_upload_context}" == "true" ]]; then
+                echo "SARIF uploaded to GitHub code scanning successfully."
+              else
+                echo "SARIF upload skipped for fork pull requests because code scanning write permissions are not available."
+              fi
             } >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
@@ -154,6 +157,8 @@ jobs:
             echo "Coverage: full repository scan, including Mac-Health-Check.zsh, external-checks/, and Resources/."
             if [[ "${upload_outcome}" == "success" ]]; then
               echo "Findings were uploaded to GitHub code scanning."
+            elif [[ "${trusted_upload_context}" != "true" ]]; then
+              echo "SARIF upload was skipped for a fork pull request."
             else
               echo "SARIF upload did not complete. Check repository Actions permissions and Semgrep output."
             fi
@@ -173,13 +178,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine Gitleaks Comment Mode
+        id: gitleaks_mode
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name || '' }}" != "${GITHUB_REPOSITORY}" ]]; then
+            echo "enable_comments=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "enable_comments=true" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Run Gitleaks (Blocking)
         id: gitleaks_scan
         continue-on-error: true
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: "true"
+          GITLEAKS_ENABLE_COMMENTS: ${{ steps.gitleaks_mode.outputs.enable_comments }}
           GITLEAKS_ENABLE_SUMMARY: "true"
           # Future tuning examples:
           # GITLEAKS_CONFIG: .gitleaks.toml
@@ -199,6 +214,9 @@ jobs:
               echo "✅ No leaks found"
               echo
               echo "Coverage: full git history for repository content, including external-checks/ and Resources/."
+              if [[ "${{ steps.gitleaks_mode.outputs.enable_comments }}" == "false" ]]; then
+                echo "PR comments were disabled for this fork pull request."
+              fi
             } >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
@@ -209,6 +227,9 @@ jobs:
             echo "❌ Potential secrets detected or Gitleaks execution failed."
             echo
             echo "Coverage: full git history for repository content, including external-checks/ and Resources/."
+            if [[ "${{ steps.gitleaks_mode.outputs.enable_comments }}" == "false" ]]; then
+              echo "PR comments were disabled for this fork pull request."
+            fi
             echo "Tune accepted false positives with \`.gitleaks.toml\` or \`.gitleaksignore\` if needed."
           } >> "${GITHUB_STEP_SUMMARY}"
           exit 1
