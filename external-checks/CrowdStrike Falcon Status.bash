@@ -5,7 +5,6 @@
 ########################################################################################################################################
 
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
-scriptVersion="0.0.12"
 RESULT="Failed: Not Installed"
 
 # The number of days before reporting device has not connected to the CrowdStrike Cloud.
@@ -87,7 +86,7 @@ get_time_stamp() {
     done
 
     if [[ -z "${date_format}" && -z "${epoch}" ]]; then
-        date_format="${log_date_format}"
+        date_format="${falconctl_date_format}"
     fi
 
     if [[ -n "${date_format}" ]]; then

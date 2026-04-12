@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 ###############################################################################
 # Script Name: Nessus Agent Status
 # Author: Tony Young
@@ -28,7 +29,6 @@
 #   own risk. Test thoroughly before deploying to production systems.
 ###############################################################################
 
-#!/usr/bin/env bash
 set -euo pipefail
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 

@@ -71,7 +71,7 @@ function appCheck() {
 # Check for Microsoft Office 365 apps (i.e., Microsoft_365_and_Office_16.70.23021201_Installer.pkg)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-for app in ${appsToCheck[@]}; do
+for app in "${appsToCheck[@]}"; do
   appCheck "$app"
 done
 

@@ -231,7 +231,28 @@ jobs:
         id: collect_targets
         shell: bash
         run: |
-          git ls-files '*.zsh' > zsh-targets.txt
+          python3 - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+
+          shebang_pattern = re.compile(r"^#!.*(?:/| )zsh(?:\s|$)")
+          output_path = Path("zsh-targets.txt")
+          targets = []
+
+          files = subprocess.check_output(
+              ["git", "ls-files", "*.zsh", "*.sh", "*.bash"],
+              text=True,
+          ).splitlines()
+
+          for file_name in files:
+              file_path = Path(file_name)
+              first_line = file_path.open(encoding="utf-8", errors="ignore").readline().strip()
+              if file_name.endswith(".zsh") or shebang_pattern.search(first_line):
+                  targets.append(file_name)
+
+          output_path.write_text("".join(f"{target}\n" for target in targets))
+          PY
           count="$(grep -c '.' zsh-targets.txt || true)"
           echo "count=${count}" >> "${GITHUB_OUTPUT}"
 
@@ -274,7 +295,7 @@ jobs:
             echo "### Zsh Syntax"
             echo
             echo "- Files scanned: ${target_count}"
-            echo "- Coverage: tracked \`*.zsh\` files in the repository root and Resources/, including Mac-Health-Check.zsh."
+            echo "- Coverage: tracked zsh files and zsh-shebang helpers, including Mac-Health-Check.zsh plus zsh-based content in external-checks/ and Resources/."
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if [[ "${syntax_status}" == "0" ]]; then
@@ -300,7 +321,28 @@ jobs:
         id: collect_targets
         shell: bash
         run: |
-          git ls-files '*.sh' '*.bash' > shellcheck-targets.txt
+          python3 - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+
+          shebang_pattern = re.compile(r"^#!.*(?:/| )(?:bash|dash|ksh|sh)(?:\s|$)")
+          output_path = Path("shellcheck-targets.txt")
+          targets = []
+
+          files = subprocess.check_output(
+              ["git", "ls-files", "*.sh", "*.bash"],
+              text=True,
+          ).splitlines()
+
+          for file_name in files:
+              file_path = Path(file_name)
+              first_line = file_path.open(encoding="utf-8", errors="ignore").readline().strip()
+              if shebang_pattern.search(first_line):
+                  targets.append(file_name)
+
+          output_path.write_text("".join(f"{target}\n" for target in targets))
+          PY
           count="$(grep -c '.' shellcheck-targets.txt || true)"
           echo "count=${count}" >> "${GITHUB_OUTPUT}"
 
@@ -404,7 +446,7 @@ jobs:
             echo "- Files scanned: ${target_count}"
             echo "- Blocking findings: ${blocking_issues:-0}"
             echo "- Informational findings (SC1090/SC1091): ${info_issues:-0}"
-            echo "- Coverage: tracked \`*.sh\` and \`*.bash\` helpers, including external-checks/ and Resources/."
+            echo "- Coverage: tracked sh/bash-shebang helpers, including bash/sh content in external-checks/ and Resources/."
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if [[ "${blocking_status}" == "0" ]]; then
@@ -455,7 +497,7 @@ jobs:
             echo
             echo "Semgrep ${semgrep_badge} | Gitleaks ${gitleaks_badge} | Zsh Syntax ${zsh_syntax_badge} | ShellCheck ${shellcheck_badge}"
             echo
-            echo "Coverage: Mac-Health-Check.zsh, tracked zsh helpers in Resources/, tracked sh/bash helpers in external-checks/ and Resources/, plus full-repository Semgrep and Gitleaks scans."
+            echo "Coverage: Mac-Health-Check.zsh, tracked zsh and zsh-shebang helpers in external-checks/ and Resources/, tracked sh/bash-shebang helpers in external-checks/ and Resources/, plus full-repository Semgrep and Gitleaks scans."
             echo
             if [[ "${semgrep_result}" == "success" && "${gitleaks_result}" == "success" && "${zsh_syntax_result}" == "success" && "${shellcheck_result}" == "success" ]]; then
               echo "Mac Health Check security scan passed."
@@ -465,7 +507,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
           echo "Semgrep ${semgrep_badge} | Gitleaks ${gitleaks_badge} | Zsh Syntax ${zsh_syntax_badge} | ShellCheck ${shellcheck_badge}"
-          echo "Coverage: Mac-Health-Check.zsh, tracked zsh helpers in Resources/, tracked sh/bash helpers in external-checks/ and Resources/, plus full-repository Semgrep and Gitleaks scans."
+          echo "Coverage: Mac-Health-Check.zsh, tracked zsh and zsh-shebang helpers in external-checks/ and Resources/, tracked sh/bash-shebang helpers in external-checks/ and Resources/, plus full-repository Semgrep and Gitleaks scans."
           if [[ "${semgrep_result}" == "success" && "${gitleaks_result}" == "success" && "${zsh_syntax_result}" == "success" && "${shellcheck_result}" == "success" ]]; then
             echo "Mac Health Check security scan passed."
             exit 0
