@@ -52,7 +52,7 @@ export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 scriptVersion="3.2.0"
 
 # Client-side Log
-scriptLog="/var/log/org.churchofjesuschrist.log"
+scriptLog="/var/log/com.insperity.health-check.log"
 
 # Load is-at-least for version comparison
 autoload -Uz is-at-least
@@ -88,13 +88,13 @@ webhookURL="${5:-""}"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Script Human-readable Name
-humanReadableScriptName="Mac Health Check"
+humanReadableScriptName="Mac at Insperity Health Check"
 
 # Organization's Script Name
 organizationScriptName="MHC"
 
 # Organization's Self Service Marketing Name 
-organizationSelfServiceMarketingName="Workforce App Store"
+organizationSelfServiceMarketingName="Iru Self Service"
 
 # Organization's Boilerplate Compliance Message 
 organizationBoilerplateComplianceMessage="Meets organizational standards"
@@ -108,11 +108,12 @@ organizationOverlayiconURL="/System/Library/CoreServices/Apple Diagnostics.app"
 # Enable Dock integration in non-Silent modes [ true | false ]
 enableDockIntegration="true"
 
-# Organization's Dock Icon URL / Path [ default | file://path | /local/path | https://... ]
-dockIcon="https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91"
+# Organization's Dock Icon URL / Path 
+#dockIcon="/Applications/Iru Self Service.app/Contents/Resources/AppIcon.icns"
+dockIcon="https://companieslogo.com/img/orig/NSP-74c90512.png?t=1720244493"
 
 # Organization's Defaults Domain for External Checks
-organizationDefaultsDomain="org.churchofjesuschrist.external"
+organizationDefaultsDomain="www.insperity.com"
 
 # Organization's Color Scheme
 if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
@@ -124,7 +125,7 @@ else
 fi
 
 # Organization's Kerberos Realm (leave blank to disable check)
-kerberosRealm=""
+kerberosRealm="CORPORATE.ADMINISTAFF.COM"
 
 # Organization's Firewall Type [ socketfilterfw | pf ]
 organizationFirewall="socketfilterfw"
@@ -133,23 +134,23 @@ organizationFirewall="socketfilterfw"
 vpnClientVendor="paloalto"
 
 # Organization's VPN data type [ basic | extended ]
-vpnClientDataType="extended"
+vpnClientDataType="basic"
 
 # "Anticipation" Duration (in seconds)
 if [[ "${operationMode}" == "Silent" ]]; then
     anticipationDuration="0"
 else
-    anticipationDuration="2"
+    anticipationDuration="0"
 fi
 
 # How many previous minor OS versions will be marked as compliant
-previousMinorOS="2"
+previousMinorOS="1"
 
 # Allowed minimum percentage of free disk space
 allowedMinimumFreeDiskPercentage="10"
 
 # Allowed maximum percentage of disk space for user directories (i.e., Desktop, Downloads, Trash)
-allowedMaximumDirectoryPercentage="5"
+allowedMaximumDirectoryPercentage="20"
 
 # Network Quality Test Maximum Age
 # Leverages `date -v-`; One of either y, m, w, d, H, M or S
@@ -164,7 +165,7 @@ sofaCacheMaximumAge="1d"
 # Allowed number of uptime minutes
 # - 1 day = 24 hours × 60 minutes/hour = 1,440 minutes
 # - 7 days, multiply: 7 × 1,440 minutes = 10,080 minutes
-allowedUptimeMinutes="10080"
+allowedUptimeMinutes="40000"
 
 # Should excessive uptime result in a "warning" or "error" ?
 excessiveUptimeAlertStyle="warning"
@@ -225,7 +226,7 @@ case "${serverURL}" in
 
     *kandji* )
         mdmVendor="Kandji"
-        mdmProfileIdentifier="io.kandji.mdm.profile"
+        mdmProfileIdentifier="com.kandji.profile.mdmprofile.mdm"
         ;;
     
     *microsoft* )
@@ -754,12 +755,12 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 supportTeamName="IT Support"
-supportTeamPhone="+1 (801) 555-1212"
-supportTeamEmail="rescue@domain.org"
-supportTeamWebsite="https://support.domain.org"
+supportTeamPhone="+1 (281) 348-3237"
+supportTeamEmail="helpdesk@insperity.com"
+supportTeamWebsite="https://itsservicedesk.insperity.com/CherwellPortal/insperityserviceportal/winlogin"
 supportTeamHyperlink="[${supportTeamWebsite}](${supportTeamWebsite})"
 supportKB="KB8675309"
-infobuttonaction="https://servicenow.domain.org/support?id=kb_article_view&sysparm_article=${supportKB}"
+infobuttonaction="https://inside.insperity.com/posts/3332274-"
 supportKBURL="[${supportKB}](${infobuttonaction})"
 infobuttontext="${supportKB}"
 
@@ -1044,34 +1045,43 @@ kandjiMdmListitemJSON='
 [
     {"title" : "macOS Version", "subtitle" : "Organizational standards are the current and immediately previous versions of macOS", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Available Updates", "subtitle" : "Keep your Mac up-to-date to ensure its security and performance", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Password Hint", "subtitle" : "Ensure no password hint is set for better security", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "System Integrity Protection", "subtitle" : "System Integrity Protection (SIP) in macOS protects the entire system by preventing the execution of unauthorized code.", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Signed System Volume", "subtitle" : "Signed System Volume (SSV) ensures macOS is booted from a signed, cryptographically protected volume.", "icon" : "SF=04.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Firewall", "subtitle" : "The built-in macOS firewall helps protect your Mac from unauthorized access.", "icon" : "SF=05.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "FileVault Encryption", "subtitle" : "FileVault is built-in to macOS and provides full-disk encryption to help prevent unauthorized access to your Mac", "icon" : "SF=06.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Gatekeeper / XProtect", "subtitle" : "Prevents the execution of Apple-identified malware and adware.", "icon" : "SF=07.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Touch ID", "subtitle" : "Touch ID provides secure biometric authentication for unlock your Mac and authorize third-party apps.", "icon" : "SF=08.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "VPN Client", "subtitle" : "Your Mac should have the proper VPN client installed and usable", "icon" : "SF=09.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Last Reboot", "subtitle" : "Restart your Mac regularly — at least once a week — can help resolve many common issues", "icon" : "SF=10.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Free Disk Space", "subtitle" : "Checks for the amount of free disk space on your Mac’s boot volume", "icon" : "SF=11.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and item count of the Desktop", "icon" : "SF=12.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=13.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=14.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Hardware Health", "subtitle" : "Quick check of basic hardware health", "icon" : "SF=15.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=19.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=20.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=21.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Microsoft One Drive", "subtitle" : "Microsoft cloud storage for your important files.", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Microsoft Outlook", "subtitle" : "Email and Calendar from Microsoft.", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Company Portal", "subtitle" : "Required for Platform Single Sign-On.", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Zoom", "subtitle" : "Web Conferencing Tool.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Cortex", "subtitle" : "Cortex Security Software.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},    
+    {"title" : "Netskope", "subtitle" : "Netskope Connection Software.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},        
+    {"title" : "Insperity Network Connection", "subtitle" : "Connectivity test to Corporate Network", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},            
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Platform SSO Verification", "subtitle" : "Multiple checks of the Single Sign-On Registration", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Cortex Functionality Verification", "subtitle" : "Multiple checks of the Cortex XDR security system", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Battery Health", "subtitle" : "Tests various aspects of the Mac battery to verify health.", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Insperity Computer Certificate", "subtitle" : "Verifies Computer Certificate exists and does not expire within 1 week.", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Rapid Security Response", "subtitle" : "Verifies all RSRs installed.", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Health", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Password Expiration", "subtitle" : "Checks password expiration date.", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}                            
 ]
 '
 # Validate kandjiMdmListitemJSON is valid JSON
@@ -3869,61 +3879,255 @@ function checkTouchID() {
 
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Wi-Fi Performance / Signal Quality – Fixed for Ethernet + Wi-Fi scenarios
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+function checkWiFiPerformance() {
+
+    local humanReadableCheckName="Wi-Fi Signal"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=wifi,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Measuring Wi-Fi signal strength …"
+
+    sleep "${anticipationDuration}"
+
+    # Get active Wi-Fi interface
+    local wifiInterface
+    wifiInterface=$(networksetup -listallhardwareports | awk '/Wi-Fi|AirPort/{getline; print $2}' | head -1)
+
+    local rssi=""
+    if [[ -n "${wifiInterface}" ]]; then
+        # Try modern wdutil first (Sonoma+)
+        rssi=$(wdutil info 2>/dev/null | awk -F': ' '/RSSI/ {print $2; exit}' | awk '{print $1}' | tr -d ' ()\r\n')
+        
+        # Fallback to classic airport
+        if [[ -z "${rssi}" || "${rssi}" == "0" ]]; then
+            local airportPath="/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
+            if [[ -x "${airportPath}" ]]; then
+                rssi=$("${airportPath}" -I 2>/dev/null | grep "CtlRSSI" | awk '{print $2}')
+            fi
+        fi
+    fi
+
+    if [[ -z "${rssi}" || "${rssi}" == "0" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Wi-Fi not active or Ethernet is primary, status: success, statustext: N/A (Ethernet)"
+        info "${humanReadableCheckName}: Skipped — Ethernet primary or no Wi-Fi signal detected"
+        return
+    fi
+
+    local quality="Unknown"
+    local statusColor="#63CA56"
+    local statusType="success"
+
+    if (( rssi >= -55 )); then
+        quality="Excellent"
+    elif (( rssi >= -65 )); then
+        quality="Good"
+    elif (( rssi >= -75 )); then
+        quality="Fair"
+        statusColor="#F8D84A"
+        statusType="error"
+    else
+        quality="Poor"
+        statusColor="#EB5545"
+        statusType="fail"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColor}, iconalpha: 0.8, subtitle: RSSI: ${rssi} dBm — ${quality}, status: ${statusType}, statustext: ${quality}"
+    info "${humanReadableCheckName}: ${quality} (${rssi} dBm)"
+}
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Check VPN Installation
+# Check Hardware Health Summary
+# Basic non-intrusive hardware health indicators
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkHardwareHealth() {
+
+    local humanReadableCheckName="Hardware Health"
+    notice "Check ${humanReadableCheckName} …"
+
+    # Use a more reliable SF symbol that works well as a top-level icon
+    dialogUpdate "icon: SF=chip.fill,${organizationColorScheme}"
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Scanning basic hardware health …"
+
+    sleep "${anticipationDuration}"
+
+    local issues=""
+    local batteryCycles="${batteryCycleCount:-Unknown}"
+
+    if [[ "${batteryCycles}" != "Unknown" && "${batteryCycles}" -gt 1000 ]]; then
+        issues+="High battery cycles (${batteryCycles}); "
+    fi
+
+    if [[ -n "${issues}" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: ${issues% }; status: error, statustext: Review Recommended"
+        warning "${humanReadableCheckName}: ${issues}"
+        overallHealth+="${humanReadableCheckName}; "
+    else
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Normal"
+        info "${humanReadableCheckName}: No major issues detected"
+    fi
+dialogUpdate "icon: ${icon}"
+}
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Rapid Security Response (RSR) Status – Improved
+# Correctly handles machines with no available RSR
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkRapidSecurityResponse() {
+
+    local humanReadableCheckName="Rapid Security Response"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=shield.lefthalf.filled,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    local rsrSuffix
+    rsrSuffix=$(sw_vers -productVersionExtra 2>/dev/null | tr -d '() ')
+
+    if [[ -n "${rsrSuffix}" ]]; then
+        # RSR is installed (e.g., "a", "b", etc.)
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed (${rsrSuffix})"
+        info "${humanReadableCheckName}: Installed (${rsrSuffix})"
+    else
+        # No RSR installed — this is normal if Apple hasn't released one yet
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: No RSR currently available from Apple, status: success, statustext: None Available"
+        info "${humanReadableCheckName}: No RSR currently available"
+    fi
+}
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check VPN Installation / Status — Robust handling for GlobalProtect "Internal" mode
+# (No tunnel-status key is common when on-campus / Internal)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkVPN() {
+    local humanReadableCheckName="VPN Client"
+    notice "Check ${humanReadableCheckName} …"
 
-    notice "Check ${vpnAppName} …"
-
-    dialogUpdate "icon: ${vpnAppPath}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "icon: SF=lock.shield,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf '%02d' $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Determining status of ${vpnAppName} …"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+    sleep "${anticipationDuration}"
 
-    # sleep "${anticipationDuration}"
+    local rawStatus="${vpnStatus:-Not Configured}"
+    local displayStatus="${rawStatus}"
+    local isHealthy=0
+    local subtitle="${organizationBoilerplateComplianceMessage}"
 
-    case ${vpnStatus} in
+    # === Smart detection logic (handles missing tunnel-status key) ===
+    if [[ "${rawStatus}" == *"Internal"* ]] || [[ "${rawStatus}" == *"internal"* ]] || [[ "${rawStatus}" == *"Connected Internal"* ]]; then
+        displayStatus="Connected (Internal)"
+        isHealthy=1
+        subtitle="On-campus / Internal network — no tunnel required"
 
-        *"NOT installed"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
-            errorOut "${vpnAppName} Failed"
-            overallHealth+="${vpnAppName}; "
-            ;;
+    elif [[ "${rawStatus}" == *"Connected"* ]]; then
+        displayStatus="Connected"
+        isHealthy=1
 
-        *"Idle"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Idle"
-            info "${vpnAppName} idle"
-            ;;
+    # Real tunnel detection (utun interface present)
+    elif route -n get default 2>/dev/null | grep -q 'interface: utun'; then
+        displayStatus="Connected (Tunnel)"
+        isHealthy=1
 
-        "Connected"* | "${ciscoVPNIP}" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Connected"
-            info "${vpnAppName} Connected"
-            ;;
+    # Explicit failure / idle cases
+    elif [[ "${rawStatus}" == *"Disconnected"* ]] || [[ "${rawStatus}" == *"Idle"* ]] || [[ "${rawStatus}" == *"NOT installed"* ]] || [[ "${rawStatus}" == *"NOT"* ]]; then
+        displayStatus="${rawStatus}"
+        isHealthy=0
+        subtitle="Please connect to the VPN when working remotely"
 
-        "Disconnected" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Disconnected"
-            info "${vpnAppName} Disconnected"
-            ;;
+    # Catch-all for unknown / missing status
+    else
+        # On-campus "Internal" often shows as "GlobalProtect is Idle" or similar when no tunnel-status key exists
+        if [[ -d "/Applications/GlobalProtect.app" ]]; then
+            # GlobalProtect is installed → assume Internal mode if no tunnel is active
+            displayStatus="Connected (Internal)"
+            isHealthy=1
+            subtitle="On-campus / Internal network detected"
+        else
+            displayStatus="Not Installed"
+            isHealthy=0
+            subtitle="GlobalProtect VPN client is not installed"
+        fi
+    fi
 
-        "None" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: No VPN"
-            info "No VPN"
-            ;;
-
-        * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unknown"
-            info "${vpnAppName} Unknown"
-            ;;
-
-    esac
-
+    # ---------- Final UI + Overall Health update ----------
+    if [[ ${isHealthy} -eq 1 ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf '%02d' $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${subtitle}, status: success, statustext: ${displayStatus}"
+        info "${humanReadableCheckName}: ${displayStatus} → healthy"
+    else
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf '%02d' $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: ${subtitle}, status: fail, statustext: ${displayStatus}"
+        errorOut "${humanReadableCheckName}: ${displayStatus}"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Password Expiration (via Kerberos SSO Extension / AD) — Improved parsing
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+function checkPasswordExpiration() {
+
+    local humanReadableCheckName="Password Expiration"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=key.horizontal.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Querying AD password expiration …"
+
+    sleep "${anticipationDuration}"
+
+    # Run as the logged-in user to access the correct Kerberos cache
+    local klistOutput
+    klistOutput=$(su - "${loggedInUser}" -c "klist -l 2>/dev/null" || echo "")
+
+    # More flexible parsing — looks for any line containing "expires in" or "Password expires"
+    local daysLeft
+    daysLeft=$(echo "$klistOutput" | grep -E 'expires in|Password expires' | awk '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]+$/) {print $i; exit}}' | head -n 1)
+
+    # Debug output to the log (remove or comment out after testing)
+    notice "klist -l raw output: ${klistOutput:0:300}..."   # truncated for log cleanliness
+
+    if [[ -z "${daysLeft}" || ! "${daysLeft}" =~ ^[0-9]+$ ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: No data"
+        warning "${humanReadableCheckName}: Could not parse days from Kerberos output"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    # Thresholds (easy to change)
+    local warningThreshold=14
+    local failThreshold=7
+
+    if (( daysLeft <= failThreshold )); then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Change password immediately, status: fail, statustext: ${daysLeft} days"
+        errorOut "${humanReadableCheckName}: Only ${daysLeft} days remaining"
+        overallHealth+="${humanReadableCheckName}; "
+    elif (( daysLeft <= warningThreshold )); then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Expires soon — change recommended, status: error, statustext: ${daysLeft} days"
+        warning "${humanReadableCheckName}: ${daysLeft} days remaining"
+        overallHealth+="${humanReadableCheckName}; "
+    else
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${daysLeft} days"
+        info "${humanReadableCheckName}: ${daysLeft} days remaining"
+    fi
+}
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check External Jamf Pro Validation (where Parameter 2 represents the Jamf Pro Policy Custom Trigger)
@@ -4014,71 +4218,104 @@ function checkExternalJamfPro() {
 
 function checkNetworkQuality() {
 
-    local humanReadableCheckName="Network Quality"
-    notice "Check ${humanReadableCheckName} …"    
+    local humanReadableCheckName="Business Network Health"
 
-    dialogUpdate "icon: SF=gauge.with.dots.needle.67percent,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    local googleTarget="google.com"
+    local msTargets=(
+        "teams.microsoft.com"
+        "outlook.office365.com"
+        "onedrive.live.com"
+    )
+
+    local pingCount=4
+    local googleLatency=""
+    local msLatencyTotal=0
+    local msLatencyCount=0
+    local msAvgLatency=""
+
+    local vpnDetected="false"
+    local vpnLabel=""
+    local healthStatus="Unknown"
+    local statusColor=""
+    local statusType=""
+
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=network,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Testing …"
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
+    dialogUpdate "progresstext: Measuring network latency …"
 
-    # sleep "${anticipationDuration}"
+    sleep "${anticipationDuration}"
 
-    networkQualityTestFile="/var/tmp/networkQualityTest"
-
-    if [[ -e "${networkQualityTestFile}" ]]; then
-
-        networkQualityTestFileCreationEpoch=$( stat -f "%m" "${networkQualityTestFile}" )
-        networkQualityTestMaximumEpoch=$( date -v-"${networkQualityTestMaximumAge}" +%s )
-
-        if [[ "${networkQualityTestFileCreationEpoch}" -gt "${networkQualityTestMaximumEpoch}" ]]; then
-
-            info "Using cached ${humanReadableCheckName} Test"
-            testStatus="(cached)"
-
-        else
-
-            unset testStatus
-            info "Removing cached result …"
-            rm "${networkQualityTestFile}"
-            info "Starting ${humanReadableCheckName} Test …"
-            networkQuality -s -v -c > "${networkQualityTestFile}"
-            info "Completed ${humanReadableCheckName} Test"
-
-        fi
-
-    else
-
-        info "Starting ${humanReadableCheckName} Test …"
-        networkQuality -s -v -c > "${networkQualityTestFile}"
-        info "Completed ${humanReadableCheckName} Test"
-
+    #
+    # Detect VPN (GlobalProtect-safe heuristic)
+    #
+    if /sbin/ifconfig | grep -qi "utun"; then
+        vpnDetected="true"
+        vpnLabel=" (VPN‑affected)"
     fi
 
-    networkQualityTest=$( < "${networkQualityTestFile}" )
+    #
+    # Google baseline latency
+    #
+    googleLatency="$(/sbin/ping -c ${pingCount} -q ${googleTarget} 2>/dev/null | awk -F'/' 'END {print $5}')"
 
-    case "${osVersion}" in
+    #
+    # Microsoft 365 latency (averaged)
+    #
+    for host in "${msTargets[@]}"; do
+        latency="$(/sbin/ping -c ${pingCount} -q ${host} 2>/dev/null | awk -F'/' 'END {print $5}')"
+        if [[ "${latency}" =~ ^[0-9.]+$ ]]; then
+            msLatencyTotal=$(echo "${msLatencyTotal} + ${latency}" | bc)
+            msLatencyCount=$((msLatencyCount + 1))
+        fi
+    done
 
-        11* ) 
-            dlThroughput="N/A; macOS ${osVersion}"
-            dlResponsiveness="N/A; macOS ${osVersion}"
-            ;;
+    if [[ "${msLatencyCount}" -gt 0 ]]; then
+        msAvgLatency=$(echo "scale=1; ${msLatencyTotal} / ${msLatencyCount}" | bc)
+    else
+        msAvgLatency=""
+    fi
 
-        * )
-            dlThroughput=$( get_json_value "$networkQualityTest" "dl_throughput" )
-            dlResponsiveness=$( get_json_value "$networkQualityTest" "dl_responsiveness" )
-            ;;
+    #
+    # Validate results
+    #
+    if ! [[ "${googleLatency}" =~ ^[0-9.]+$ ]] || ! [[ "${msAvgLatency}" =~ ^[0-9.]+$ ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Unable to determine network latency, status: error, statustext: Unknown"
+        warning "${humanReadableCheckName}: Unable to calculate latency"
+        return
+    fi
 
-    esac
+    #
+    # Business Network Health decision (Microsoft-focused)
+    #
+    if (( $(echo "${msAvgLatency} <= 80" | bc -l) )); then
+        healthStatus="Excellent"
+        statusColor="#63CA56"
+        statusType="success"
+    elif (( $(echo "${msAvgLatency} <= 150" | bc -l) )); then
+        healthStatus="Acceptable"
+        statusColor="#63CA56"
+        statusType="success"
+    elif (( $(echo "${msAvgLatency} <= 250" | bc -l) )); then
+        healthStatus="Degraded"
+        statusColor="#F8D84A"
+        statusType="error"
+    else
+        healthStatus="Poor"
+        statusColor="#EB5545"
+        statusType="fail"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
 
-    mbps=$( echo "scale=2; ( $dlThroughput / 1000000 )" | bc )
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${mbps} Mbps ${testStatus}"
-    info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsiveness}; "
+    #
+    # UI + logging
+    #
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColor}, iconalpha: 0.8, subtitle: Microsoft 365 latency${vpnLabel}, status: ${statusType}, statustext: ${msAvgLatency} ms"
 
-    dialogUpdate "icon: ${icon}"
-
+    info "${humanReadableCheckName}: Google=${googleLatency} ms, Microsoft=${msAvgLatency} ms${vpnLabel}"
 }
-
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -4431,6 +4668,402 @@ function checkAirDropSettings() {
 
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Insperity Network Connectivity
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function InsperityNetworkConnectivity() {
+    local humanReadableCheckName="Insperity Network Connection"
+
+    local insperityHosts=(
+        "inside.insperity.com,443"
+        "itsservicedesk.insperity.com,443"
+    )
+
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=network,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Testing connectivity to Insperity network …"
+    sleep "${anticipationDuration}"
+
+    local allOK=true
+
+    for entry in "${insperityHosts[@]}"; do
+        IFS=',' read -r host port <<< "${entry}"
+        if ! nc -z -w "${networkTimeout}" "${host}" "${port}" &>/dev/null; then
+            allOK=false
+            break
+        fi
+    done
+
+    if [[ "${allOK}" == true ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Connected"
+        info "${humanReadableCheckName}: Connected"
+    else
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: VPN required for internal access, status: fail, statustext: Failed"
+        errorOut "${humanReadableCheckName}: Failed"
+        overallHealth+="${humanReadableCheckName}; "
+    fi
+}
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Computer / Device Certificate (Kandji/Iru style)
+# Displays expiration date and warns if expiring within 7 days
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkComputerCertificate() {
+
+    local humanReadableCheckName="Computer Certificate"
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=lock.shield,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} expiration …"
+
+    sleep "${anticipationDuration}"
+
+    # Get DEVICE_NAME from Kandji global variables (as used in your reference script)
+    local deviceName=""
+    if [[ -f "/Library/Managed Preferences/io.kandji.globalvariables.plist" ]]; then
+        deviceName=$(/usr/libexec/PlistBuddy -c 'print :DEVICE_NAME' "/Library/Managed Preferences/io.kandji.globalvariables.plist" 2>/dev/null)
+    fi
+
+    if [[ -z "${deviceName}" ]]; then
+        deviceName="${computerName}"   # Fallback to computer name
+    fi
+
+    local certCN="${deviceName}"
+
+    # Function to get certificate expiry (adapted from your script)
+    get_certificate_expiry() {
+        security find-certificate -c "$1" -p /Library/Keychains/System.keychain 2>/dev/null | \
+        openssl x509 -noout -enddate 2>/dev/null
+    }
+
+    local expiryString
+    expiryString=$(get_certificate_expiry "${certCN}")
+
+    if [[ -z "${expiryString}" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Certificate with CN '${certCN}' not found in System keychain, status: fail, statustext: Not Found"
+        errorOut "${humanReadableCheckName}: Certificate '${certCN}' not found"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    # Extract and format expiration date
+    local expiryDate
+    expiryDate=$(echo "${expiryString}" | sed 's/^notAfter=//' | awk '{print $1, $2, $3, $4}')
+
+    local expirySeconds
+    expirySeconds=$(date -j -f "%b %d %H:%M:%S %Y %Z" "${expiryDate} GMT" "+%s" 2>/dev/null)
+
+    if [[ -z "${expirySeconds}" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Unable to parse expiration date, status: error, statustext: Parse Error"
+        warning "${humanReadableCheckName}: Unable to parse expiration date"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    local currentSeconds
+    currentSeconds=$(date +%s)
+
+    local oneWeekSeconds=$((7 * 24 * 60 * 60))
+    local timeLeft=$((expirySeconds - currentSeconds))
+
+    # Human-readable expiration date
+    local humanExpiryDate
+    humanExpiryDate=$(date -j -f "%s" "${expirySeconds}" "+%d-%b-%Y")
+
+    local statusColor="#63CA56"
+    local statusType="success"
+    local statusText="${humanExpiryDate}"
+    local subtitle="${organizationBoilerplateComplianceMessage}"
+
+    if (( timeLeft < 0 )); then
+        statusColor="#EB5545"
+        statusType="fail"
+        subtitle="Certificate has already expired"
+        statusText="EXPIRED"
+        errorOut "${humanReadableCheckName}: Expired on ${humanExpiryDate}"
+        overallHealth+="${humanReadableCheckName}; "
+    elif (( timeLeft < oneWeekSeconds )); then
+        statusColor="#EB5545"
+        statusType="fail"
+        subtitle="Expires in less than 7 days — action required"
+        errorOut "${humanReadableCheckName}: Expires in less than 1 week (${humanExpiryDate})"
+        overallHealth+="${humanReadableCheckName}; "
+    elif (( timeLeft < (30 * 24 * 60 * 60) )); then
+        statusColor="#F8D84A"
+        statusType="error"
+        subtitle="Expires within 30 days"
+        warning "${humanReadableCheckName}: Expires on ${humanExpiryDate} (within 30 days)"
+    else
+        info "${humanReadableCheckName}: Expires on ${humanExpiryDate}"
+    fi
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColor}, iconalpha: 0.8, subtitle: ${subtitle}, status: ${statusType}, statustext: ${statusText}"
+}
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Battery Health (New function — added for Kevin Golden / Insperity)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkBatteryHealth() {
+
+    local humanReadableCheckName="Battery Health"
+    notice "Check ${humanReadableCheckName} …"
+
+    # Only run on laptops (skip desktops)
+    if ! system_profiler SPPowerDataType | grep -q "Battery Power"; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Desktop — N/A"
+        info "${humanReadableCheckName}: Desktop Mac — skipped"
+        return 0
+    fi
+
+    dialogUpdate "icon: SF=battery.100percent,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
+
+    sleep "${anticipationDuration}"
+
+    # Get battery health data using system_profiler (most reliable on modern macOS)
+    local batteryHealthPercent=""
+    local cycleCount=""
+
+    batteryHealthPercent=$(system_profiler SPPowerDataType -json 2>/dev/null | \
+        jq -r '.SPPowerDataType[0].sppower_battery_health_info."sppower_battery_health_percentage" // empty')
+
+    cycleCount=$(system_profiler SPPowerDataType -json 2>/dev/null | \
+        jq -r '.SPPowerDataType[0].sppower_battery_health_info."sppower_battery_cycle_count" // empty')
+
+    # Fallback if jq/system_profiler doesn't return value
+    if [[ -z "${batteryHealthPercent}" ]]; then
+        batteryHealthPercent=$(pmset -g batt | grep -oE '[0-9]+%' | tr -d '%' | head -1)
+    fi
+
+    if [[ -z "${batteryHealthPercent}" || "${batteryHealthPercent}" == "0" ]]; then
+        batteryHealthPercent="Unknown"
+    fi
+
+    # Determine status
+    local statusColor="#63CA56"
+    local statusType="success"
+    local statusText="${batteryHealthPercent}%"
+    local subtitle="${organizationBoilerplateComplianceMessage}"
+
+    if [[ "${batteryHealthPercent}" == "Unknown" ]]; then
+        statusColor="#F8D84A"
+        statusType="error"
+        subtitle="Unable to determine battery health"
+        warning "${humanReadableCheckName}: ${statusText}"
+    elif (( batteryHealthPercent < 80 )); then
+        statusColor="#EB5545"
+        statusType="fail"
+        subtitle="Battery health below 80% — consider replacement"
+        errorOut "${humanReadableCheckName}: ${batteryHealthPercent}% (below 80%)"
+        overallHealth+="${humanReadableCheckName}; "
+    elif (( batteryHealthPercent < 90 )); then
+        statusColor="#F8D84A"
+        statusType="error"
+        subtitle="Battery health is fair"
+        warning "${humanReadableCheckName}: ${batteryHealthPercent}%"
+    else
+        info "${humanReadableCheckName}: ${batteryHealthPercent}%"
+    fi
+
+    # Update UI
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColor}, iconalpha: 0.8, subtitle: ${subtitle}, status: ${statusType}, statustext: ${statusText}"
+
+    if [[ -n "${cycleCount}" && "${cycleCount}" != "null" && "${cycleCount}" != "0" ]]; then
+        info "Battery Cycle Count: ${cycleCount}"
+    fi
+}
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Platform SSO Verification
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkPlatformSSO() {
+
+    local humanReadableCheckName="Platform Single Sign-On"
+    local pssoIdentity=""
+    local pssoResult=""
+
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=person.badge.key.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    #
+    # Platform SSO identity check
+    # (Uses same source as existing script variables)
+    #
+    pssoIdentity=$(dscl . read /Users/"${loggedInUser}" dsAttrTypeStandard:AltSecurityIdentities 2>/dev/null \
+        | awk -F'SSO:' '/PlatformSSO/ {print $2}' \
+        | tail -1 \
+        | awk '{$1=$1; print}')
+
+    #
+    # Evaluate state
+    #
+    if [[ -z "${pssoIdentity}" ]]; then
+
+        pssoResult="Not configured"
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Platform SSO is not configured for this user, status: fail, statustext: ${pssoResult}"
+
+        errorOut "${humanReadableCheckName}: ${pssoResult}"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    #
+    # Validate identity format (basic sanity checks)
+    #
+    if [[ "${pssoIdentity}" != *"@"* ]]; then
+
+        pssoResult="Configured but invalid identity"
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Platform SSO identity appears malformed, status: error, statustext: ${pssoResult}"
+
+        warning "${humanReadableCheckName}: ${pssoIdentity}"
+        return
+    fi
+
+    #
+    # Success
+    #
+    pssoResult="${pssoIdentity}"
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${pssoResult}"
+
+    info "${humanReadableCheckName}: ${pssoResult}"
+}
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Cortex CDR Checks
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkCortexXDR() {
+
+    local humanReadableCheckName="Cortex XDR"
+    local cortexAppPath="/Applications/Cortex XDR.app"
+    local cortexCtl="/Library/Application Support/PaloAltoNetworks/Traps/bin/cytool"
+
+    local cortexProcesses=(
+        "coreltd"
+        "Traps"
+        "pald"
+        "XdrAgent"
+        "cortex_xdr"
+    )
+
+    local processRunning="false"
+    local cortexRawStatus=""
+    local cortexStatus="Unknown"
+    local connectivityStatus="Unknown"
+    local tamperStatus="Unknown"
+    local policyStatus="Unknown"
+
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=shield.lefthalf.filled,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    #
+    # 1. Installation check
+    #
+    if [[ ! -d "${cortexAppPath}" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Cortex XDR agent is not installed, status: fail, statustext: Not installed"
+        errorOut "${humanReadableCheckName}: Not installed"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    #
+    # 2. Process check (multi-daemon safe)
+    #
+    for proc in "${cortexProcesses[@]}"; do
+        if pgrep -x "${proc}" >/dev/null 2>&1; then
+            processRunning="true"
+            break
+        fi
+    done
+
+    if [[ "${processRunning}" != "true" ]] && launchctl list 2>/dev/null | grep -qi paloalto; then
+        processRunning="true"
+    fi
+
+    if [[ "${processRunning}" != "true" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Cortex XDR service is not running, status: fail, statustext: Not running"
+        errorOut "${humanReadableCheckName}: Service not running"
+        overallHealth+="${humanReadableCheckName}; "
+        return
+    fi
+
+    #
+    # 3. cytool status — NON‑INTERACTIVE, PROTECTED
+    #
+    if [[ -x "${cortexCtl}" ]]; then
+        cortexRawStatus="$(timeout 5 "${cortexCtl}" status </dev/null 2>/dev/null)"
+    fi
+
+    #
+    # 4. If self‑protection blocked status, do NOT prompt user
+    #
+    if echo "${cortexRawStatus}" | grep -qi "agent protection password"; then
+        warning "${humanReadableCheckName}: cytool blocked by tamper protection"
+        cortexRawStatus=""
+        tamperStatus="Enabled"
+    fi
+
+    #
+    # 5. Connectivity
+    #
+    if echo "${cortexRawStatus}" | grep -qi "Connected"; then
+        connectivityStatus="Connected"
+    else
+        connectivityStatus="Unknown"
+    fi
+
+    #
+    # 6. Policy / content receipt
+    #
+    if echo "${cortexRawStatus}" | grep -Eqi "Policy|Content|Rules.*(Loaded|Applied|Received)"; then
+        policyStatus="Present"
+    else
+        policyStatus="Unknown"
+    fi
+
+    #
+    # 7. Overall health (best‑effort without password)
+    #
+    if [[ "${connectivityStatus}" == "Connected" && "${policyStatus}" == "Present" ]]; then
+        cortexStatus="Healthy"
+    else
+        cortexStatus="Running"
+    fi
+
+    #
+    # 8. UI + logging
+    #
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Running"
+
+    info "${humanReadableCheckName}: running, tamper=${tamperStatus:-Enabled}, connectivity=${connectivityStatus}, policy=${policyStatus}"
+}
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -4465,8 +5098,6 @@ function updateComputerInventory() {
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Latest computer inventory submitted at $( date '+%d-%b-%Y %H:%M:%S' ), status: success, statustext: Updated"
 
 }
-
-
 
 ####################################################################################################
 #
@@ -4782,7 +5413,8 @@ else
                 checkExternalJamfPro "33" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
                 checkExternalJamfPro "34" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
                 checkNetworkQuality "35"
-                updateComputerInventory "36"
+                updateComputerInventory "37"
+                checkPasswordExpiration "38"
                 ;;
 
             "JumpCloud" )
@@ -4821,34 +5453,42 @@ else
             "Kandji" )
                 checkOS "0"
                 checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkElectronCornerMask "28"
-                checkNetworkQuality "29"
+                checkSIP "2"
+                checkSSV "3"
+                checkFirewall "4"
+                checkFileVault "5"
+                checkGatekeeperXProtect "6"
+                checkTouchID "7"
+                checkVPN "8"
+                checkUptime "9"
+                checkFreeDiskSpace "10"
+                checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
+                checkHardwareHealth "14"
+                checkBluetoothSharing "15"
+                checkMdmCertificateExpiration "16"
+                checkAPNs "17"
+                checkNetworkHosts "18" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "19" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "20" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "21" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "22" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "23" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+				checkInternal "24" "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft OneDrive"
+				checkInternal "25" "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
+				checkInternal "26" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
+				checkInternal "27" "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"
+				checkInternal "28" "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"				
+				checkInternal "29" "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"				
+				InsperityNetworkConnectivity "30"
+                checkNetworkQuality "31"
+                checkPlatformSSO "32"
+                checkCortexXDR "33"
+                checkBatteryHealth "34"
+                checkComputerCertificate "35"
+                checkRapidSecurityResponse "36"
+                checkWiFiPerformance "37"
                 ;;
 
             "Microsoft Intune" )
