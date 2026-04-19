@@ -4672,7 +4672,7 @@ function checkAirDropSettings() {
 # Insperity Network Connectivity
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-function InsperityNetworkConnectivity() {
+function checkInsperityNetworkConnectivity() {
     local humanReadableCheckName="Insperity Network Connection"
 
     local insperityHosts=(
