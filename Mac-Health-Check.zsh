@@ -5413,8 +5413,7 @@ else
                 checkExternalJamfPro "33" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
                 checkExternalJamfPro "34" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
                 checkNetworkQuality "35"
-                updateComputerInventory "37"
-                checkPasswordExpiration "38"
+                updateComputerInventory "36"
                 ;;
 
             "JumpCloud" )
