@@ -1,8 +1,8 @@
-# Mac Health Check Documentation Diagrams (4.0.0b17)
+# Mac Health Check Documentation Diagrams (4.0.0b18)
 
 ## Overview
 
-This directory contains Mermaid-based diagrams aligned to the `4.0.0b17` release of [Mac Health Check](https://snelson.us/mhc). The diagrams render automatically on GitHub and cover the current deployment, runtime, operation-mode, and health-check behavior documented by the script, README, and changelog.
+This directory contains Mermaid-based diagrams aligned to the `4.0.0b18` release of [Mac Health Check](https://snelson.us/mhc). The diagrams render automatically on GitHub and cover the current deployment, runtime, operation-mode, and health-check behavior documented by the script, README, and changelog.
 
 Keep these files in sync with `Mac-Health-Check.zsh`, `README.md`, and `CHANGELOG.md` whenever the check inventory, operation modes, Dock behavior, or user-facing flow changes.
 

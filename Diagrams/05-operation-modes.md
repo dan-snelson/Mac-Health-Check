@@ -1,6 +1,6 @@
 # Mac Health Check: Operation Modes
 
-This diagram compares all five `4.0.0b17` Mac Health Check operation modes, showing how each mode differs in terms of UI, Dock behavior, logging, and intended use case.
+This diagram compares all five `4.0.0b18` Mac Health Check operation modes, showing how each mode differs in terms of UI, Dock behavior, logging, and intended use case.
 
 ```mermaid
 graph TB
@@ -15,8 +15,8 @@ graph TB
     end
 
     subgraph Silent["🔇 Silent"]
-        SL_DESC["Trigger: Scheduled MDM policy<br>UI: None<br>Anticipation: 0s (instant)<br>Dock badge: No<br>Completion timer: N/A<br>Logging: Full structured log"]
-        SL_USE["Use case:<br>Background compliance monitoring<br>Pairs with webhook for alerting"]
+        SL_DESC["Trigger: Scheduled MDM policy or Client-Side Cache LaunchDaemon<br>UI: None<br>Anticipation: 0s (instant)<br>Dock badge: No<br>Completion timer: N/A<br>Logging: Full structured log"]
+        SL_USE["Use case:<br>Background compliance monitoring<br>Nightly cache + Jamf Splunk upload"]
 
         style SL_DESC fill:#cfd8dc
         style SL_USE fill:#c8e6c9
@@ -73,28 +73,28 @@ graph TB
 | **Fresh-config replay** | Yes when `inspectSummaryPreset="on"` and cache age is below `inspectReplayMaximumAgeSeconds` | No | No | No | No |
 | **Logging** | Full | Full | Full + `set -x` | Full structured log | Full structured log |
 | **Real check data** | Yes | Yes | Yes | Yes (Wi-Fi Strength only) | No (simulated pass results) |
-| **Intended actor** | End user | Automated | Administrator | Developer | Developer |
+| **Intended actor** | End user | Automated / Jamf policy | Administrator | Developer | Developer |
 
 ---
 
 ## Mode Details
 
 ### Self Service (Default)
-The primary end-user-facing mode. Launched by a user clicking the Mac Health Check policy in MDM Self Service. Displays the full swiftDialog progress dialog with real-time status updates as each check runs. When Dock integration is enabled, the Dock badge counts down remaining checks. After report generation, normal runs launch a detached, moveable Inspect Mode Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections while the main dialog still completes its existing `completionTimer` countdown. If the inspect config from a recent `Self Service` run is still valid and younger than `inspectReplayMaximumAgeSeconds`, rerunning the script replays the cached inspect summary immediately and skips the health-check run plus the main dialog countdown. Set `inspectSummaryPreset="on"` to keep those Preset 6 behaviors enabled, or `off` to keep the standard completion flow only.
+The primary end-user-facing mode. Launched by a user clicking the Mac Health Check policy in MDM Self Service. Displays the full swiftDialog progress dialog with real-time status updates as each check runs. When Dock integration is enabled, the Dock badge counts down remaining checks. After report generation, normal runs launch a detached, moveable Inspect Mode Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections while the main dialog still completes its existing `completionTimer` countdown. If the inspect config from a recent `Self Service` run is still valid and younger than `inspectReplayMaximumAgeSeconds`, rerunning the script replays the cached inspect summary after pre-flight/client-side installation and skips the health-check run plus the main dialog countdown. Set `inspectSummaryPreset="on"` to keep those Preset 6 behaviors enabled, or `off` to keep the standard completion flow only.
 
 **When to use:** Standard deployment for user-initiated compliance checks.
 
 ---
 
 ### Silent
-Runs all health checks without displaying any user interface. Intended for scheduled background compliance runs (for example, at login or on recurring MDM check-in). The `anticipationDuration` is automatically set to `0` in this mode to minimize execution time. Results are written to the client log, persisted to the local JSON report, and, if configured, posted to a webhook or forwarded to Splunk. Dock integration and other end-user follow-up UI are suppressed.
+Runs health checks without displaying any user interface. Intended for scheduled background compliance runs and Client-Side Cache nightly cache refreshes. The `anticipationDuration` is automatically set to `0` in this mode to minimize execution time. Results are written to the client log and persisted to `/var/tmp/MacHealthCheck-Report.json`. The client-side LaunchDaemon run uses `splunkOperationMode=test`, so Splunk secrets stay in Jamf Pro policy parameters. Its plist has no `RunAtLoad`; scheduled runs set `launchDaemonRun=true`, causing the script to apply deterministic per-Mac jitter across the 00:53-01:53 window centered on 1:23 a.m. When Jamf Pro later runs `Silent` with `splunkOperationMode=production`, the script uploads the cached report without running checks if the client-side script version matches and the cache is valid and younger than 36 hours. Dock integration and other end-user follow-up UI are suppressed.
 
-**When to use:** Continuous background compliance monitoring. Pair with a Teams or Slack webhook to surface issues without interrupting users.
+**When to use:** Continuous background compliance monitoring, nightly local report cache refreshes, and Jamf Pro Splunk uploads without repeating a full health-check run.
 
 ---
 
 ### Debug
-Similar to Self Service, but with `set -x` tracing enabled plus swiftDialog debug launch arguments (`--verbose --resizable --debug red`). In `4.0.0b17`, Debug mode also enables pretty-printed local JSON reporting, while intentionally retaining the existing countdown-based ending instead of launching the detached inspect summary. This makes it easier to identify which part of the zsh script or dialog rendering is causing unexpected behavior.
+Similar to Self Service, but with `set -x` tracing enabled plus swiftDialog debug launch arguments (`--verbose --resizable --debug red`). In `4.0.0b18`, Debug mode also enables pretty-printed local JSON reporting, while intentionally retaining the existing countdown-based ending instead of launching the detached inspect summary. This makes it easier to identify which part of the zsh script or dialog rendering is causing unexpected behavior.
 
 **When to use:** Diagnosing why a specific check is failing or returning an unexpected status.
 

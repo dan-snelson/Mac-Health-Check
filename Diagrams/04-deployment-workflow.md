@@ -1,6 +1,6 @@
 # Mac Health Check: Deployment Workflow
 
-This diagram provides a step-by-step guide for deploying the `4.0.0b17` release of Mac Health Check through an MDM solution. Follow the phases in order for a successful deployment.
+This diagram provides a step-by-step guide for deploying the `4.0.0b18` release of Mac Health Check through an MDM solution. Follow the phases in order for a successful deployment.
 
 ```mermaid
 graph TB
@@ -89,10 +89,10 @@ graph TB
         style P5D fill:#c8e6c9
     end
 
-    subgraph Phase6["Phase 6: Silent Mode Policy (Optional)"]
-        P6Q{"Deploy recurring<br>silent checks?"}
-        P6A["Create second MDM policy<br>Parameter 4 = 'Silent'"]
-        P6B["Set recurring trigger<br>(e.g., Login, Check-in, Scheduled)"]
+    subgraph Phase6["Phase 6: Silent + Client-Side Cache (Optional)"]
+        P6Q{"Deploy recurring<br>silent reporting?"}
+        P6A["Create Jamf upload policy<br>Parameter 4 = 'Silent'<br>Parameter 6 = 'production'"]
+        P6B["Client LaunchDaemon refreshes<br>local report in a deterministic 00:53-01:53 window centered on 1:23 a.m.<br>No RunAtLoad"]
         P6C["Assign scope &amp; publish"]
         P6SKIP2["Skip — Self Service only"]
 
@@ -225,13 +225,15 @@ Create an MDM policy with:
 
 ---
 
-### Phase 6: Silent Mode Policy (Optional)
+### Phase 6: Silent Mode Policy and Client-Side Cache (Optional)
 
 For background compliance monitoring, create a second policy:
-- **Script:** `Mac-Health-Check.zsh`, Parameter 4 = `Silent`
+- **Script:** `Mac-Health-Check.zsh`, Parameter 4 = `Silent`, Parameter 6 = `production`
 - **Trigger:** Login, recurring check-in, or scheduled
 - **No Self Service entry** — runs silently in the background
-- Combined with a webhook, this surfaces compliance issues without user interaction
+- **Splunk parameters:** Provide HEC URL/token/index/sourcetype from Jamf Pro policy parameters only
+- **Client-Side Cache:** Non-`Silent` runs and full Jamf production runs install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `org.churchofjesuschrist.MHC`; the script validates and loads a root LaunchDaemon without `RunAtLoad`, and the client-side LaunchDaemon refreshes the local JSON report nightly with deterministic per-Mac jitter across 00:53-01:53 without uploading to Splunk
+- When Jamf Pro runs `Silent` + `production`, matching client/server versions and a valid report under 36 hours old allow cached upload without re-running health checks
 
 ---
 
@@ -252,9 +254,11 @@ Use the three developer-oriented modes to validate behavior before rolling out t
 After production deployment, monitor:
 
 - **Client logs** at `/var/log/org.churchofjesuschrist.log` on managed Macs — look for `[WARNING]` and `[ERROR]` entries
-- **Dock badge, inspect summary handoff, cached replay, and unhealthy end-state handling** on test Macs in non-`Silent` modes — confirm countdown badges update per check, `Self Service` launches the detached moveable Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections during the retained main-dialog countdown when `inspectSummaryPreset="on"`, reruns replay the cached summary without re-running checks only while the cached handoff file remains younger than `inspectReplayMaximumAgeSeconds`, and failed runs now rely on the unhealthy main-dialog state plus the detached `Self Service` summary instead of a pseudo-alert notification
+- **Client-Side Cache assets** — confirm `/Library/Management/org.churchofjesuschrist/MHC.zsh`, `/Library/LaunchDaemons/org.churchofjesuschrist.MHC.plist`, and `/var/tmp/MacHealthCheck-Report.json` exist on test Macs
+- **LaunchDaemon jitter** — confirm the plist starts at 00:53, does not include `RunAtLoad`, and the client log records `Client-Side Cache: Jitter offset = X seconds` during daemon-triggered runs
+- **Dock badge, inspect summary handoff, cached replay, and unhealthy end-state handling** on test Macs in non-`Silent` modes — confirm countdown badges update per check, `Self Service` launches the detached moveable Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections during the retained main-dialog countdown when `inspectSummaryPreset="on"`, reruns replay the cached summary after pre-flight/client-side installation without re-running checks only while the cached handoff file remains younger than `inspectReplayMaximumAgeSeconds`, and failed runs now rely on the unhealthy main-dialog state plus the detached `Self Service` summary instead of a pseudo-alert notification
 - **Webhook notifications** in Teams or Slack (if configured) — review failure summaries
-- **MDM inventory** — for Jamf Pro, each run can trigger a recon; use Smart Group criteria based on extension attributes for fleet-wide compliance visibility
+- **MDM inventory** — Jamf Pro interactive/full runs can still trigger inventory submission, while `Silent` + Splunk production and Client-Side Cache LaunchDaemon runs skip it
 
 ---
 
@@ -267,6 +271,8 @@ After production deployment, monitor:
 - [ ] Tested in Debug mode — no fatal errors
 - [ ] Tested in Development mode — Wi-Fi Strength check behaves as expected
 - [ ] Tested in Test mode — UI renders correctly
-- [ ] Silent mode policy created (if desired)
+- [ ] Silent mode policy created with Splunk production parameters (if desired)
+- [ ] Client-Side Cache script, LaunchDaemon, and cached JSON validated on a test Mac
+- [ ] Client-Side Cache jitter validated on multiple Macs; offsets differ but remain stable per Mac
 - [ ] Webhook validated (if configured)
 - [ ] Rolled out to full production scope

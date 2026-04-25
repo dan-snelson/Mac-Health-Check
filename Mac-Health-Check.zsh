@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.0.0b17, 24-Apr-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.0.0b18, 25-Apr-2026, Dan K. Snelson (@dan-snelson)
 # - Added JSON health reporting (with optional Splunk HTTP Event Collector (HEC) delivery)
 # - Added a stand-alone swiftDialog Inspect Mode-flavored report (i.e., `inspectSummaryPreset="on"`), plus cached replay (i.e., `inspectReplayMaximumAgeSeconds`) for `Self Service` runs
 # - Refactored `checkElectronCornerMask` to reduce execution time
@@ -32,6 +32,9 @@
 # - Refactored the final standard dialog to distinguish warning-only results from failures, showing `Computer Needs Attention` with an amber exclamation mark and returning exit code `0` when no checks failed
 # - Update Free Disk Space and (Folder) Size and Item Count reporting Info (thanks for PR #89, @HowardGMac!)
 # - Enhanced Wi-Fi Strength test reporting (thanks for PR #90, @HowardGMac!)"
+# - Added Client-Side Cache nightly cache generation and Jamf Pro cached Splunk upload optimization
+# - Added LaunchDaemon deployment for a local daily `Silent` report refresh with deterministic per-Mac jitter around 1:23 a.m.
+# - Sanitized the client-side script copy so it does not perform Jamf inventory submission
 #
 ####################################################################################################
 
@@ -46,7 +49,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.0.0b17"
+scriptVersion="4.0.0b18"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -66,7 +69,7 @@ SECONDS="0"
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Script Paramters
+# Script Parameters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
@@ -78,7 +81,77 @@ operationMode="${4:-"Self Service"}"
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
 
+
+
 # --- New in `4.0.0` ------------------------------------------------------------------------------
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Client-Side Cache Jitter
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+clientSideJitterEnabled="true"
+clientSideMaxJitterSeconds="1800" # +/- 30 minutes
+clientSideLaunchDaemonHour="0"
+clientSideLaunchDaemonMinute="53"
+
+function calculateClientSideJitterOffset() {
+
+    local maxJitter="${clientSideMaxJitterSeconds}"
+    local jitterRange=0
+    local hardwareUUID=""
+    local serialNumberFallback=""
+    local hashSeed=""
+    local hexSeed=""
+    local jitterOffset=0
+
+    if [[ "${maxJitter}" != <-> ]] || (( maxJitter < 0 )); then
+        maxJitter="1800"
+    fi
+
+    jitterRange=$(( ( maxJitter * 2 ) + 1 ))
+
+    hardwareUUID=$( ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformUUID/ {print $4}' )
+    if [[ -n "${hardwareUUID}" ]]; then
+        hexSeed="${hardwareUUID: -8}"
+    else
+        serialNumberFallback=$( ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformSerialNumber/ {print $4}' )
+        hashSeed=$( echo -n "${serialNumberFallback:-${HOST:-unknown}}" | md5 -q )
+        hexSeed="${hashSeed: -8}"
+    fi
+
+    if ! echo "${hexSeed}" | grep -Eq '^[[:xdigit:]]+$'; then
+        hexSeed="0"
+    fi
+
+    jitterOffset=$(( 16#${hexSeed:u} % jitterRange - maxJitter ))
+
+    echo "${jitterOffset}"
+
+}
+
+if [[ "${launchDaemonRun}" == "true" ]] && [[ "${clientSideJitterEnabled:l}" == "true" ]]; then
+
+    jitterOffset=$( calculateClientSideJitterOffset )
+    if [[ "${jitterOffset}" != -<-> && "${jitterOffset}" != <-> ]]; then
+        jitterOffset="0"
+    fi
+
+    jitterSleepSeconds=$(( jitterOffset + clientSideMaxJitterSeconds ))
+    (( jitterSleepSeconds < 0 )) && jitterSleepSeconds="0"
+    (( jitterSleepSeconds > ( clientSideMaxJitterSeconds * 2 ) )) && jitterSleepSeconds=$(( clientSideMaxJitterSeconds * 2 ))
+
+    echo "Client-Side Cache: Jitter offset = ${jitterOffset} seconds"
+    if [[ -n "${scriptLog}" ]]; then
+        printf '%s\n' "Client-Side Cache: Jitter offset = ${jitterOffset} seconds; sleeping ${jitterSleepSeconds} seconds" >> "${scriptLog}" 2>/dev/null
+    fi
+
+    if (( jitterSleepSeconds > 0 )); then
+        echo "Client-Side Cache: Sleeping ${jitterSleepSeconds} seconds to stagger load..."
+        sleep "${jitterSleepSeconds}"
+    fi
+
+fi
+
 # Parameter 6: Splunk reporting mode [ off | test | production ]
 splunkOperationMode="${6:-"test"}"
 
@@ -108,6 +181,108 @@ humanReadableScriptName="Mac Health Check"
 
 # Organization's Script Name
 organizationScriptName="MHC"
+
+# Organization's Reverse Domain Name Notation (i.e., com.company.division; used for plist domains)
+reverseDomainNameNotation="org.churchofjesuschrist"
+
+# Client-side Deployment
+# Organization's Directory (i.e., where client-side scripts reside)
+organizationDirectory="/Library/Management/${reverseDomainNameNotation}"
+clientSideScriptPath="${organizationDirectory}/${organizationScriptName}.zsh"
+
+# LaunchDaemon Name & Path
+launchDaemonLabel="${reverseDomainNameNotation}.${organizationScriptName}"
+launchDaemonPath="/Library/LaunchDaemons/${launchDaemonLabel}.plist"
+clientSideSkipChecks="false"
+clientSideMaximumCacheAgeSeconds="129600"
+currentScriptPath="${0:A}"
+
+# Splunk and JSON reporting defaults
+splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
+
+case "${splunkOperationMode:l}" in
+    "off" )
+        splunkOperationMode="off"
+        ;;
+    "test" )
+        splunkOperationMode="test"
+        ;;
+    * )
+        splunkOperationMode="production"
+        ;;
+esac
+
+if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
+    suppressNonSplunkConsoleLogging="true"
+else
+    suppressNonSplunkConsoleLogging="false"
+fi
+
+function clientSideEarlyLog() {
+
+    local messageText="${1}"
+    local logEntry="${organizationScriptName} (${scriptVersion}): $( date +%Y-%m-%d\ %H:%M:%S ) - [NOTICE]          Client-Side Cache: ${messageText}"
+
+    printf '%s\n' "${logEntry}" >> "${scriptLog}" 2>/dev/null
+
+    if [[ "${suppressNonSplunkConsoleLogging}" != "true" ]]; then
+        printf '%s\n' "Client-Side Cache: ${messageText}"
+    fi
+
+}
+
+# Client-Side Cache version check
+if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
+
+    if [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
+
+        clientSideEarlyLog "Running from client-side script path; skipping cached-upload shortcut."
+
+    elif [[ -f "${clientSideScriptPath}" ]]; then
+
+        clientVersion=$( grep -m1 '^scriptVersion=' "${clientSideScriptPath}" 2>/dev/null | awk -F'"' '{print $2}' )
+
+        if [[ "${clientVersion}" == "${scriptVersion}" ]]; then
+
+            if [[ -f "${splunkJSONReportPath}" ]]; then
+
+                cachedReportModificationEpoch=$( stat -f %m "${splunkJSONReportPath}" 2>/dev/null )
+                cachedReportAgeSeconds=$(( $( date +%s ) - ${cachedReportModificationEpoch:-0} ))
+
+                if (( cachedReportModificationEpoch > 0 )) && (( cachedReportAgeSeconds <= clientSideMaximumCacheAgeSeconds )); then
+
+                    if jq -e . "${splunkJSONReportPath}" >/dev/null 2>&1; then
+                        clientSideSkipChecks="true"
+                        clientSideEarlyLog "Client-side script version matches (${scriptVersion}); cached report is valid and ${cachedReportAgeSeconds}s old. Skipping health checks."
+                    else
+                        clientSideEarlyLog "Cached report exists but is invalid JSON. Falling back to full health check."
+                    fi
+
+                else
+
+                    clientSideEarlyLog "Cached report is stale (${cachedReportAgeSeconds}s old; maximum ${clientSideMaximumCacheAgeSeconds}s). Falling back to full health check."
+
+                fi
+
+            else
+
+                clientSideEarlyLog "Client-side script version matches (${scriptVersion}) but no cached report exists. Falling back to full health check."
+
+            fi
+
+        else
+
+            clientSideEarlyLog "Version mismatch (client=${clientVersion:-not found}, server=${scriptVersion}). Running full health check."
+
+        fi
+
+    else
+
+        clientSideEarlyLog "Client-side script not found at ${clientSideScriptPath}. Running full health check."
+
+    fi
+
+fi
 
 # Organization's Self Service Marketing Name 
 organizationSelfServiceMarketingName="Workforce App Store"
@@ -202,7 +377,6 @@ inspectLaunchLogPath="/var/tmp/MacHealthCheck-Inspect-Summary.log"
 inspectReplayMaximumAgeSeconds="900" # 15 minutes
 
 # Splunk and JSON reporting defaults
-splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
 splunkPrettyPrintJSON="false"
 splunkReportDebug="false"
 splunkAllowInsecureTLS="false"
@@ -239,24 +413,6 @@ typeset -a reportHealthyChecks
 typeset -a reportWarningChecks
 typeset -a reportFailChecks
 typeset -a reportErrorChecks
-
-case "${splunkOperationMode:l}" in
-    "off" )
-        splunkOperationMode="off"
-        ;;
-    "test" )
-        splunkOperationMode="test"
-        ;;
-    * )
-        splunkOperationMode="production"
-        ;;
-esac
-
-if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
-    suppressNonSplunkConsoleLogging="true"
-else
-    suppressNonSplunkConsoleLogging="false"
-fi
 
 case "${reportDebug:l}" in
     "true" | "1" | "yes" | "y" )
@@ -2487,6 +2643,172 @@ function generateAndSendSplunkReport() {
 
 }
 
+function sendCachedSplunkReport() {
+
+    local cachedReportJSON=""
+    local cachedReportModificationEpoch=""
+    local cachedReportAgeSeconds=0
+
+    notice "Client-Side Cache: uploading cached Splunk JSON report from ${splunkJSONReportPath}"
+
+    if [[ ! -f "${splunkJSONReportPath}" ]]; then
+        warning "Client-Side Cache: cached report missing; unable to upload cached report."
+        return 1
+    fi
+
+    cachedReportModificationEpoch=$( stat -f %m "${splunkJSONReportPath}" 2>/dev/null )
+    cachedReportAgeSeconds=$(( $( date +%s ) - ${cachedReportModificationEpoch:-0} ))
+    if (( cachedReportModificationEpoch <= 0 )) || (( cachedReportAgeSeconds > clientSideMaximumCacheAgeSeconds )); then
+        warning "Client-Side Cache: cached report is stale (${cachedReportAgeSeconds}s old; maximum ${clientSideMaximumCacheAgeSeconds}s); unable to upload cached report."
+        return 1
+    fi
+
+    cachedReportJSON="$( < "${splunkJSONReportPath}" )"
+
+    if ! validateJson "${cachedReportJSON}"; then
+        warning "Client-Side Cache: cached report failed JSON validation; unable to upload cached report."
+        return 1
+    fi
+
+    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+        reportTransmissionStatus="not_configured"
+        warning "Client-Side Cache: HEC URL or token not configured; unable to upload cached report."
+        return 1
+    fi
+
+    reportGenerated="true"
+    reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${cachedReportJSON}" )" )" )"
+
+    sendSplunkHECPayload "${reportHECPayload}"
+
+}
+
+function installClientSideScript() {
+
+    local temporaryClientScript=""
+
+    notice "Client-Side Cache: installing client-side script at ${clientSideScriptPath}"
+
+    if [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
+        notice "Client-Side Cache: running from client-side script path; install skipped."
+        return 0
+    fi
+
+    if [[ ! -r "${currentScriptPath}" ]]; then
+        warning "Client-Side Cache: current script path is not readable (${currentScriptPath}); install skipped."
+        return 1
+    fi
+
+    mkdir -p "${organizationDirectory}" || {
+        warning "Client-Side Cache: unable to create ${organizationDirectory}"
+        return 1
+    }
+    chown root:wheel "${organizationDirectory}" 2>/dev/null
+    chmod 755 "${organizationDirectory}" 2>/dev/null
+
+    temporaryClientScript="$( mktemp "/var/tmp/${organizationScriptName}.client.XXXXXX" )"
+    cp "${currentScriptPath}" "${temporaryClientScript}" || {
+        warning "Client-Side Cache: unable to copy ${currentScriptPath} to temporary client script."
+        rm -f "${temporaryClientScript}"
+        return 1
+    }
+
+    sed -i '' 's|operationMode="${4:-"Self Service"}"|operationMode="${4:-"Silent"}"|' "${temporaryClientScript}"
+
+    awk '
+        /^# Update Computer Inventory$/ { skipInventoryFunction=1; next }
+        /^# Program$/ {
+            if (skipInventoryFunction == 1) {
+                skipInventoryFunction=0
+                print
+                next
+            }
+        }
+        skipInventoryFunction == 1 { next }
+        /"title" : "Computer Inventory"/ { next }
+        /updateComputerInventory/ { next }
+        /jamf[[:space:]]recon/ { next }
+        { print }
+    ' "${temporaryClientScript}" > "${clientSideScriptPath}" || {
+        warning "Client-Side Cache: unable to write sanitized client-side script."
+        rm -f "${temporaryClientScript}"
+        return 1
+    }
+
+    sed -i '' '/"title" : "Network Quality Test"/ s/},$/}/' "${clientSideScriptPath}"
+
+    rm -f "${temporaryClientScript}"
+
+    if grep -q "jamf"" recon" "${clientSideScriptPath}" 2>/dev/null; then
+        warning "Client-Side Cache: sanitized client-side script still contains Jamf inventory command text; install failed."
+        rm -f "${clientSideScriptPath}"
+        return 1
+    fi
+
+    chown root:wheel "${clientSideScriptPath}" 2>/dev/null
+    chmod 755 "${clientSideScriptPath}" 2>/dev/null
+
+    cat > "${launchDaemonPath}" <<ENDOFLAUNCHDAEMON
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${launchDaemonLabel}</string>
+    <key>UserName</key>
+    <string>root</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>${clientSideScriptPath}</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local:/usr/local/bin</string>
+        <key>launchDaemonRun</key>
+        <string>true</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>${clientSideLaunchDaemonHour}</integer>
+            <key>Minute</key>
+            <integer>${clientSideLaunchDaemonMinute}</integer>
+        </dict>
+    </array>
+    <key>StandardErrorPath</key>
+    <string>${scriptLog}</string>
+    <key>StandardOutPath</key>
+    <string>${scriptLog}</string>
+</dict>
+</plist>
+ENDOFLAUNCHDAEMON
+
+    if ! plutil -lint "${launchDaemonPath}" >> "${scriptLog}" 2>&1; then
+        warning "Client-Side Cache: generated LaunchDaemon plist failed validation at ${launchDaemonPath}"
+        return 1
+    fi
+
+    chown root:wheel "${launchDaemonPath}" 2>/dev/null
+    chmod 644 "${launchDaemonPath}" 2>/dev/null
+
+    if launchctl print "system/${launchDaemonLabel}" >/dev/null 2>&1; then
+        launchctl bootout "system/${launchDaemonLabel}" >> "${scriptLog}" 2>&1 || true
+    fi
+    launchctl enable "system/${launchDaemonLabel}" >> "${scriptLog}" 2>&1 || true
+    if ! launchctl bootstrap system "${launchDaemonPath}" >> "${scriptLog}" 2>&1; then
+        warning "Client-Side Cache: unable to bootstrap ${launchDaemonPath}"
+        return 1
+    fi
+    launchctl enable "system/${launchDaemonLabel}" >> "${scriptLog}" 2>&1
+
+    notice "Client-Side Cache: installed client-side script and LaunchDaemon ${launchDaemonLabel}."
+    return 0
+
+}
+
 function xmlEscape() {
 
     local escapedValue="${1}"
@@ -4001,6 +4323,25 @@ else
     fatal "jq is required for JSON validation and formatting; install jq before running Mac Health Check on Macs that do not bundle it by default."
 fi
 
+if [[ "${clientSideSkipChecks}" == "true" ]]; then
+
+    notice "Client-Side Cache: cache is current; skipping health checks and uploading cached report only."
+    if sendCachedSplunkReport; then
+        quitOut "Client-Side Cache: cached Splunk report upload complete."
+        exit 0
+    else
+        errorOut "Client-Side Cache: cached Splunk report upload failed."
+        exit 1
+    fi
+
+fi
+
+if [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; then
+    if ! installClientSideScript; then
+        warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
+    fi
+fi
+
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -4829,7 +5170,7 @@ function checkAppAutoPatch() {
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
 
     sleep "${anticipationDuration}"
-    
+
     # Thresholds in days
     local aap_warning_threshold=7
     local aap_critical_threshold=30

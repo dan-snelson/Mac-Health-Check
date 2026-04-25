@@ -1,19 +1,22 @@
 # Mac Health Check: Health Check Reference
 
-This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0b17`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
+This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0b18`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
 
 ---
 
-## 4.0.0b17 Runtime Notes
+## 4.0.0b18 Runtime Notes
 
-- `operationMode` is documented for the `4.0.0b17` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
+- `operationMode` is documented for the `4.0.0b18` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` runs now generate a readable inspect-summary config, launch a detached moveable swiftDialog Inspect Mode Preset 6 guided summary after the canonical report is written, separate recorded results into `Unhealthy` and `Healthy` sections, and retain the normal main-dialog completion countdown during full runs.
-- Re-running in `Self Service` can replay the cached inspect summary immediately when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
+- Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
 - `Development` mode currently runs only `checkWiFiStrength()` instead of the full vendor-specific suite.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables the fixed Preset 6 inspect summary and cached replay, while `off` disables both behaviors entirely.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
 - Pre-flight requires swiftDialog `3.1.0.4976` or newer.
 - When `enableDockIntegration` is `true`, non-`Silent` runs show a Dock icon with a decreasing `dockiconbadge` count.
+- Client-Side Cache installs a client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` and a `org.churchofjesuschrist.MHC` LaunchDaemon for nightly `Silent` report refreshes.
+- The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
+- Jamf Pro `Silent` + `splunkOperationMode=production` uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check and installs or refreshes the Client-Side Cache assets.
 - `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling.
 - `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
 - `checkWiFiStrength()` uses `wdutil info` when available, falls back to the legacy `airport` binary, and treats Wi-Fi-inactive / Ethernet-primary systems as a non-failure skip.
@@ -31,6 +34,14 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 |---|---|---|---|
 | `humanReadableScriptName` | `"Mac Health Check"` | Display name shown in the dialog title | Any string |
 | `organizationScriptName` | `"MHC"` | Short identifier used in log entries | Any short string |
+| `reverseDomainNameNotation` | `"org.churchofjesuschrist"` | Reverse-domain base used for management paths and LaunchDaemon labels | Reverse-domain string |
+| `organizationDirectory` | `"/Library/Management/${reverseDomainNameNotation}"` | Client-Side Cache script directory | Local root-owned directory |
+| `clientSideScriptPath` | `"${organizationDirectory}/${organizationScriptName}.zsh"` | Client-Side Cache script path | Local root-owned Zsh script |
+| `launchDaemonLabel` | `"${reverseDomainNameNotation}.${organizationScriptName}"` | LaunchDaemon label for nightly client-side report refresh | LaunchDaemon label |
+| `launchDaemonPath` | `"/Library/LaunchDaemons/${launchDaemonLabel}.plist"` | LaunchDaemon plist path | `/Library/LaunchDaemons/*.plist` |
+| `clientSideJitterEnabled` | `"true"` | Enables deterministic per-Mac LaunchDaemon jitter | `true` \| `false` |
+| `clientSideMaxJitterSeconds` | `"1800"` | Maximum signed jitter around 1:23 a.m.; LaunchDaemon wakes at window start and script sleeps a non-negative derived delay | Integer seconds |
+| `clientSideMaximumCacheAgeSeconds` | `"129600"` | Maximum cached report age before Jamf falls back to a full health check | Integer seconds |
 | `organizationSelfServiceMarketingName` | `"Workforce App Store"` | Your MDM Self Service portal name | Any string |
 | `organizationBoilerplateComplianceMessage` | `"Meets organizational standards"` | Subtitle shown for passing checks | Any string |
 | `organizationBrandingBannerURL` | Freepik sample URL | Banner image displayed at the top of the dialog | HTTPS URL or local path |
@@ -68,7 +79,7 @@ The support/help experience uses both legacy support fields and dynamic `support
 | `supportLabel1`–`supportLabel6` | Mixed defaults / blanks | Dynamic support labels shown in the help message |
 | `supportValue1`–`supportValue6` | Mixed defaults / blanks | Matching dynamic support values; empty pairs are skipped |
 
-**4.0.0b17 behavior notes**
+**4.0.0b18 behavior notes**
 
 - If all `supportLabelN` / `supportValueN` pairs are blank, the script falls back to the legacy `supportTeam*` and KB values.
 - The first URL-like `supportValueN` becomes the Info button action in the dialog.

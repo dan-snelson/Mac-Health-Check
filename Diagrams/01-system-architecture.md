@@ -1,6 +1,6 @@
 # Mac Health Check: System Architecture
 
-This diagram shows the `4.0.0b17` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
+This diagram shows the `4.0.0b18` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
 
 ```mermaid
 graph TB
@@ -83,7 +83,7 @@ graph TB
         REPORT["Local JSON Report<br>/var/tmp/MacHealthCheck-Report.json<br>Canonical root-only artifact"]
         INSPECTFILES["Inspect Handoff File<br>/var/tmp/MacHealthCheck-Inspect-Config.json<br>Readable by the logged-in user"]
         WEBHOOK["Webhook Notification<br>Microsoft Teams or Slack<br>(optional — param 5)"]
-        INVENTORY["MDM Inventory Update<br>Via updateComputerInventory()<br>(Jamf Pro only)"]
+        INVENTORY["MDM Inventory Update<br>Via updateComputerInventory()<br>(Jamf Pro full runs only)"]
 
         FINAL --> LOG
         FINAL --> REPORT
@@ -153,7 +153,7 @@ The script inspects installed configuration profiles to identify the MDM vendor,
 
 ### Runtime Execution
 
-Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`) and captured into a structured per-check result collector for final reporting. When Dock integration is enabled, non-`Silent` runs also show a Dock icon with a decreasing badge count. After all checks complete, the main dialog updates to its final healthy / needs attention / unhealthy state and `4.0.0b17` writes a final JSON health report before cleanup. In `Self Service`, a normal run also launches a detached, moveable Inspect Mode Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections while the main dialog retains its standard countdown, and reruns can replay that cached summary without re-running checks when `inspectSummaryPreset="on"` and the handoff file is still younger than `inspectReplayMaximumAgeSeconds`.
+Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`) and captured into a structured per-check result collector for final reporting. When Dock integration is enabled, non-`Silent` runs also show a Dock icon with a decreasing badge count. After all checks complete, the main dialog updates to its final healthy / needs attention / unhealthy state and `4.0.0b18` writes a final JSON health report before cleanup. In `Self Service`, a normal run also launches a detached, moveable Inspect Mode Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections while the main dialog retains its standard countdown, and reruns can replay that cached summary without re-running checks when `inspectSummaryPreset="on"` and the handoff file is still younger than `inspectReplayMaximumAgeSeconds`. Client-Side Cache adds a client-side script and LaunchDaemon that refresh `/var/tmp/MacHealthCheck-Report.json` nightly, letting Jamf Pro upload a fresh cached report without repeating the checks when versions match.
 
 ---
 
@@ -163,8 +163,10 @@ Health checks execute sequentially, with each result posted to the swiftDialog d
 
 **JSON Report** — Every run writes the canonical report artifact to `/var/tmp/MacHealthCheck-Report.json` with root-only permissions. Optional Splunk HEC delivery wraps that same finalized report data rather than generating a second source of truth.
 
+**Client-Side Cache** — Non-`Silent` and full Jamf production runs install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `/Library/LaunchDaemons/org.churchofjesuschrist.MHC.plist`. The script validates the generated plist, loads it as a root LaunchDaemon without `RunAtLoad`, and sets `launchDaemonRun=true` for scheduled executions. The LaunchDaemon starts at 00:53; the client-side copy applies deterministic hardware-derived jitter so runs land in the 00:53-01:53 window centered on 1:23 a.m. It runs in `Silent` mode with `splunkOperationMode=test`, refreshing the JSON report without storing Splunk secrets locally.
+
 **Inspect Summary** — `Self Service` runs also generate a readable handoff file at `/var/tmp/MacHealthCheck-Inspect-Config.json`, which the detached, moveable Inspect Mode Preset 6 guided summary reads during the retained main-dialog countdown and can replay on rerun when `inspectSummaryPreset="on"` plus the cached handoff file remains younger than `inspectReplayMaximumAgeSeconds`. The summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when no checks were recorded in that bucket. Set the toggle to `off` to disable both behaviors entirely.
 
 **Webhook** — When configured, a summary of warning, failed, or errored checks is posted to Microsoft Teams or Slack at the end of each run with health issues. Jamf Pro deployments include a direct link to the computer record.
 
-**MDM Inventory** — Jamf Pro deployments include `updateComputerInventory()` as the final Jamf-specific check.
+**MDM Inventory** — Jamf Pro full check runs include `updateComputerInventory()` as the final Jamf-specific check. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.

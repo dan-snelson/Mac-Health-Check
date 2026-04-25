@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 4.0.0b17 (24-Apr-2026)
+### 4.0.0b18 (25-Apr-2026)
 - Added JSON health reporting (with optional Splunk HTTP Event Collector (HEC) delivery)
 - Added a stand-alone swiftDialog Inspect Mode-flavored report (i.e., `inspectSummaryPreset="on"`), plus cached replay (i.e., `inspectReplayMaximumAgeSeconds`) for `Self Service` runs
 - Refactored `checkElectronCornerMask` to reduce execution time
@@ -18,6 +18,11 @@
 - Refactored the final standard dialog to distinguish warning-only results from failures, showing `Computer Needs Attention` with an amber exclamation mark and returning exit code `0` when no checks failed
 - Update Free Disk Space and (Folder) Size and Item Count reporting Info (thanks for PR #89, @HowardGMac!)
 - Enhanced Wi-Fi Strength test reporting (thanks for PR #90, @HowardGMac!)
+- Refactored `Silent` when used with `splunkOperationMode=production` to suppress non-Splunk console output and return success when Splunk reporting succeeds, regardless of recorded health findings
+- Refactored Palo Alto GlobalProtect-related code (inspired by @kgolden-code’s PR #88) to add support for connected-non-pa status, safe plist reads and normalized external-check output
+- Added Client-Side Cache nightly cache generation and Jamf Pro cached Splunk upload optimization
+- Added LaunchDaemon deployment for a local daily `Silent` report refresh with deterministic per-Mac jitter around 1:23 a.m.
+- Sanitized the client-side script copy so it does not perform Jamf inventory submission
 
 ### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**

@@ -1,6 +1,6 @@
 # Mac Health Check: Health Check Categories
 
-This diagram shows the `4.0.0b17` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
+This diagram shows the `4.0.0b18` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
 
 ```mermaid
 graph LR
@@ -201,4 +201,4 @@ Optional plugin checks for third-party security tools. These require separate MD
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
 
 ### Inventory
-`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in `4.0.0b17`.
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.0.0b18` runs. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
