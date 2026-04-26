@@ -214,6 +214,9 @@ esac
 
 if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
     suppressNonSplunkConsoleLogging="true"
+    if { : >> "${scriptLog}" } 2>/dev/null; then
+        exec 2>> "${scriptLog}"
+    fi
 else
     suppressNonSplunkConsoleLogging="false"
 fi
@@ -628,12 +631,33 @@ bootPoliciesSsvStatus=$(extractBootPoliciesStatus "Signed System Volume Status")
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 loggedInUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
-loggedInUserFullname=$( id -F "${loggedInUser}" )
-loggedInUserFirstname=$( echo "$loggedInUserFullname" | sed -E 's/^.*, // ; s/([^ ]*).*/\1/' | sed 's/\(.\{25\}\).*/\1…/' | awk '{print ( $0 == toupper($0) ? toupper(substr($0,1,1))substr(tolower($0),2) : toupper(substr($0,1,1))substr($0,2) )}' )
-loggedInUserID=$( id -u "${loggedInUser}" )
-loggedInUserGroupMembership=$( id -Gn "${loggedInUser}" )
+
+if [[ "${launchDaemonRun}" == "true" ]]; then
+    case "${loggedInUser}" in
+        ""|"loginwindow"|"_mbsetupuser")
+            lastUser=$( defaults read /Library/Preferences/com.apple.loginwindow.plist lastUserName 2>/dev/null )
+            if [[ -n "${lastUser}" ]] && id "${lastUser}" >/dev/null 2>&1; then
+                loggedInUser="${lastUser}"
+            fi
+            ;;
+    esac
+fi
+
+if [[ -n "${loggedInUser}" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    loggedInUserFullname=$( id -F "${loggedInUser}" )
+    loggedInUserFirstname=$( echo "$loggedInUserFullname" | sed -E 's/^.*, // ; s/([^ ]*).*/\1/' | sed 's/\(.\{25\}\).*/\1…/' | awk '{print ( $0 == toupper($0) ? toupper(substr($0,1,1))substr(tolower($0),2) : toupper(substr($0,1,1))substr($0,2) )}' )
+    loggedInUserID=$( id -u "${loggedInUser}" )
+    loggedInUserGroupMembership=$( id -Gn "${loggedInUser}" )
+    loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory 2>/dev/null | awk -F ' ' '{print $2}' )
+else
+    loggedInUserFullname="No logged-in user"
+    loggedInUserFirstname="User"
+    loggedInUserID=""
+    loggedInUserGroupMembership=""
+    loggedInUserHomeDirectory=""
+fi
+
 if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WARNING: '$loggedInUser' IS A MEMBER OF 'admin'; "; fi
-loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory | awk -F ' ' '{print $2}' )
 
 # Volume Owners
 volumeOwnerUUIDs=$( diskutil apfs listUsers / 2>/dev/null | awk '/\+-- [-0-9A-F]+$/ {print $2}' )
@@ -654,12 +678,17 @@ else
 fi
 
 # Secure Token Status
-secureTokenStatus=$( sysadminctl -secureTokenStatus ${loggedInUser} 2>&1 )
-case "${secureTokenStatus}" in
-    *"ENABLED"*)    secureToken="Enabled"   ;;
-    *"DISABLED"*)   secureToken="Disabled"  ;;
-    *)              secureToken="Unknown"   ;;
-esac
+if [[ -n "${loggedInUser}" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    secureTokenStatus=$( sysadminctl -secureTokenStatus "${loggedInUser}" 2>&1 )
+    case "${secureTokenStatus}" in
+        *"ENABLED"*)    secureToken="Enabled"   ;;
+        *"DISABLED"*)   secureToken="Disabled"  ;;
+        *)              secureToken="Unknown"   ;;
+    esac
+else
+    secureTokenStatus="No local user"
+    secureToken="Unknown"
+fi
 
 # Initialize Jamf Pro inventory endUsername variable (thanks, @tonyyo11!)
 inventoryEndUsername=""
@@ -2760,6 +2789,7 @@ function installClientSideScript() {
     <key>ProgramArguments</key>
     <array>
         <string>/bin/zsh</string>
+        <string>--no-rcs</string>
         <string>${clientSideScriptPath}</string>
     </array>
     <key>EnvironmentVariables</key>

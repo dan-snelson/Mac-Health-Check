@@ -22,6 +22,7 @@
 - Refactored Palo Alto GlobalProtect-related code (inspired by @kgolden-code’s PR #88) to add support for connected-non-pa status, safe plist reads and normalized external-check output
 - Added Client-Side Cache nightly cache generation and Jamf Pro cached Splunk upload optimization
 - Added LaunchDaemon deployment for a local daily `Silent` report refresh with deterministic per-Mac jitter around 1:23 a.m.
+- Added a LaunchDaemon-only loginwindow `lastUserName` fallback for user-scoped checks when no GUI user is active
 - Sanitized the client-side script copy so it does not perform Jamf inventory submission
 
 ### 3.0.0 (23-Feb-2026)

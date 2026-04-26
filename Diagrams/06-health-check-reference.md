@@ -16,6 +16,7 @@ This text-only reference documents the key configurable defaults and runtime inv
 - When `enableDockIntegration` is `true`, non-`Silent` runs show a Dock icon with a decreasing `dockiconbadge` count.
 - Client-Side Cache installs a client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` and a `org.churchofjesuschrist.MHC` LaunchDaemon for nightly `Silent` report refreshes.
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
+- LaunchDaemon-triggered refreshes use loginwindow `lastUserName` for user-scoped checks when no GUI user is active.
 - Jamf Pro `Silent` + `splunkOperationMode=production` uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check and installs or refreshes the Client-Side Cache assets.
 - `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling.
 - `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
