@@ -111,7 +111,7 @@ graph TB
 
     subgraph Phase7["Phase 7: Testing"]
         P7A["Run in Debug mode<br>Parameter 4 = 'Debug'<br>Review set -x output"]
-        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise Wi-Fi Strength check"]
+        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise AirDrop, Entra ID Registration, and Wi-Fi Strength"]
         P7C["Run in Test mode<br>Parameter 4 = 'Test'<br>Validate full vendor UI with simulated success"]
         P7D{"All checks<br>render correctly?"}
         P7FIX["Review configuration<br>and re-test"]
@@ -272,7 +272,7 @@ After production deployment, monitor:
 - [ ] Script uploaded to MDM with correct parameters
 - [ ] Self Service policy created, scoped, and published
 - [ ] Tested in Debug mode — no fatal errors
-- [ ] Tested in Development mode — Wi-Fi Strength check behaves as expected
+- [ ] Tested in Development mode — AirDrop, Entra ID Registration, and Wi-Fi Strength behave as expected
 - [ ] Tested in Test mode — UI renders correctly
 - [ ] Silent mode policy created with Splunk production parameters (if desired)
 - [ ] Client-Side Cache script, LaunchDaemon, and cached JSON validated on a test Mac

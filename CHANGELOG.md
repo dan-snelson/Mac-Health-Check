@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 4.0.0b24 (08-May-2026)
+### 4.0.0b25 (09-May-2026)
 - Raised the minimum required swiftDialog version to `3.1.0.4979`
 - Added JSON health reporting (with optional Splunk HTTP Event Collector (HEC) delivery)
 - Added a stand-alone swiftDialog Inspect Mode-flavored report (i.e., `inspectSummaryPreset="on"`), plus cached replay (i.e., `inspectReplayMaximumAgeSeconds`) for `Self Service` runs
@@ -38,6 +38,7 @@
 - Refactored `updateComputerInventory()` to show an end-user warning state when `jamf recon` fails instead of always reporting success
 - Added a `90`-second timeout for `jamf recon` during `updateComputerInventory()`, with timeout-specific logging and end-user messaging
 - Maximized swiftDialog Inspect Mode Preset 6 with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, and a stronger unhealthy-results hierarchy
+- Added `checkEntraIDRegistration()` function to Jamf Pro-specific checks and `identity.entraIDRegistration` in JSON reports and Inspect Mode summaries
 
 ### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**

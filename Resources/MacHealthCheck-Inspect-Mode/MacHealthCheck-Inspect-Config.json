@@ -1,7 +1,7 @@
 {
   "preset": "6",
   "resumable": false,
-  "title": "Mac Health Check (4.0.0b24)",
+  "title": "Mac Health Check (4.0.0b25)",
   "highlightColor": "#F69325",
   "moveable": true,
   "triggerFile": "/var/tmp/MacHealthCheck-Inspect.trigger",

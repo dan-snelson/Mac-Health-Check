@@ -178,6 +178,7 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkMdmProfile()` | MDM Profile | Verifies MDM enrollment profile is present |
+| `checkEntraIDRegistration()` | Entra ID Registration | Detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
 | `checkAPNs()` | Apple Push Notification service | Validates APNs connectivity |
 | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |

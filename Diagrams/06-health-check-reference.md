@@ -9,7 +9,7 @@ This text-only reference documents the key configurable defaults and runtime inv
 - `operationMode` is documented for the `4.0.0b23` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` and full `Silent` health-check runs now generate readable inspect-summary assets after the canonical report is written. `Self Service` launches a detached moveable swiftDialog Inspect Mode Preset 6 guided summary, separates recorded results into `Unhealthy` and `Healthy` sections, and retains the normal main-dialog completion countdown during full runs; `Silent` writes the assets without launching swiftDialog.
 - Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
-- `Development` mode currently runs only `checkWiFiStrength()` instead of the full vendor-specific suite.
+- `Development` mode currently runs `checkAirDropSettings()`, `checkEntraIDRegistration()`, and `checkWiFiStrength()` instead of the full vendor-specific suite.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
 - Pre-flight requires swiftDialog `3.1.0.4977` or newer.
@@ -115,6 +115,7 @@ The table below lists every health check function, its human-readable name, and 
 | Disk | `checkUserDirectorySizeItems()` | Downloads Size and Item Count | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Disk | `checkUserDirectorySizeItems()` | Trash Size and Item Count | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | MDM | `checkMdmProfile()` | MDM Profile | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | — |
+| MDM | `checkEntraIDRegistration()` | Entra ID Registration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | MDM | `checkAPNs()` | Apple Push Notification service | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | MDM | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | MDM | `checkJamfProCheckIn()` | Jamf Pro Check-In | — | — | — | ✅ | — | — | — | — | — |
@@ -153,15 +154,15 @@ The table below lists every health check function, its human-readable name, and 
 
 | MDM Vendor | Total Checks |
 |---|---|
-| Jamf Pro | 39 |
-| Mosyle | 33 |
-| Addigy | 32 |
-| Filewave | 31 |
-| Fleet | 32 |
-| JumpCloud | 32 |
-| Kandji | 31 |
-| Microsoft Intune | 32 |
-| Generic / None | 28 |
+| Jamf Pro | 40 |
+| Mosyle | 34 |
+| Addigy | 33 |
+| Filewave | 32 |
+| Fleet | 33 |
+| JumpCloud | 33 |
+| Kandji | 32 |
+| Microsoft Intune | 33 |
+| Generic / None | 29 |
 
 > **Note:** `checkNetworkHosts()` is called once per host group; the five Apple host groups plus the Jamf-specific host group each count as one check. `checkUserDirectorySizeItems()` is called three times (Desktop, Downloads, Trash) and each counts as one check.
 

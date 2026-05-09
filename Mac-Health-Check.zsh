@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.0.0b24, 08-May-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.0.0b25, 09-May-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.0.0b24"
+scriptVersion="4.0.0b25"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -57,7 +57,7 @@ SECONDS="0"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
-operationMode="${4:-"Self Service"}"
+operationMode="${4:-"Development"}"
 
     # Enable `set -x` if operation mode is "Debug" to help identify issues
     [[ "${operationMode}" == "Debug" ]] && set -x
@@ -418,6 +418,12 @@ typeset -a reportHealthyChecks
 typeset -a reportWarningChecks
 typeset -a reportFailChecks
 typeset -a reportErrorChecks
+
+entraIDRegistrationStatus="unknown"
+entraIDRegistrationMethod=""
+entraIDRegistrationDetails=""
+entraIDRegistrationLastUser=""
+entraIDRegistrationLastUserHome=""
 
 case "${reportDebug:l}" in
     "true" | "1" | "yes" | "y" )
@@ -1483,27 +1489,28 @@ jamfProListitemJSON='
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=39.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=29.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=39.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=40.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -2444,6 +2451,7 @@ function buildMacHealthReportJSON() {
     local summaryJSON=""
     local systemInfoJSON=""
     local mdmJSON=""
+    local identityJSON=""
     local -a reportingErrorItems
 
     if [[ -n "${reportingErrors}" ]]; then
@@ -2541,11 +2549,22 @@ function buildMacHealthReportJSON() {
     mdmJSON+="\"jamfProSiteName\":$( jsonString "${jamfProSiteName}" )"
     mdmJSON+="}"
 
+    identityJSON="{"
+    identityJSON+="\"entraIDRegistration\":{"
+    identityJSON+="\"status\":$( jsonString "${entraIDRegistrationStatus}" ),"
+    identityJSON+="\"method\":$( jsonString "${entraIDRegistrationMethod}" ),"
+    identityJSON+="\"lastUser\":$( jsonString "${entraIDRegistrationLastUser:-${loggedInUser}}" ),"
+    identityJSON+="\"lastUserHome\":$( jsonString "${entraIDRegistrationLastUserHome:-${loggedInUserHomeDirectory}}" ),"
+    identityJSON+="\"details\":$( jsonString "${entraIDRegistrationDetails}" )"
+    identityJSON+="}"
+    identityJSON+="}"
+
     printf '%s' "{"
     printf '%s' "\"metadata\":${metadataJSON},"
     printf '%s' "\"summary\":${summaryJSON},"
     printf '%s' "\"systemInfo\":${systemInfoJSON},"
     printf '%s' "\"mdm\":${mdmJSON},"
+    printf '%s' "\"identity\":${identityJSON},"
     printf '%s' "\"checks\":${checksJSON}"
     printf '%s' "}"
 
@@ -2578,6 +2597,7 @@ function buildFallbackReportJSON() {
     printf '%s' "},"
     printf '%s' "\"systemInfo\":{},"
     printf '%s' "\"mdm\":{},"
+    printf '%s' "\"identity\":{\"entraIDRegistration\":{\"status\":$( jsonString "${entraIDRegistrationStatus}" ),\"method\":$( jsonString "${entraIDRegistrationMethod}" ),\"lastUser\":$( jsonString "${entraIDRegistrationLastUser:-${loggedInUser}}" ),\"lastUserHome\":$( jsonString "${entraIDRegistrationLastUserHome:-${loggedInUserHomeDirectory}}" ),\"details\":$( jsonString "${entraIDRegistrationDetails}" )}},"
     printf '%s' "\"checks\":[]"
     printf '%s' "}"
 
@@ -3334,6 +3354,10 @@ function getInspectExpectedComparisonTextByIndex() {
             echo "Installed"
             return
             ;;
+        "Entra ID Registration" )
+            echo "Registered or not applicable"
+            return
+            ;;
         *"MDM Certificate Expiration" )
             echo "Certificate not expired"
             return
@@ -3492,6 +3516,9 @@ function getInspectFailureSymbolByIndex() {
     local title="${checkTitleByIndex[${index}]:-}"
 
     case "${title:l}" in
+        *entra*id*registration* )
+            echo "person.badge.key"
+            ;;
         *gatekeeper*|*xprotect* )
             echo "lock.trianglebadge.exclamationmark"
             ;;
@@ -3580,6 +3607,9 @@ function getInspectCheckSymbolByIndex() {
         *bluetooth*sharing* )
             echo "dot.radiowaves.right"
             ;;
+        *entra*id*registration* )
+            echo "person.badge.key.fill"
+            ;;
         *mdm*profile* )
             echo "checkmark.shield"
             ;;
@@ -3644,7 +3674,7 @@ function getInspectComplianceCategoryByIndex() {
         *push*notification*hosts*|*device*management*|*software*and*carrier*updates*|*certificate*validation*|*identity*and*content*services*|*network*quality*|*wi-fi*|*vpn* )
             echo "Connectivity"
             ;;
-        *mdm*|*check-in*|*inventory*|*push*notification*service* )
+        *entra*id*registration*|*mdm*|*check-in*|*inventory*|*push*notification*service* )
             echo "MDM"
             ;;
         *teams*|*homebrew*|*electron* )
@@ -3663,7 +3693,7 @@ function getInspectComplianceCriticalityByIndex() {
     local title="${checkTitleByIndex[${index}]:l}"
 
     case "${title}" in
-        *system*integrity*protection*|*signed*system*volume*|*filevault*|*gatekeeper*|*xprotect*|*available*update*|*mdm*profile*|*mdm*certificate*|*check-in*|*inventory*|*device*management* )
+        *system*integrity*protection*|*signed*system*volume*|*filevault*|*gatekeeper*|*xprotect*|*available*update*|*entra*id*registration*|*mdm*profile*|*mdm*certificate*|*check-in*|*inventory*|*device*management* )
             echo "high"
             ;;
         *desktop*|*downloads*|*trash*|*airdrop*|*airplay*receiver*|*bluetooth*sharing*|*teams* )
@@ -6508,6 +6538,248 @@ function checkMdmProfile() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Entra ID Registration
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function getEntraJamfAADPlistPath() {
+
+    if [[ -z "${loggedInUserHomeDirectory}" ]]; then
+        echo ""
+    else
+        echo "${loggedInUserHomeDirectory}/Library/Preferences/com.jamf.management.jamfAAD.plist"
+    fi
+
+}
+
+function readEntraJamfAADHaveAzureID() {
+
+    local plistPath="${1}"
+    local rawValue=""
+
+    if [[ ! -f "${plistPath}" ]]; then
+        echo ""
+        return
+    fi
+
+    rawValue="$( defaults read "${plistPath}" have_an_Azure_id 2>/dev/null )"
+
+    if [[ -z "${rawValue}" ]]; then
+        rawValue="$( /usr/libexec/PlistBuddy -c "Print :have_an_Azure_id" "${plistPath}" 2>/dev/null )"
+    fi
+
+    case "${rawValue:l}" in
+        "1"|"true"|"yes" )
+            echo "1"
+            ;;
+        "0"|"false"|"no" )
+            echo "0"
+            ;;
+        * )
+            printf '%s' "${rawValue}"
+            ;;
+    esac
+
+}
+
+function getEntraPSSOBinaryPath() {
+    echo "/Library/Application Support/JAMF/Jamf.app/Contents/MacOS/Jamf Conditional Access.app/Contents/MacOS/Jamf Conditional Access"
+}
+
+function getEntraPSSOStatusRaw() {
+
+    local pssoBinary="$( getEntraPSSOBinaryPath )"
+
+    if [[ -z "${loggedInUserID}" ]] || [[ ! -x "${pssoBinary}" ]]; then
+        echo ""
+        return
+    fi
+
+    launchctl asuser "${loggedInUserID}" "${pssoBinary}" getPSSOStatus 2>/dev/null
+
+}
+
+function getEntraPSSODeviceID() {
+
+    local pssoStatusRaw="${1}"
+
+    printf '%s' "${pssoStatusRaw}" | \
+        sed -E 's/AnyHashable\(|\)//g' | \
+        tr ',' '\n' | \
+        awk -F'=' '/primary_registration_metadata_device_id/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}'
+
+}
+
+function getEntraLegacyCertificateOutput() {
+
+    if [[ -z "${loggedInUserID}" ]]; then
+        echo ""
+        return
+    fi
+
+    launchctl asuser "${loggedInUserID}" /usr/bin/security find-certificate -a -c "MS-ORGANIZATION-ACCESS" 2>/dev/null
+
+}
+
+function checkEntraIDRegistration() {
+
+    local humanReadableCheckName="Entra ID Registration"
+    local footerCheckIcon="SF=person.badge.key"
+    local footerStatusColor="${statusColorSuccess}"
+    local jamfAADPlistPath="$( getEntraJamfAADPlistPath )"
+    local pssoBinary="$( getEntraPSSOBinaryPath )"
+    local pssoStatusRaw=""
+    local pssoDeviceID=""
+    local legacyCertificateAlias=""
+    local haveAzureID=""
+    local resultStatus="not_applicable"
+    local resultMethod="none"
+    local resultValue="Not Applicable"
+    local resultSubtitle="${organizationBoilerplateComplianceMessage}"
+    local resultDetails="No Microsoft Entra registration artifacts found"
+    local listItemStyle=""
+    local artifactDetected="false"
+
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: ${footerCheckIcon},${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    entraIDRegistrationLastUser="${loggedInUser}"
+    entraIDRegistrationLastUserHome="${loggedInUserHomeDirectory}"
+
+    if [[ -x "${pssoBinary}" ]] || [[ -f "${jamfAADPlistPath}" ]]; then
+        artifactDetected="true"
+    fi
+
+    if [[ -z "${loggedInUserID}" ]] || [[ -z "${loggedInUser}" ]] || [[ -z "${loggedInUserHomeDirectory}" ]]; then
+        if [[ "${artifactDetected}" == "true" ]]; then
+            resultStatus="detection_error"
+            resultValue="Detection Error"
+            resultSubtitle="No target user context available. Contact ${supportTeamName}."
+            resultDetails="Entra-related artifacts exist, but no user context is available for inspection"
+        fi
+    else
+        if [[ -x "${pssoBinary}" ]]; then
+            pssoStatusRaw="$(
+                captureRunAsUserOutput env HOME="${loggedInUserHomeDirectory}" USER="${loggedInUser}" LOGNAME="${loggedInUser}" "${pssoBinary}" getPSSOStatus 2>/dev/null | \
+                    sed -E '/^0$/d; s/AnyHashable\(|\)//g' | \
+                    tr '\n' ' ' | \
+                    sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
+            )"
+        fi
+
+        if [[ -n "${pssoStatusRaw}" ]] && [[ "${pssoStatusRaw}" == *"primary_registration_metadata_device_id"* ]]; then
+            artifactDetected="true"
+            resultMethod="psso"
+            pssoDeviceID="$( getEntraPSSODeviceID "${pssoStatusRaw}" )"
+
+            if [[ -f "${jamfAADPlistPath}" ]]; then
+                haveAzureID="$( readEntraJamfAADHaveAzureID "${jamfAADPlistPath}" )"
+                case "${haveAzureID}" in
+                    "1" )
+                        resultStatus="registered"
+                        resultValue="Registered"
+                        resultSubtitle="${organizationBoilerplateComplianceMessage}"
+                        if [[ -n "${pssoDeviceID}" ]]; then
+                            resultDetails="PSSO device ID detected for ${loggedInUserHomeDirectory}: ${pssoDeviceID}"
+                        else
+                            resultDetails="PSSO registration metadata detected for ${loggedInUserHomeDirectory}"
+                        fi
+                        ;;
+                    * )
+                        resultStatus="partial"
+                        resultValue="Partial"
+                        resultSubtitle="WPJ key is present, but AAD ID was not acquired for current user. Run Entra registration or contact ${supportTeamName}."
+                        resultDetails="PSSO registration metadata detected, but have_an_Azure_id is not 1"
+                        ;;
+                esac
+            else
+                resultStatus="partial"
+                resultValue="Partial"
+                resultSubtitle="WPJ key is present, but JamfAAD status is missing. Run Entra registration or contact ${supportTeamName}."
+                resultDetails="PSSO registration metadata detected, but JamfAAD plist is missing"
+            fi
+        fi
+
+        if [[ "${resultStatus}" == "not_applicable" ]]; then
+            legacyCertificateAlias="$(
+                captureRunAsUserOutput env HOME="${loggedInUserHomeDirectory}" USER="${loggedInUser}" LOGNAME="${loggedInUser}" /bin/sh -c '/usr/bin/security find-certificate -a -Z 2>/dev/null | /usr/bin/grep -B 9 "MS-ORGANIZATION-ACCESS" | /usr/bin/awk '\''/"alis"<blob>="/ {print $NF}'\'' | /usr/bin/sed '\''s/"alis"<blob>="//;s/.$//'\'''
+            )"
+
+            if [[ -n "${legacyCertificateAlias}" ]]; then
+                artifactDetected="true"
+                resultMethod="legacy"
+
+                if [[ -f "${jamfAADPlistPath}" ]]; then
+                    haveAzureID="$( readEntraJamfAADHaveAzureID "${jamfAADPlistPath}" )"
+                    case "${haveAzureID}" in
+                        "1" )
+                            resultStatus="registered"
+                            resultValue="Registered"
+                            resultSubtitle="${organizationBoilerplateComplianceMessage}"
+                            resultDetails="Legacy MS-ORGANIZATION-ACCESS certificate detected for ${loggedInUserHomeDirectory}"
+                            ;;
+                        * )
+                            resultStatus="partial"
+                            resultValue="Partial"
+                            resultSubtitle="WPJ key is present, but AAD ID was not acquired for current user. Run Entra registration or contact ${supportTeamName}."
+                            resultDetails="Legacy MS-ORGANIZATION-ACCESS certificate detected, but have_an_Azure_id is not 1"
+                            ;;
+                    esac
+                else
+                    resultStatus="partial"
+                    resultValue="Partial"
+                    resultSubtitle="WPJ key is present, but JamfAAD status is missing. Run Entra registration or contact ${supportTeamName}."
+                    resultDetails="Legacy MS-ORGANIZATION-ACCESS certificate detected, but JamfAAD plist is missing"
+                fi
+            fi
+        fi
+
+        if [[ "${resultStatus}" == "not_applicable" ]] && [[ "${artifactDetected}" == "true" ]]; then
+            resultStatus="not_registered"
+            resultValue="Not Registered"
+            resultSubtitle="No valid Entra registration found. Run Entra registration or contact ${supportTeamName}."
+            resultDetails="Entra-related artifacts exist, but no valid PSSO metadata or legacy registration certificate was found"
+        fi
+    fi
+
+    case "${resultStatus}" in
+        "registered" | "not_applicable" )
+            listItemStyle="weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${resultSubtitle}, status: success, statustext: ${resultValue}"
+            footerStatusColor="${statusColorSuccess}"
+            info "${humanReadableCheckName}: ${resultValue}${resultDetails:+ (${resultDetails})}"
+            ;;
+        "partial" | "detection_error" )
+            listItemStyle="weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${resultSubtitle}, status: error, statustext: ${resultValue}"
+            footerStatusColor="${statusColorError}"
+            warning "${humanReadableCheckName}: ${resultValue}${resultDetails:+ (${resultDetails})}"
+            overallHealth+="${humanReadableCheckName}; "
+            ;;
+        * )
+            listItemStyle="weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${resultSubtitle}, status: fail, statustext: ${resultValue}"
+            footerStatusColor="${statusColorFail}"
+            errorOut "${humanReadableCheckName}: ${resultValue}${resultDetails:+ (${resultDetails})}"
+            overallHealth+="${humanReadableCheckName}; "
+            ;;
+    esac
+
+    entraIDRegistrationStatus="${resultStatus}"
+    entraIDRegistrationMethod="${resultMethod}"
+    entraIDRegistrationDetails="${resultDetails}"
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill ${listItemStyle}"
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Apple Push Notification service (thanks, @isaacatmann!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -8219,6 +8491,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     developmentListitemJSON='
     [
         {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
         {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
@@ -8365,7 +8638,8 @@ if [[ "${operationMode}" == "Development" ]]; then
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     # set -x
     checkAirDropSettings "0"
-    checkWiFiStrength "1"
+    checkEntraIDRegistration "1"
+    checkWiFiStrength "2"
     # set +x
 
 else
@@ -8403,18 +8677,19 @@ else
                 checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                checkEntraIDRegistration "20"
+                checkMdmCertificateExpiration "21"
+                checkAPNs "22"
+                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "28" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkHomebrewStatus "29"
+                checkElectronCornerMask "30"
+                checkWiFiStrength "31"
+                checkNetworkQuality "32"
                 ;;
 
             "Filewave" )
@@ -8438,17 +8713,18 @@ else
                 checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkHomebrewStatus "27"
-                checkElectronCornerMask "28"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                checkEntraIDRegistration "20"
+                checkMdmCertificateExpiration "21"
+                checkAPNs "22"
+                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkHomebrewStatus "28"
+                checkElectronCornerMask "29"
+                checkWiFiStrength "30"
+                checkNetworkQuality "31"
                 ;;
 
             "Fleet" )
@@ -8472,18 +8748,19 @@ else
                 checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                checkEntraIDRegistration "20"
+                checkMdmCertificateExpiration "21"
+                checkAPNs "22"
+                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "28" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
+                checkHomebrewStatus "29"
+                checkElectronCornerMask "30"
+                checkWiFiStrength "31"
+                checkNetworkQuality "32"
                 ;;
 
             "Jamf Pro" )
@@ -8505,27 +8782,28 @@ else
                 checkUserDirectorySizeItems "15" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "16" ".Trash" "trash.fill" "Trash"
                 checkMdmProfile "17"
-                checkMdmCertificateExpiration "18"
-                checkAPNs "19"
-                checkJamfProCheckIn "20"
-                checkJamfProInventory "21"
-                checkNetworkHosts  "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts  "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts  "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts  "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts  "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkNetworkHosts  "27" "Jamf Hosts"                            "${jamfHosts[@]}"
-                checkAppAutoPatch "28"
-                checkHomebrewStatus "29"
-                checkElectronCornerMask "30"
-                checkInternal "31" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkExternalJamfPro "32" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
-                checkExternalJamfPro "33" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
-                checkExternalJamfPro "34" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
-                checkExternalJamfPro "35" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
-                checkWiFiStrength "36"
-                checkNetworkQuality "37"
-                updateComputerInventory "38"
+                checkEntraIDRegistration "18"
+                checkMdmCertificateExpiration "19"
+                checkAPNs "20"
+                checkJamfProCheckIn "21"
+                checkJamfProInventory "22"
+                checkNetworkHosts  "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts  "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts  "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts  "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts  "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkNetworkHosts  "28" "Jamf Hosts"                            "${jamfHosts[@]}"
+                checkAppAutoPatch "29"
+                checkHomebrewStatus "30"
+                checkElectronCornerMask "31"
+                checkInternal "32" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkExternalJamfPro "33" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
+                checkExternalJamfPro "34" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
+                checkExternalJamfPro "35" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
+                checkExternalJamfPro "36" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
+                checkWiFiStrength "37"
+                checkNetworkQuality "38"
+                updateComputerInventory "39"
                 ;;
 
             "JumpCloud" )
@@ -8549,18 +8827,19 @@ else
                 checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                checkEntraIDRegistration "20"
+                checkMdmCertificateExpiration "21"
+                checkAPNs "22"
+                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "28" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkHomebrewStatus "29"
+                checkElectronCornerMask "30"
+                checkWiFiStrength "31"
+                checkNetworkQuality "32"
                 ;;
 
             "Kandji" )
@@ -8579,22 +8858,23 @@ else
                 checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
                 checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
                 checkBluetoothSharing "14"
-                checkMdmCertificateExpiration "15"
-                checkAPNs "16"
-                checkNetworkHosts "17" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "18" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "19" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "20" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "21" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "22" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-				checkInternal "23" "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft OneDrive"
-				checkInternal "24" "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
-				checkInternal "25" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
-				checkInternal "26" "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"
-				checkInternal "27" "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"				
-				checkInternal "28" "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"				
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                checkEntraIDRegistration "15"
+                checkMdmCertificateExpiration "16"
+                checkAPNs "17"
+                checkNetworkHosts "18" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "19" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "20" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "21" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "22" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "23" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+				checkInternal "24" "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft OneDrive"
+				checkInternal "25" "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
+				checkInternal "26" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
+				checkInternal "27" "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"
+				checkInternal "28" "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"
+				checkInternal "29" "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"
+                checkWiFiStrength "30"
+                checkNetworkQuality "31"
                 ;;
 
             "Microsoft Intune" )
@@ -8618,18 +8898,19 @@ else
                 checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                checkEntraIDRegistration "20"
+                checkMdmCertificateExpiration "21"
+                checkAPNs "22"
+                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "28" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"
+                checkHomebrewStatus "29"
+                checkElectronCornerMask "30"
+                checkWiFiStrength "31"
+                checkNetworkQuality "32"
                 ;;
 
             "Mosyle" )
@@ -8653,19 +8934,20 @@ else
                 checkAirPlayReceiver "17"
                 checkBluetoothSharing "18"
                 checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkMosyleCheckIn "22"
-                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "28" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
-                checkHomebrewStatus "29"
-                checkElectronCornerMask "30"
-                checkWiFiStrength "31"
-                checkNetworkQuality "32"
+                checkEntraIDRegistration "20"
+                checkMdmCertificateExpiration "21"
+                checkAPNs "22"
+                checkMosyleCheckIn "23"
+                checkNetworkHosts "24" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "25" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "26" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "27" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "28" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkInternal "29" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
+                checkHomebrewStatus "30"
+                checkElectronCornerMask "31"
+                checkWiFiStrength "32"
+                checkNetworkQuality "33"
                 ;;
 
             * )
@@ -8687,16 +8969,17 @@ else
                 checkAirDropSettings "15"
                 checkAirPlayReceiver "16"
                 checkBluetoothSharing "17"
-                checkAPNs "18"
-                checkNetworkHosts "19" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "20" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "21" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "22" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "23" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkHomebrewStatus "24"
-                checkElectronCornerMask "25"
-                checkWiFiStrength "26"
-                checkNetworkQuality "27"
+                checkEntraIDRegistration "18"
+                checkAPNs "19"
+                checkNetworkHosts "20" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts "21" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts "22" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts "23" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts "24" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkHomebrewStatus "25"
+                checkElectronCornerMask "26"
+                checkWiFiStrength "27"
+                checkNetworkQuality "28"
                 ;;
         
         esac

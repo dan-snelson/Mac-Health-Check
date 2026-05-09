@@ -102,9 +102,9 @@ Similar to Self Service, but with `set -x` tracing enabled plus swiftDialog debu
 ---
 
 ### Development
-Runs current development subset of checks in normal non-`Silent` dialog flow. In current release, subset is only `checkWiFiStrength()`, keeping feedback focused and fast without waiting for full vendor-specific run.
+Runs current development subset of checks in normal non-`Silent` dialog flow. In current release, subset includes `checkAirDropSettings()`, `checkEntraIDRegistration()`, and `checkWiFiStrength()`, keeping feedback focused and fast without waiting for full vendor-specific run.
 
-**When to use:** Tuning Wi-Fi signal evaluation, remediation copy, or dialog presentation while keeping the run far shorter than a full production policy.
+**When to use:** Tuning targeted remediation copy, Entra registration reporting, Wi-Fi signal evaluation, or dialog presentation while keeping the run far shorter than a full production policy.
 
 ---
 
