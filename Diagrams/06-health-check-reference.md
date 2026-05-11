@@ -12,7 +12,7 @@ This text-only reference documents the key configurable defaults and runtime inv
 - `Development` mode currently runs `checkAirDropSettings()`, `checkEntraIDRegistration()`, and `checkWiFiStrength()` instead of the full vendor-specific suite.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
-- Pre-flight requires swiftDialog `3.1.0.4977` or newer.
+- Pre-flight requires swiftDialog `3.1.0.4979` or newer.
 - When `enableDockIntegration` is `true`, non-`Silent` runs show a Dock icon with a decreasing `dockiconbadge` count.
 - Client-Side Cache installs a client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` and a `org.churchofjesuschrist.MHC` LaunchDaemon for nightly `Silent` report refreshes.
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, routes stdout/stderr to `/dev/null`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.

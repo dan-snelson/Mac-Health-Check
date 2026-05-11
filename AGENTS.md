@@ -114,7 +114,7 @@ Out of scope:
 ## Repository Rules
 - Current branch prepares `4.0.0`; use `VERSION.txt`, `scriptVersion`, and `CHANGELOG.md` as release-state truth.
 - Keep `scriptVersion` inside script aligned with `VERSION.txt` at all times.
-- Current beta expects swiftDialog `3.1.0.4977` or newer; treat older version references as documentation debt unless task is explicitly historical.
+- Current beta expects swiftDialog `3.1.0.4979` or newer; treat older version references as documentation debt unless task is explicitly historical.
 - Check `git status` before editing shared docs or assets so unrelated local work is not overwritten.
 - Some supporting docs still carry `3.0.0` headings or metadata; treat as documentation debt unless task is explicitly historical.
 - Release artifacts under `Resources/` are tracked; do not rebuild or replace unless task explicitly requires release or packaging refresh.

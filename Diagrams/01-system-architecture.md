@@ -42,7 +42,7 @@ graph TB
 
     subgraph Client["💻 Client Mac"]
         TRIGGER["Policy Trigger<br>User via Self Service<br>or scheduled run"]
-        PREFLIGHT["Pre-flight Checks<br>• Running as root?<br>• jq available?<br>• swiftDialog ≥ 3.1.0.4977 installed?<br>• Kill existing Dialog instances"]
+        PREFLIGHT["Pre-flight Checks<br>• Running as root?<br>• jq available?<br>• swiftDialog ≥ 3.1.0.4979 installed?<br>• Kill existing Dialog instances"]
         MDMDETECT["MDM Vendor Detection<br>Auto-detect from installed profiles:<br>Jamf Pro / Kandji / Intune / Mosyle<br>JumpCloud / Addigy / Filewave / Fleet"]
         CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(28–39 checks)"]
 
@@ -143,7 +143,7 @@ Mac Health Check is MDM-agnostic and has been tested with eight MDM platforms. T
 The script validates its environment before running any health checks:
 1. Confirms execution as root
 2. Verifies `jq` is available for JSON validation and formatting; exits during pre-flight if it is missing
-3. Checks for swiftDialog ≥ 3.1.0.4977 (installs from GitHub if missing)
+3. Checks for swiftDialog ≥ 3.1.0.4979 (installs from GitHub if missing)
 4. Kills any existing swiftDialog instances
 
 **MDM Vendor Detection**

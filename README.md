@@ -26,7 +26,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 
 ### :new: Enteprise Reporting
 
-The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `4.0.0b25` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized in-memory results plus a live compliance plist for swiftDialog `3.1.0.4977` compliance findings. The summary now adds a remediation-first flow with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, `compliance-summary`, `findings-list`, and the existing `Unhealthy` / `Healthy` details, while retaining the main dialog's 60-second completion countdown. Full `Silent` health-check runs now generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog. Reruns within 15 minutes can replay that cached summary without re-running health checks, and runs with health issues now rely on the final main-dialog state plus that detached inspect summary instead of a separate pseudo-alert notification.
+The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `4.0.0b25` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized in-memory results plus a live compliance plist for swiftDialog `3.1.0.4979` compliance findings. The summary now adds a remediation-first flow with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, `compliance-summary`, `findings-list`, and the existing `Unhealthy` / `Healthy` details, while retaining the main dialog's 60-second completion countdown. Full `Silent` health-check runs now generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog. Reruns within 15 minutes can replay that cached summary without re-running health checks, and runs with health issues now rely on the final main-dialog state plus that detached inspect summary instead of a separate pseudo-alert notification.
 
 - Structured JSON health report generated at the end of every run
 - Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
@@ -47,7 +47,7 @@ See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Refere
 
 The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables cached replay; `off` disables asset generation, launch, and replay.
 
-The current `4.0.0b25` beta expects swiftDialog `3.1.0.4977` or newer so `Self Service` can launch the detached inspect summary with compliance findings.
+The current `4.0.0b25` beta expects swiftDialog `3.1.0.4979` or newer so `Self Service` can launch the detached inspect summary with compliance findings.
 
 User-facing report:
 
@@ -140,7 +140,7 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 ## Features
 The following health checks and information reporting are included in version `4.0.0b25`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
 
-> :new: Mac Health Check version `4.0.0b25` retains secure JSON report generation and optional Splunk HEC delivery, adds Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, updates Inspect Mode summary assets for swiftDialog `3.1.0.4977` compliance findings, adds `Quick Actions`, a conditional `Remediation Guide`, and status-aware bento-grid cards, writes those assets during full `Silent` health-check runs without launching UI, supports 15-minute cached summary replay on rerun, and adds `Wi-Fi Strength` plus warning-only final dialog handling via `Computer Needs Attention`.
+> :new: Mac Health Check version `4.0.0b25` retains secure JSON report generation and optional Splunk HEC delivery, adds Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, updates Inspect Mode summary assets for swiftDialog `3.1.0.4979` compliance findings, adds `Quick Actions`, a conditional `Remediation Guide`, and status-aware bento-grid cards, writes those assets during full `Silent` health-check runs without launching UI, supports 15-minute cached summary replay on rerun, and adds `Wi-Fi Strength` plus warning-only final dialog handling via `Computer Needs Attention`.
 
 
 
@@ -232,7 +232,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - `inspectSummaryPreset="on"` enables Preset 6 asset generation, `Self Service` launch and cached replay; set it to `off` to disable all three
 - Unhealthy `Self Service` runs now rely on the final unhealthy main-dialog state plus the detached inspect summary after report generation, without a separate pseudo-alert notification
 - If inspect-summary asset generation or launch fails, Mac Health Check falls back to the existing `completionTimer` countdown path
-- Requires swiftDialog `3.1.0.4977` or newer
+- Requires swiftDialog `3.1.0.4979` or newer
 
 #### IT Support
 - Dynamic `supportLabel1` / `supportValue1` through `supportLabel6` / `supportValue6`
@@ -349,8 +349,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "AirDrop", "subtitle" : "Ensure AirDrop is not set to Everyone for security", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -378,8 +377,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     # set -x
-    checkAirDropSettings "0"
-    checkWiFiStrength "1"
+    checkEntraIDRegistration "0"
     # set +x
 
 else

@@ -29,7 +29,7 @@
 - Fixed truncated `Run` command-preview log entries by joining and quoting command arguments before logging user-context helper invocations
 - Normalized client-side cache, LaunchDaemon validation/loading, and Jamf external-check helper output so field logs stay MHC-prefixed
 - Tightened cached-report validation and cached Splunk upload state so cached upload failures no longer look like successful report generation
-- Updated the detached swiftDialog Inspect Mode Preset 6 report for swiftDialog `3.1.0.4977` compliance findings
+- Updated the detached swiftDialog Inspect Mode Preset 6 report for swiftDialog `3.1.0.4979` compliance findings
 - Added a live compliance plist source for `compliance-summary`, `findings-list` and bento-grid `BentoPlistDetailSheet` popovers
 - Added Inspect Mode trigger, readiness and result control file paths to generated Preset 6 configs
 - Updated the Preset 6 demo resources to use source-level labels and cell IDs that bind directly to plist keys

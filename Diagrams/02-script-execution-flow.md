@@ -56,7 +56,7 @@ graph TB
         CACHEDUPLOAD["Validate cached report again<br>wrap existing JSON in HEC payload<br>upload to Splunk and exit"]
         INSTALLCHECK{"Non-Silent or<br>Silent + Splunk production?"}
         INSTALLCACHE["Install or update client-side script<br>sanitize Jamf inventory code<br>validate and load LaunchDaemon"]
-        SDCHECK{"swiftDialog<br>≥ 3.1.0.4977?"}
+        SDCHECK{"swiftDialog<br>≥ 3.1.0.4979?"}
         SDINSTALL["Download & install<br>swiftDialog from GitHub"]
         KILLSD["Kill existing<br>Dialog instances"]
         REPLAYCHECK{"Self Service + inspectSummaryPreset=on<br>cached inspect config age<br>< inspectReplayMaximumAgeSeconds and valid?"}
@@ -234,7 +234,7 @@ The script must run as root. If not, it calls `fatal()` and exits immediately wi
 The script requires `jq` for JSON validation, formatting, and dialog/listitem JSON merging. If `jq` is unavailable, `4.0.0b23` exits during pre-flight with a fatal dependency message.
 
 ### 4. swiftDialog Version
-The script requires swiftDialog ≥ 3.1.0.4977. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
+The script requires swiftDialog ≥ 3.1.0.4979. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
 
 ### 5. Dock Integration
 If `enableDockIntegration` is `true` and the mode is not `Silent`, the script resolves the Dock icon, attempts a named `Dialog.app` launch so Dock hover text matches the script name, initializes `dockiconbadge`, and falls back to the standard dialog binary if the Dock-enabled launch fails.
