@@ -4,7 +4,20 @@
 
 > A **major** update to the practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users — and now **enterprise reporting data warehouses** — via your MDM's self-service app
 
-<img src="images/MHC_3.2.0.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_4.0.0b26.png" alt="Mac Health Check Hero" width="800"/>
+
+<table>
+    <tr>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.42.57%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.42.57%E2%80%AFAM.png" alt="Computer Needs Attention" width="320"></a>Computer Needs Attention</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.10%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.10%E2%80%AFAM.png" alt="Results Overview" width="320"></a>🆕 Results Overview</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.22%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.22%E2%80%AFAM.png" alt="Remediation Guide" width="320"></a>🆕 Remediation Guide</td>
+    </tr>
+    <tr>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.33%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.33%E2%80%AFAM.png" alt="Maintenance Status" width="320"></a>🆕 Maintenance Status</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.41%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.41%E2%80%AFAM.png" alt="Maintenance Detail" width="320"></a>🆕 Maintenance Detail</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.44.11%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.44.11%E2%80%AFAM.png" alt="Next Steps" width="320"></a>🆕 Next Steps</td>
+    </tr>
+</table>
 
 ## Overview
 
@@ -146,8 +159,6 @@ The following health checks and information reporting are included in version `4
 
 ### Health Checks
 
-<img src="images/MHC_3.2.0.png" alt="Health Checks" width="800"/>
-
 :tada: Improved in version `4.0.0`
 
 1. macOS Version
@@ -170,7 +181,7 @@ The following health checks and information reporting are included in version `4
     - Downloads
     - Trash
 1. MDM Profile
-1. Entra ID Registration
+1. :new: Entra ID Registration
 1. MDM Certificate Expiration
 1. Apple Push Notification service
 1. Jamf Pro Check-in
