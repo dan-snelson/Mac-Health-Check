@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>lastComplianceCheck</key>
-	<string>2026-04-29T09:44:01-04:00</string>
+	<string>2026-05-15T10:42:45-04:00</string>
 	<key>macos_version</key>
 	<dict>
 		<key>status</key>
@@ -24,7 +24,7 @@
 	<key>available_updates</key>
 	<dict>
 		<key>status</key>
-		<string>healthy</string>
+		<string>attention</string>
 		<key>category</key>
 		<string>Maintenance</string>
 		<key>displayName</key>
@@ -32,11 +32,11 @@
 		<key>expected</key>
 		<string>No updates pending</string>
 		<key>actual</key>
-		<string>None</string>
+		<string>macOS 26.5 (19-May-2026)</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>Thanks for keeping your Mac up-to-date</string>
+		<string>System Settings &gt; General &gt; Software Update; Ready to install (26.50 GB downloaded)</string>
 	</dict>
 	<key>system_integrity_protection</key>
 	<dict>
@@ -219,7 +219,7 @@
 		<key>expected</key>
 		<string>Restarted within policy</string>
 		<key>actual</key>
-		<string>2 days</string>
+		<string>4 days</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
@@ -236,11 +236,11 @@
 		<key>expected</key>
 		<string>At least 10% free</string>
 		<key>actual</key>
-		<string>448.3 GB free (90.69% available)</string>
+		<string>425.7 GB free (86.10% available)</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>448.3 GB free (90.69% available)</string>
+		<string>425.7 GB free (86.10% available)</string>
 	</dict>
 	<key>desktop_size_and_item_count</key>
 	<dict>
@@ -253,11 +253,11 @@
 		<key>expected</key>
 		<string>At most 5% of disk</string>
 		<key>actual</key>
-		<string>Empty</string>
+		<string>1.6M (3 items) — 0% of disk</string>
 		<key>criticality</key>
 		<string>low</string>
 		<key>message</key>
-		<string>Empty</string>
+		<string>1.6M (3 items) — 0% of disk</string>
 	</dict>
 	<key>downloads_size_and_item_count</key>
 	<dict>
@@ -310,6 +310,23 @@
 		<key>message</key>
 		<string>Installed</string>
 	</dict>
+	<key>entra_id_registration</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Entra ID Registration</string>
+		<key>expected</key>
+		<string>Registered or not applicable</string>
+		<key>actual</key>
+		<string>Registered</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Registered</string>
+	</dict>
 	<key>jamf_pro_mdm_certificate_expiration</key>
 	<dict>
 		<key>status</key>
@@ -338,11 +355,11 @@
 		<key>expected</key>
 		<string>Recent APNS communication</string>
 		<key>actual</key>
-		<string>8:42 AM</string>
+		<string>10:18 AM</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>8:42 AM</string>
+		<string>10:18 AM</string>
 	</dict>
 	<key>jamf_pro_check_in</key>
 	<dict>
@@ -355,11 +372,11 @@
 		<key>expected</key>
 		<string>Checked in recently</string>
 		<key>actual</key>
-		<string>9:25 AM</string>
+		<string>10:32 AM</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>9:25 AM</string>
+		<string>10:32 AM</string>
 	</dict>
 	<key>jamf_pro_inventory</key>
 	<dict>
@@ -372,11 +389,11 @@
 		<key>expected</key>
 		<string>Inventory updated recently</string>
 		<key>actual</key>
-		<string>8:14 AM</string>
+		<string>10:18 AM</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>8:14 AM</string>
+		<string>10:18 AM</string>
 	</dict>
 	<key>apple_push_notification_hosts</key>
 	<dict>
@@ -489,9 +506,9 @@
 		<key>displayName</key>
 		<string>App Auto-Patch</string>
 		<key>expected</key>
-		<string>4 day(s) ago</string>
+		<string>2 day(s) ago</string>
 		<key>actual</key>
-		<string>4 day(s) ago</string>
+		<string>2 day(s) ago</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
@@ -629,11 +646,11 @@
 Good &gt;= -65
 Fair &gt;= -75, Poor &lt; -75</string>
 		<key>actual</key>
-		<string>Excellent (-41 dBm)</string>
+		<string>Good (-64 dBm)</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>RSSI -41 dBm</string>
+		<string>RSSI -64 dBm</string>
 	</dict>
 	<key>network_quality_test</key>
 	<dict>
@@ -646,11 +663,11 @@ Fair &gt;= -75, Poor &lt; -75</string>
 		<key>expected</key>
 		<string>Network quality passed</string>
 		<key>actual</key>
-		<string>253.23 Mbps (cached)</string>
+		<string>460.31 Mbps </string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>253.23 Mbps (cached)</string>
+		<string>460.31 Mbps </string>
 	</dict>
 	<key>computer_inventory</key>
 	<dict>
@@ -667,7 +684,7 @@ Fair &gt;= -75, Poor &lt; -75</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>Latest computer inventory submitted at Wednesday, April 29 at 09:43 AM EDT</string>
+		<string>Latest computer inventory submitted at Friday, May 15 at 10:42 AM EDT</string>
 	</dict>
 </dict>
 </plist>

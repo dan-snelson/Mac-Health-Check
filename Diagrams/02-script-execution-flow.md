@@ -1,6 +1,6 @@
 # Mac Health Check: Script Execution Flow
 
-This flowchart documents the `4.0.0b23` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
+This flowchart documents the `4.0.0b26` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
 
 ```mermaid
 graph TB
@@ -34,16 +34,23 @@ graph TB
 
     subgraph ClientSideCache["Client-Side Cache"]
         CSCCHECK{"Silent + Splunk production<br>server-side Jamf run?"}
+        FORCEFRESH{"Parameter 11 forceFreshRun=true<br>or trigger file present?"}
         CSCSKIP{"Client script version matches<br>and cached report valid<br>and < 36h old?"}
+        FORCEFULL["Remove trigger file when present<br>delete cached JSON report<br>bypass cached-upload shortcut"]
         CSCSHORTCUT["Set clientSideSkipChecks=true<br>for cached Splunk upload"]
 
         CSCCHECK -->|No| PREFLIGHT_START
-        CSCCHECK -->|Yes| CSCSKIP
+        CSCCHECK -->|Yes| FORCEFRESH
+        FORCEFRESH -->|Yes| FORCEFULL
+        FORCEFRESH -->|No| CSCSKIP
+        FORCEFULL --> PREFLIGHT_START
         CSCSKIP -->|Yes| CSCSHORTCUT
         CSCSKIP -->|No| PREFLIGHT_START
         CSCSHORTCUT --> PREFLIGHT_START
 
         style CSCCHECK fill:#ffecb3
+        style FORCEFRESH fill:#ffecb3
+        style FORCEFULL fill:#ffe0b2
         style CSCSKIP fill:#ffecb3
         style CSCSHORTCUT fill:#c8e6c9
     end
@@ -231,7 +238,7 @@ Set via MDM policy parameter. Determines UI behavior and which checks execute. T
 The script must run as root. If not, it calls `fatal()` and exits immediately with a log entry.
 
 ### 3. jq Availability
-The script requires `jq` for JSON validation, formatting, and dialog/listitem JSON merging. If `jq` is unavailable, `4.0.0b23` exits during pre-flight with a fatal dependency message.
+The script requires `jq` for JSON validation, formatting, and dialog/listitem JSON merging. If `jq` is unavailable, `4.0.0b26` exits during pre-flight with a fatal dependency message.
 
 ### 4. swiftDialog Version
 The script requires swiftDialog ≥ 3.1.0.4979. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
@@ -240,7 +247,7 @@ The script requires swiftDialog ≥ 3.1.0.4979. If the installed version is olde
 If `enableDockIntegration` is `true` and the mode is not `Silent`, the script resolves the Dock icon, attempts a named `Dialog.app` launch so Dock hover text matches the script name, initializes `dockiconbadge`, and falls back to the standard dialog binary if the Dock-enabled launch fails.
 
 ### 6. Client-Side Cache Upload
-When Jamf Pro runs the server-side script in `Silent` mode with `splunkOperationMode=production`, the script compares the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` to the running server-side version. If versions match and `/var/tmp/MacHealthCheck-Report.json` is valid and younger than 36 hours, it marks the run for cached upload. After root and `jq` pre-flight checks pass, the script validates the cached report again, wraps that existing JSON in the normal Splunk HEC payload, uploads it, and exits without running health checks or reinstalling client-side files. Operationally this path is identified by log lines such as `Client-Side Cache: ... cached report is valid and <seconds>s old. Skipping health checks.`, followed by the cached-upload notices and a successful Splunk HEC delivery. The upload timestamp can therefore trail the underlying data-collection timestamp by several hours and, by policy, up to the 36-hour cache window.
+When Jamf Pro runs the server-side script in `Silent` mode with `splunkOperationMode=production`, the script first checks whether operators forced a full refresh through Parameter 11 `forceFreshRun=true` or `/var/tmp/MacHealthCheck-Force-Fresh-Run`. If either override is present, it removes the trigger file when present, deletes `/var/tmp/MacHealthCheck-Report.json` if it exists, logs the bypass, and continues into a complete fresh health-check run. Without that override, the script compares the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` to the running server-side version. If versions match and `/var/tmp/MacHealthCheck-Report.json` is valid and younger than 36 hours, it marks the run for cached upload. After root and `jq` pre-flight checks pass, the script validates the cached report again, wraps that existing JSON in the normal Splunk HEC payload, uploads it, and exits without running health checks or reinstalling client-side files. Operationally this path is identified by log lines such as `Client-Side Cache: ... cached report is valid and <seconds>s old. Skipping health checks.`, followed by the cached-upload notices and a successful Splunk HEC delivery. The upload timestamp can therefore trail the underlying data-collection timestamp by several hours and, by policy, up to the 36-hour cache window.
 
 ### 7. MDM Vendor Detection
 The script reads installed configuration profiles to identify the MDM platform. Each vendor maps to a specific ordered list of health checks. Unrecognized or no MDM vendor falls through to a generic baseline check set.
@@ -256,7 +263,7 @@ Each health check function returns one of four statuses posted to swiftDialog vi
 If `webhookURL` (Parameter 5) is populated and health issues are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing warning, failed, or errored checks. The payload auto-detects the webhook type from the URL.
 
 ### 10. JSON Report + Splunk Delivery
-At the end of the run, `generateAndSendSplunkReport()` writes the canonical local JSON report and, when `splunkOperationMode=production` plus Parameters 7 and 8 are configured, optionally delivers a Splunk HEC envelope. The exact log line `Splunk Reporting: local report written to /var/tmp/MacHealthCheck-Report.json` is the canonical marker that a full run generated fresh local data. `splunkOperationMode=off` or `test` still generates the report but skips network transmission. The Client-Side Cache LaunchDaemon uses the local client copy with `Silent` + default `splunkOperationMode=test`, refreshing the report without storing HEC secrets on disk. The daemon does not use `RunAtLoad`; scheduled runs set `launchDaemonRun=true`, the client script uses that marker to apply deterministic hardware-derived jitter only for daemon-triggered runs, and daemon stdout/stderr route to `/dev/null` so MHC-prefixed log writes remain single entries. In field logs this typically produces an overnight fresh-write event from the LaunchDaemon or another full `Silent` run, followed later by a Jamf-driven cached upload that reuses the already-written JSON when the cache remains valid.
+At the end of the run, `generateAndSendSplunkReport()` writes the canonical local JSON report and, when `splunkOperationMode=production` plus Parameters 7 and 8 are configured, optionally delivers a Splunk HEC envelope. The exact log line `Splunk Reporting: local report written to /var/tmp/MacHealthCheck-Report.json` is the canonical marker that a full run generated fresh local data. `splunkOperationMode=off` or `test` still generates the report but skips network transmission. The Client-Side Cache LaunchDaemon uses the local client copy with `Silent` + default `splunkOperationMode=test`, refreshing the report without storing HEC secrets on disk. The daemon does not use `RunAtLoad`; scheduled runs set `launchDaemonRun=true`, the client script uses that marker to apply deterministic hardware-derived jitter only for daemon-triggered runs, and daemon stdout/stderr route to `/dev/null` so MHC-prefixed log writes remain single entries. In field logs this typically produces an overnight fresh-write event from the LaunchDaemon or another full `Silent` run, followed later by a Jamf-driven cached upload that reuses the already-written JSON when the cache remains valid unless operators force a fresh run through Parameter 11 or the trigger file.
 
 ### 11. Inspect Summary Assets
 In `Self Service` and full `Silent` health-check runs, the script uses finalized in-memory results to generate `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`. `Self Service` then tries to launch a detached, moveable swiftDialog Inspect Mode Preset 6 guided summary; `Silent` writes the assets without launching swiftDialog. That summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when that bucket is empty. On a normal `Self Service` run, the existing `completionTimer` countdown remains on the main dialog whether the detached summary launches or not. Set `inspectSummaryPreset="off"` to skip asset generation, detached launch and cached replay.

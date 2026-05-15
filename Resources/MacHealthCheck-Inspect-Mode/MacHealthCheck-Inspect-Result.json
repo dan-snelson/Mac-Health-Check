@@ -1,10 +1,16 @@
 {
   "exitCode" : 0,
-  "lastStepIndex" : 8,
-  "pid" : 38205,
+  "lastStepIndex" : 10,
+  "pid" : 50364,
   "steps" : [
     {
       "id" : "overview",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "remediation",
       "result" : "success",
       "status" : "completed",
       "stepType" : "info"
@@ -40,6 +46,12 @@
       "stepType" : "info"
     },
     {
+      "id" : "unhealthy",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
       "id" : "healthy",
       "result" : "success",
       "status" : "completed",
@@ -58,6 +70,6 @@
       "stepType" : "info"
     }
   ],
-  "timestamp" : "2026-04-29T15:15:48Z",
-  "totalSteps" : 9
+  "timestamp" : "2026-05-15T14:44:14Z",
+  "totalSteps" : 11
 }

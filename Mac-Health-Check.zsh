@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.0.0b25, 09-May-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.0.0b26, 15-May-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.0.0b25"
+scriptVersion="4.0.0b26"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -128,8 +128,11 @@ splunkHECIndex="${9:-""}"
 # Parameter 10: Splunk HEC Sourcetype
 splunkHECSourcetype="${10:-""}"
 
-# Parameter 11: Reporting debug mode [ true | false ]
-reportDebug="${11:-"false"}"
+# Parameter 11: Force fresh run [ true | false ]
+forceFreshRun="${11:-"false"}"
+
+# Reporting debug mode [ true | false ]
+reportDebug="false"
 
 
 
@@ -157,6 +160,9 @@ launchDaemonPath="/Library/LaunchDaemons/${launchDaemonLabel}.plist"
 clientSideSkipChecks="false"
 clientSideMaximumCacheAgeSeconds="129600"
 currentScriptPath="${0:A}"
+forceFreshRunTriggerFilePath="/var/tmp/MacHealthCheck-Force-Fresh-Run"
+forceFreshRunDetected="false"
+forceFreshRunSource="not_requested"
 
 # Splunk and JSON reporting defaults
 splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
@@ -241,7 +247,31 @@ function clientSideEarlyLog() {
 # Client-Side Cache version check
 if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
 
-    if [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
+    if [[ -f "${forceFreshRunTriggerFilePath}" ]] || [[ "${forceFreshRun:l}" == "true" ]]; then
+
+        forceFreshRunDetected="true"
+
+        if [[ -f "${forceFreshRunTriggerFilePath}" ]] && [[ "${forceFreshRun:l}" == "true" ]]; then
+            forceFreshRunSource="trigger file and Parameter 11"
+        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            forceFreshRunSource="trigger file"
+        else
+            forceFreshRunSource="Parameter 11"
+        fi
+
+        clientSideSkipChecks="false"
+        clientSideEarlyLog "FORCE FRESH RUN triggered via ${forceFreshRunSource} — bypassing cache and forcing complete health check run."
+
+        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            rm -f "${forceFreshRunTriggerFilePath}"
+        fi
+
+        if [[ -f "${splunkJSONReportPath}" ]]; then
+            rm -f "${splunkJSONReportPath}"
+            clientSideEarlyLog "Removed cached Splunk report at ${splunkJSONReportPath} before forced run."
+        fi
+
+    elif [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
 
         clientSideEarlyLog "Running from client-side script path; skipping cached-upload shortcut."
 
@@ -5121,6 +5151,10 @@ if command -v jq &> /dev/null; then
     reportJSONTool="jq"
 else
     fatal "jq is required for JSON validation and formatting; install jq before running Mac Health Check on Macs that do not bundle it by default."
+fi
+
+if [[ "${forceFreshRunDetected}" == "true" ]]; then
+    preFlight "Client-Side Cache: Force Fresh Run requested via ${forceFreshRunSource}; bypassing cached-upload shortcut."
 fi
 
 if [[ "${clientSideSkipChecks}" == "true" ]]; then

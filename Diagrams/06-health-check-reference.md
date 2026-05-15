@@ -1,12 +1,12 @@
 # Mac Health Check: Health Check Reference
 
-This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0b23`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
+This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0b26`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
 
 ---
 
-## 4.0.0b23 Runtime Notes
+## 4.0.0b26 Runtime Notes
 
-- `operationMode` is documented for the `4.0.0b23` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
+- `operationMode` is documented for the `4.0.0b26` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` and full `Silent` health-check runs now generate readable inspect-summary assets after the canonical report is written. `Self Service` launches a detached moveable swiftDialog Inspect Mode Preset 6 guided summary, separates recorded results into `Unhealthy` and `Healthy` sections, and retains the normal main-dialog completion countdown during full runs; `Silent` writes the assets without launching swiftDialog.
 - Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
 - `Development` mode currently runs `checkAirDropSettings()`, `checkEntraIDRegistration()`, and `checkWiFiStrength()` instead of the full vendor-specific suite.
@@ -18,6 +18,7 @@ This text-only reference documents the key configurable defaults and runtime inv
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, routes stdout/stderr to `/dev/null`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
 - LaunchDaemon-triggered refreshes use loginwindow `lastUserName` for user-scoped checks when no GUI user is active.
 - Jamf Pro `Silent` + `splunkOperationMode=production` uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check and installs or refreshes the Client-Side Cache assets.
+- Parameter 11 `forceFreshRun` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` provide explicit cache-bypass controls for the next eligible Jamf `Silent` + `production` run.
 - `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling.
 - `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
 - `checkWiFiStrength()` uses `wdutil info` when available, falls back to the legacy `airport` binary, and treats Wi-Fi-inactive / Ethernet-primary systems as a non-failure skip.
@@ -80,7 +81,7 @@ The support/help experience uses both legacy support fields and dynamic `support
 | `supportLabel1`–`supportLabel6` | Mixed defaults / blanks | Dynamic support labels shown in the help message |
 | `supportValue1`–`supportValue6` | Mixed defaults / blanks | Matching dynamic support values; empty pairs are skipped |
 
-**4.0.0b23 behavior notes**
+**4.0.0b26 behavior notes**
 
 - If all `supportLabelN` / `supportValueN` pairs are blank, the script falls back to the legacy `supportTeam*` and KB values.
 - The first URL-like `supportValueN` becomes the Info button action in the dialog.
@@ -194,4 +195,6 @@ Each external check policy writes results to `organizationDefaultsDomain` using 
 | 8 | `splunkHECToken` | (blank) | Splunk HEC token; never logged by the script |
 | 9 | `splunkHECIndex` | (blank) | Optional Splunk HEC index value included in the transmission wrapper payload |
 | 10 | `splunkHECSourcetype` | (blank) | Optional Splunk HEC sourcetype value included in the transmission wrapper payload |
-| 11 | `reportDebug` | `false` | Enables pretty-printed local JSON and verbose sanitized reporting output |
+| 11 | `forceFreshRun` | `false` | One-shot Jamf override for `Silent` + `splunkOperationMode=production`; bypasses cached upload and forces a full fresh run |
+
+`reportDebug` remains a source-level variable with default `false`; it is no longer supplied as an MDM runtime parameter.
