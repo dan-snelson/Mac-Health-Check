@@ -4,18 +4,22 @@
 
 > A **major** update to the practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users — and now **enterprise reporting data warehouses** — via your MDM's self-service app
 
-<img src="images/MHC_4.0.0b26.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_4.0.0b27.png" alt="Mac Health Check Hero" width="800"/>
 
 <table>
     <tr>
-        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.42.57%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.42.57%E2%80%AFAM.png" alt="Computer Needs Attention" width="320"></a>Computer Needs Attention</td>
-        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.10%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.10%E2%80%AFAM.png" alt="Results Overview" width="320"></a>🆕 Results Overview</td>
-        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.22%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.22%E2%80%AFAM.png" alt="Remediation Guide" width="320"></a>🆕 Remediation Guide</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.14.51%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.14.51%E2%80%AFPM.png" alt="Main Dialog" width="320"></a>Main Dialog</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.03%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.03%E2%80%AFPM.png" alt="Results Overview" width="320"></a>Results Overview</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.58%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.58%E2%80%AFPM.png" alt="Security Status" width="320"></a>Security Status</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.02%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.02%E2%80%AFPM.png" alt="AirDrop Detail Sheet" width="320"></a>AirDrop Detail Sheet</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.19%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.19%E2%80%AFPM.png" alt="Bluetooth Sharing Detail Sheet" width="320"></a>Bluetooth Sharing Detail Sheet</td>
     </tr>
     <tr>
-        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.33%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.33%E2%80%AFAM.png" alt="Maintenance Status" width="320"></a>🆕 Maintenance Status</td>
-        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.41%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.43.41%E2%80%AFAM.png" alt="Maintenance Detail" width="320"></a>🆕 Maintenance Detail</td>
-        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.44.11%E2%80%AFAM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-05-15%20at%2010.44.11%E2%80%AFAM.png" alt="Next Steps" width="320"></a>🆕 Next Steps</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.31%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.31%E2%80%AFPM.png" alt="Maintenance Status" width="320"></a>Maintenance Status</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.36%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.36%E2%80%AFPM.png" alt="App Auto-Patch Detail Sheet" width="320"></a>App Auto-Patch Detail Sheet</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.49%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.49%E2%80%AFPM.png" alt="Applications Status" width="320"></a>Applications Status</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.57%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.57%E2%80%AFPM.png" alt="Homebrew Status Detail Sheet" width="320"></a>Homebrew Status Detail Sheet</td>
+        <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.17.56%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.17.56%E2%80%AFPM.png" alt="Next Steps" width="320"></a>Next Steps</td>
     </tr>
 </table>
 
