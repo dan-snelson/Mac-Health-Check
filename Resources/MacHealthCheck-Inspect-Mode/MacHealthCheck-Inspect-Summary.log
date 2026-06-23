@@ -1,3 +1,4 @@
+ERROR: Preset6: [DIAG] startMonitoring path='/var/tmp/MacHealthCheck-Inspect.trigger' exists=true
 🔧 CONFIG: loadConfigurationFromFile called with path: /var/tmp/MacHealthCheck-Inspect-Config.json
 🎨 CONFIG: No brandPalette found in config
 InspectState: About to extract configurations
@@ -18,51 +19,10 @@ InspectState: After extraction - uiConfiguration.stepStyle = plain
 [SWIFTDIALOG] distributed_notifications: enabled
 [SWIFTDIALOG] trigger_mode: custom
 [SWIFTDIALOG] readiness_file: /var/tmp/MacHealthCheck-Inspect.ready
+[SWIFTDIALOG] published_session: /private/tmp/swiftdialog/sessions/22605.json
 [PRESET6_INTERACTION] event=launched step=preset6 current=0 completed=0
-[PRESET6_EVENT] view_appeared currentStep=0 preset=6 totalSteps=11 triggerFile=/var/tmp/MacHealthCheck-Inspect.trigger completedSteps=0
+[PRESET6_EVENT] view_appeared totalSteps=11 completedSteps=0 preset=6 triggerFile=/var/tmp/MacHealthCheck-Inspect.trigger currentStep=0
 [PRESET6_INTERACTION] event=completed_step step=overview current=0 completed=1
-[PRESET6_EVENT] step_completed completedSteps=1 stepId=overview preset=6 totalSteps=11 currentStep=0 stepIndex=0
+[PRESET6_EVENT] step_completed totalSteps=11 stepIndex=0 stepId=overview completedSteps=1 currentStep=0 preset=6
 [PRESET6_INTERACTION] event=navigate_next step=step_1 current=1 completed=1
-[PRESET6_EVENT] step_transition from=0 totalSteps=11 to=1 preset=6 currentStep=1 completedSteps=1 reason=navigate_next
-[PRESET6_INTERACTION] event=completed_step step=remediation current=1 completed=2
-[PRESET6_EVENT] step_completed stepIndex=1 totalSteps=11 completedSteps=2 preset=6 currentStep=1 stepId=remediation
-[PRESET6_INTERACTION] event=navigate_next step=step_2 current=2 completed=2
-[PRESET6_EVENT] step_transition reason=navigate_next totalSteps=11 preset=6 completedSteps=2 to=2 currentStep=2 from=1
-[PRESET6_INTERACTION] event=completed_step step=security current=2 completed=3
-[PRESET6_EVENT] step_completed totalSteps=11 currentStep=2 stepId=security stepIndex=2 completedSteps=3 preset=6
-[PRESET6_INTERACTION] event=navigate_next step=step_3 current=3 completed=3
-[PRESET6_EVENT] step_transition totalSteps=11 from=2 reason=navigate_next currentStep=3 to=3 preset=6 completedSteps=3
-[PRESET6_INTERACTION] event=completed_step step=maintenance current=3 completed=4
-[PRESET6_EVENT] step_completed currentStep=3 preset=6 completedSteps=4 totalSteps=11 stepId=maintenance stepIndex=3
-[PRESET6_INTERACTION] event=navigate_next step=step_4 current=4 completed=4
-[PRESET6_EVENT] step_transition totalSteps=11 currentStep=4 reason=navigate_next to=4 from=3 completedSteps=4 preset=6
-[PRESET6_INTERACTION] event=completed_step step=mdm__inventory current=4 completed=5
-[PRESET6_EVENT] step_completed completedSteps=5 stepIndex=4 totalSteps=11 currentStep=4 stepId=mdm__inventory preset=6
-[PRESET6_INTERACTION] event=navigate_next step=step_5 current=5 completed=5
-[PRESET6_EVENT] step_transition preset=6 from=4 totalSteps=11 reason=navigate_next to=5 currentStep=5 completedSteps=5
-[PRESET6_INTERACTION] event=completed_step step=connectivity current=5 completed=6
-[PRESET6_EVENT] step_completed currentStep=5 totalSteps=11 completedSteps=6 stepIndex=5 preset=6 stepId=connectivity
-[PRESET6_INTERACTION] event=navigate_next step=step_6 current=6 completed=6
-[PRESET6_EVENT] step_transition currentStep=6 from=5 reason=navigate_next totalSteps=11 to=6 preset=6 completedSteps=6
-[PRESET6_INTERACTION] event=completed_step step=applications current=6 completed=7
-[PRESET6_EVENT] step_completed preset=6 stepId=applications currentStep=6 completedSteps=7 stepIndex=6 totalSteps=11
-[PRESET6_INTERACTION] event=navigate_next step=step_7 current=7 completed=7
-[PRESET6_EVENT] step_transition preset=6 from=6 reason=navigate_next totalSteps=11 to=7 currentStep=7 completedSteps=7
-[PRESET6_INTERACTION] event=ERROR: Preset6: [DIAG] startMonitoring path='/var/tmp/MacHealthCheck-Inspect.trigger' exists=true
-completed_step step=unhealthy current=7 completed=8
-[PRESET6_EVENT] step_completed currentStep=7 totalSteps=11 completedSteps=8 stepIndex=7 stepId=unhealthy preset=6
-[PRESET6_INTERACTION] event=navigate_next step=step_8 current=8 completed=8
-[PRESET6_EVENT] step_transition currentStep=8 from=7 reason=navigate_next totalSteps=11 to=8 preset=6 completedSteps=8
-[PRESET6_INTERACTION] event=completed_step step=healthy current=8 completed=9
-[PRESET6_EVENT] step_completed stepIndex=8 currentStep=8 totalSteps=11 preset=6 completedSteps=9 stepId=healthy
-[PRESET6_INTERACTION] event=navigate_next step=step_9 current=9 completed=9
-[PRESET6_EVENT] step_transition reason=navigate_next totalSteps=11 to=9 preset=6 currentStep=9 from=8 completedSteps=9
-[PRESET6_INTERACTION] event=completed_step step=help current=9 completed=10
-[PRESET6_EVENT] step_completed preset=6 stepId=help currentStep=9 totalSteps=11 completedSteps=10 stepIndex=9
-[PRESET6_INTERACTION] event=navigate_next step=step_10 current=10 completed=10
-[PRESET6_EVENT] step_transition to=10 preset=6 totalSteps=11 currentStep=10 from=9 reason=navigate_next completedSteps=10
-[PRESET6_INTERACTION] event=completed_step step=nextSteps current=10 completed=11
-[PRESET6_EVENT] step_completed preset=6 stepId=nextSteps stepIndex=10 currentStep=10 totalSteps=11 completedSteps=11
-[PRESET6_EVENT] workflow_completed skippedSteps=0 preset=6 failedSteps=0 currentStep=10 completedSteps=11 totalSteps=11
-[PRESET6_INTERACTION] event=completed step=all_steps current=10 completed=11
-[SWIFTDIALOG] result_file: /var/tmp/MacHealthCheck-Inspect-Result.json
+[PRESET6_EVENT] step_transition currentStep=1 completedSteps=1 to=1 from=0 totalSteps=11 preset=6 reason=navigate_next

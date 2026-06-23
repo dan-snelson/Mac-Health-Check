@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.0.0b26, 15-May-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.0.0b27, 23-Jun-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.0.0b26"
+scriptVersion="4.0.0b27"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -42,7 +42,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.0.4979"
+swiftDialogMinimumRequiredVersion="3.1.0.4990"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -3469,6 +3469,154 @@ function getInspectRemediationTextByIndex() {
 
 }
 
+function formatInspectMarkdownText() {
+
+    local text="${1//$'\r'/}"
+
+    text="${text//; /$'\n'}"
+    printf '%s' "${text}"
+
+}
+
+function getInspectDetailSeverityByIndex() {
+
+    case "${checkNormalizedStatusByIndex[${1}]}" in
+        "warning" )
+            echo "warning"
+            ;;
+        "fail" | "error" )
+            echo "failure"
+            ;;
+        "healthy" )
+            echo "healthy"
+            ;;
+        * )
+            echo ""
+            ;;
+    esac
+
+}
+
+function getInspectDetailExplanationByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local message="${checkMessageByIndex[${index}]}"
+    local rawValue="$( getInspectPreferredResultTextByIndex "${index}" )"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" )
+            if [[ "${message:l}" == *"can't connect"* ]] || [[ "${message:l}" == *"can’t connect"* ]]; then
+                printf '%b' "Mac Health Check could not confirm Apple Software Update status for this Mac.\n\n$( formatInspectMarkdownText "${message}" )"
+            else
+                printf '%s' "A macOS update is ready for this Mac. Installing current updates helps keep this Mac secure and aligned with Church standards."
+                if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+                    printf '\n\n%s' "**Detected update:** ${rawValue}"
+                fi
+            fi
+            return
+            ;;
+        "macos_version" )
+            printf '%s' "This Mac is not currently on a supported macOS release for current standards."
+            if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+                printf '\n\n%s' "**Current version:** ${rawValue}"
+            fi
+            return
+            ;;
+    esac
+
+    if [[ -n "${message}" ]] && [[ "${message}" != "${organizationBoilerplateComplianceMessage}" ]]; then
+        formatInspectMarkdownText "${message}"
+    elif [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+        formatInspectMarkdownText "${rawValue}"
+    fi
+
+}
+
+function getInspectDetailRemediationByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local message="${checkMessageByIndex[${index}]}"
+    local remediation="${checkRemediationByIndex[${index}]}"
+    local rawValue="$( getInspectPreferredResultTextByIndex "${index}" )"
+    local supportFallbackText="$( getInspectSupportFallbackText )"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" )
+            if [[ "${message:l}" == *"can't connect"* ]] || [[ "${message:l}" == *"can’t connect"* ]]; then
+                printf '%b' "1. Verify internet access on this Mac.\n2. Connect VPN if your role requires it.\n3. Open **System Settings > General > Software Update** and try again.\n4. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            else
+                if [[ -z "${rawValue}" ]] || [[ "${rawValue}" == "Result unavailable" ]]; then
+                    rawValue="available macOS update"
+                fi
+                printf '%b' "1. Open **System Settings**.\n2. Select **General > Software Update**.\n3. Install **${rawValue}**.\n4. Restart your Mac if prompted.\n5. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            fi
+            return
+            ;;
+        "macos_version" )
+            if [[ -z "${rawValue}" ]] || [[ "${rawValue}" == "Result unavailable" ]]; then
+                rawValue="your current macOS release"
+            fi
+            printf '%b' "1. Open **System Settings**.\n2. Select **General > Software Update**.\n3. Install supported updates for **${rawValue}**.\n4. Restart your Mac if prompted.\n5. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            return
+            ;;
+    esac
+
+    if [[ -n "${remediation}" ]] && [[ "${remediation}" != "${organizationBoilerplateComplianceMessage}" ]]; then
+        formatInspectMarkdownText "${remediation}"
+    else
+        printf '%s' "$( formatInspectMarkdownText "$( getInspectExpectedComparisonTextByIndex "${index}" )" ). ${supportFallbackText}"
+    fi
+
+}
+
+function getInspectDetailActionButtonTextByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" | "macos_version" )
+            echo "Open Software Update"
+            ;;
+    esac
+
+}
+
+function getInspectDetailActionURLByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" | "macos_version" )
+            echo "x-apple.systempreferences:com.apple.Software-Update-Settings.extension"
+            ;;
+    esac
+
+}
+
 function getInspectComparisonActualTextByIndex() {
 
     local index="${1}"
@@ -3736,6 +3884,17 @@ function getInspectComplianceCriticalityByIndex() {
 
 }
 
+function printInspectOptionalPlistStringField() {
+
+    local key="${1}"
+    local value="${2}"
+
+    if [[ -n "${value}" ]]; then
+        printf '\t\t<key>%s</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${key}" )" "$( xmlEscape "${value}" )"
+    fi
+
+}
+
 function buildInspectCompliancePlistEntryByIndex() {
 
     local index="${1}"
@@ -3747,6 +3906,10 @@ function buildInspectCompliancePlistEntryByIndex() {
     local category="$( getInspectComplianceCategoryByIndex "${index}" )"
     local criticality="$( getInspectComplianceCriticalityByIndex "${index}" )"
     local message="${checkMessageByIndex[${index}]:-${actual}}"
+    local explanation="$( getInspectDetailExplanationByIndex "${index}" )"
+    local remediation="$( getInspectDetailRemediationByIndex "${index}" )"
+    local actionButtonText="$( getInspectDetailActionButtonTextByIndex "${index}" )"
+    local actionURL="$( getInspectDetailActionURLByIndex "${index}" )"
 
     printf '\t<key>%s</key>\n' "$( xmlEscape "${key}" )"
     printf '\t<dict>\n'
@@ -3757,6 +3920,10 @@ function buildInspectCompliancePlistEntryByIndex() {
     printf '\t\t<key>actual</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${actual}" )"
     printf '\t\t<key>criticality</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${criticality}" )"
     printf '\t\t<key>message</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${message}" )"
+    printInspectOptionalPlistStringField "explanation" "${explanation}"
+    printInspectOptionalPlistStringField "remediation" "${remediation}"
+    printInspectOptionalPlistStringField "actionButtonText" "${actionButtonText}"
+    printInspectOptionalPlistStringField "actionURL" "${actionURL}"
     printf '\t</dict>\n'
 
 }
@@ -3784,17 +3951,42 @@ function buildInspectPlistSourceKeyMappingsJSON() {
 
     local separator=""
     local criticality=""
+    local severity=""
+    local explanation=""
+    local remediation=""
+    local actionButtonText=""
+    local actionURL=""
 
     printf '%s' "["
     for (( i=0; i<listitemLength; i++ )); do
         if [[ "${checkExecutedByIndex[${i}]}" == "true" ]]; then
             criticality="$( getInspectComplianceCriticalityByIndex "${i}" )"
+            severity="$( getInspectDetailSeverityByIndex "${i}" )"
+            explanation="$( getInspectDetailExplanationByIndex "${i}" )"
+            remediation="$( getInspectDetailRemediationByIndex "${i}" )"
+            actionButtonText="$( getInspectDetailActionButtonTextByIndex "${i}" )"
+            actionURL="$( getInspectDetailActionURLByIndex "${i}" )"
             printf '%s' "${separator}{"
             printf '%s' "\"key\":$( jsonString "${checkKeyByIndex[${i}]}" ),"
             printf '%s' "\"displayName\":$( jsonString "${checkTitleByIndex[${i}]}" ),"
             printf '%s' "\"category\":$( jsonString "$( getInspectComplianceCategoryByIndex "${i}" )" )"
             if [[ "${criticality}" == "high" ]]; then
                 printf '%s' ",\"isCritical\":true"
+            fi
+            if [[ -n "${severity}" ]] && [[ "${severity}" != "healthy" ]]; then
+                printf '%s' ",\"severity\":$( jsonString "${severity}" )"
+            fi
+            if [[ -n "${explanation}" ]]; then
+                printf '%s' ",\"explanation\":$( jsonString "${explanation}" )"
+            fi
+            if [[ -n "${remediation}" ]]; then
+                printf '%s' ",\"remediation\":$( jsonString "${remediation}" )"
+            fi
+            if [[ -n "${actionButtonText}" ]]; then
+                printf '%s' ",\"actionButtonText\":$( jsonString "${actionButtonText}" )"
+            fi
+            if [[ -n "${actionURL}" ]]; then
+                printf '%s' ",\"actionURL\":$( jsonString "${actionURL}" )"
             fi
             printf '%s' "}"
             separator=","
@@ -3826,16 +4018,73 @@ function buildInspectBentoCellsJSONForCategory() {
 
     local category="${1}"
     local separator=""
-    local cellCount=0
+    local maxColumns=3
+    local searchRow=0
     local column=0
     local row=0
+    local columnSpan=1
+    local rowSpan=1
+    local slotAvailable="false"
+    local foundSlot="false"
+    local key=""
+    local normalizedStatus=""
+    local -a categoryIndices
+    local -A occupiedSlots
 
     for (( i=0; i<listitemLength; i++ )); do
         if [[ "${checkExecutedByIndex[${i}]}" == "true" ]] && [[ "$( getInspectComplianceCategoryByIndex "${i}" )" == "${category}" ]]; then
-            column=$(( cellCount % 3 ))
-            row=$(( cellCount / 3 ))
+            categoryIndices+=( "${i}" )
+        fi
+    done
+
+    for i in "${categoryIndices[@]}"; do
+        key="${checkKeyByIndex[${i}]}"
+        normalizedStatus="${checkNormalizedStatusByIndex[${i}]}"
+        columnSpan=1
+        rowSpan=1
+
+        if [[ "${key}" == "available_updates" ]] && [[ "${normalizedStatus}" != "healthy" ]]; then
+            columnSpan=2
+        fi
+
+        searchRow=0
+        foundSlot="false"
+        while [[ "${foundSlot}" != "true" ]]; do
+            for (( column=0; column<maxColumns; column++ )); do
+                if (( column + columnSpan > maxColumns )); then
+                    continue
+                fi
+                slotAvailable="true"
+                for (( row=searchRow; row<searchRow + rowSpan; row++ )); do
+                    for (( spanColumn=column; spanColumn<column + columnSpan; spanColumn++ )); do
+                        if [[ -n "${occupiedSlots[${row},${spanColumn}]:-}" ]]; then
+                            slotAvailable="false"
+                            break
+                        fi
+                    done
+                    if [[ "${slotAvailable}" != "true" ]]; then
+                        break
+                    fi
+                done
+                if [[ "${slotAvailable}" == "true" ]]; then
+                    row="${searchRow}"
+                    foundSlot="true"
+                    break
+                fi
+            done
+            if [[ "${foundSlot}" != "true" ]]; then
+                (( searchRow++ ))
+            fi
+        done
+
+        for (( occupiedRow=row; occupiedRow<row + rowSpan; occupiedRow++ )); do
+            for (( occupiedColumn=column; occupiedColumn<column + columnSpan; occupiedColumn++ )); do
+                occupiedSlots[${occupiedRow},${occupiedColumn}]="true"
+            done
+        done
+
             printf '%s' "${separator}{"
-            printf '%s' "\"id\":$( jsonString "${checkKeyByIndex[${i}]}" ),"
+            printf '%s' "\"id\":$( jsonString "${key}" ),"
             printf '%s' "\"column\":${column},"
             printf '%s' "\"row\":${row},"
             printf '%s' "\"title\":$( jsonString "${checkTitleByIndex[${i}]}" ),"
@@ -3846,10 +4095,14 @@ function buildInspectBentoCellsJSONForCategory() {
             printf '%s' "\"textSize\":\"small\","
             printf '%s' "\"textColor\":\"#FFFFFF\","
             printf '%s' "\"backgroundColor\":$( jsonString "$( getInspectBentoBackgroundColor "${checkNormalizedStatusByIndex[${i}]}" )" )"
+            if (( columnSpan > 1 )); then
+                printf '%s' ",\"columnSpan\":${columnSpan}"
+            fi
+            if (( rowSpan > 1 )); then
+                printf '%s' ",\"rowSpan\":${rowSpan}"
+            fi
             printf '%s' "}"
             separator=","
-            (( cellCount++ ))
-        fi
     done
 
 }
@@ -4240,8 +4493,19 @@ function buildInspectHelpGuidanceContentJSON() {
     local supportItemsJSON="$( buildInspectSupportLineItemsJSON )"
     local userInformationItemsJSON="$( buildInspectUserInformationItemsJSON )"
     local computerInformationItemsJSON="$( buildInspectComputerInformationItemsJSON )"
+    local supportOverlayContentJSON=""
+
+    supportOverlayContentJSON='[{"type":"info","content":"Use these support options if you need help completing recommended steps."}'
+    if [[ "${supportItemsJSON}" != "[]" ]]; then
+        supportOverlayContentJSON+=",{\"items\":${supportItemsJSON},\"type\":\"bullets\"}"
+    fi
+    if [[ -n "${buttonURL}" ]]; then
+        supportOverlayContentJSON+=",{\"action\":\"url\",\"content\":$( jsonString "${buttonText}" ),\"icon\":$( jsonString "$( getInspectSupportButtonIcon "${buttonURL}" )" ),\"type\":\"button\",\"url\":$( jsonString "${buttonURL}" )}"
+    fi
+    supportOverlayContentJSON+="]"
 
     printf '%s' "["
+    printf '%s' "{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoRowHeight\":110,\"bentoCells\":[{\"id\":\"support_resources\",\"column\":0,\"row\":0,\"columnSpan\":3,\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"sfSymbol\":\"person.crop.circle.badge.questionmark\",\"contentType\":\"mixed\",\"iconSize\":36,\"iconWeight\":\"semibold\",\"textSize\":\"small\",\"textColor\":\"#FFFFFF\",\"backgroundColor\":\"#143A52\",\"detailOverlay\":{\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"icon\":\"SF=person.crop.circle.badge.questionmark\",\"content\":${supportOverlayContentJSON},\"showSystemInfo\":false,\"showProgressInfo\":false,\"closeButtonText\":\"Close\"}}]},"
     printf '%s' "{\"content\":$( jsonString "${helpText}" ),\"type\":\"info\"}"
 
     if [[ "${supportItemsJSON}" != "[]" ]]; then

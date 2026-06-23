@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>lastComplianceCheck</key>
-	<string>2026-05-15T10:42:45-04:00</string>
+	<string>2026-06-23T17:14:42-04:00</string>
 	<key>macos_version</key>
 	<dict>
 		<key>status</key>
@@ -15,16 +15,16 @@
 		<key>expected</key>
 		<string>Supported macOS release</string>
 		<key>actual</key>
-		<string>macOS 26.4.1 (25E253)</string>
+		<string>macOS 26.5.1 (25F80)</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>macOS 26.4.1 (25E253)</string>
+		<string>macOS 26.5.1 (25F80)</string>
 	</dict>
 	<key>available_updates</key>
 	<dict>
 		<key>status</key>
-		<string>attention</string>
+		<string>healthy</string>
 		<key>category</key>
 		<string>Maintenance</string>
 		<key>displayName</key>
@@ -32,11 +32,11 @@
 		<key>expected</key>
 		<string>No updates pending</string>
 		<key>actual</key>
-		<string>macOS 26.5 (19-May-2026)</string>
+		<string>None</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>System Settings &gt; General &gt; Software Update; Ready to install (26.50 GB downloaded)</string>
+		<string>Thanks for keeping your Mac up-to-date</string>
 	</dict>
 	<key>system_integrity_protection</key>
 	<dict>
@@ -143,7 +143,7 @@
 	<key>airdrop</key>
 	<dict>
 		<key>status</key>
-		<string>healthy</string>
+		<string>attention</string>
 		<key>category</key>
 		<string>Security</string>
 		<key>displayName</key>
@@ -151,11 +151,15 @@
 		<key>expected</key>
 		<string>No One / Contacts Only</string>
 		<key>actual</key>
-		<string>Compliant</string>
+		<string>Everyone</string>
 		<key>criticality</key>
 		<string>low</string>
 		<key>message</key>
-		<string>Compliant</string>
+		<string>System Settings &gt; General &gt; AirDrop &amp; Handoff &gt; AirDrop &gt; No One / Contacts Only</string>
+		<key>explanation</key>
+		<string>System Settings &gt; General &gt; AirDrop &amp; Handoff &gt; AirDrop &gt; No One / Contacts Only</string>
+		<key>remediation</key>
+		<string>System Settings &gt; General &gt; AirDrop &amp; Handoff &gt; AirDrop &gt; No One / Contacts Only</string>
 	</dict>
 	<key>airplay_receiver</key>
 	<dict>
@@ -177,7 +181,7 @@
 	<key>bluetooth_sharing</key>
 	<dict>
 		<key>status</key>
-		<string>healthy</string>
+		<string>attention</string>
 		<key>category</key>
 		<string>Security</string>
 		<key>displayName</key>
@@ -185,11 +189,15 @@
 		<key>expected</key>
 		<string>Disabled</string>
 		<key>actual</key>
-		<string>Disabled</string>
+		<string>Enabled</string>
 		<key>criticality</key>
 		<string>low</string>
 		<key>message</key>
-		<string>Disabled</string>
+		<string>System Settings &gt; General &gt; Sharing &gt; Accessories &amp; Internet &gt; Bluetooth Sharing &gt; Disable</string>
+		<key>explanation</key>
+		<string>System Settings &gt; General &gt; Sharing &gt; Accessories &amp; Internet &gt; Bluetooth Sharing &gt; Disable</string>
+		<key>remediation</key>
+		<string>System Settings &gt; General &gt; Sharing &gt; Accessories &amp; Internet &gt; Bluetooth Sharing &gt; Disable</string>
 	</dict>
 	<key>vpn_client</key>
 	<dict>
@@ -219,7 +227,7 @@
 		<key>expected</key>
 		<string>Restarted within policy</string>
 		<key>actual</key>
-		<string>4 days</string>
+		<string>6:01 (HH:MM)</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
@@ -236,11 +244,11 @@
 		<key>expected</key>
 		<string>At least 10% free</string>
 		<key>actual</key>
-		<string>425.7 GB free (86.10% available)</string>
+		<string>439.2 GB free (44.15% available)</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>425.7 GB free (86.10% available)</string>
+		<string>439.2 GB free (44.15% available)</string>
 	</dict>
 	<key>desktop_size_and_item_count</key>
 	<dict>
@@ -253,11 +261,11 @@
 		<key>expected</key>
 		<string>At most 5% of disk</string>
 		<key>actual</key>
-		<string>1.6M (3 items) — 0% of disk</string>
+		<string>258M (172 items) — .02% of disk</string>
 		<key>criticality</key>
 		<string>low</string>
 		<key>message</key>
-		<string>1.6M (3 items) — 0% of disk</string>
+		<string>258M (172 items) — .02% of disk</string>
 	</dict>
 	<key>downloads_size_and_item_count</key>
 	<dict>
@@ -270,11 +278,11 @@
 		<key>expected</key>
 		<string>At most 5% of disk</string>
 		<key>actual</key>
-		<string>Empty</string>
+		<string>231M (20 items) — .02% of disk</string>
 		<key>criticality</key>
 		<string>low</string>
 		<key>message</key>
-		<string>Empty</string>
+		<string>231M (20 items) — .02% of disk</string>
 	</dict>
 	<key>trash_size_and_item_count</key>
 	<dict>
@@ -355,11 +363,11 @@
 		<key>expected</key>
 		<string>Recent APNS communication</string>
 		<key>actual</key>
-		<string>10:18 AM</string>
+		<string>5:08 PM</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>10:18 AM</string>
+		<string>5:08 PM</string>
 	</dict>
 	<key>jamf_pro_check_in</key>
 	<dict>
@@ -372,11 +380,11 @@
 		<key>expected</key>
 		<string>Checked in recently</string>
 		<key>actual</key>
-		<string>10:32 AM</string>
+		<string>5:07 PM</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>10:32 AM</string>
+		<string>5:07 PM</string>
 	</dict>
 	<key>jamf_pro_inventory</key>
 	<dict>
@@ -389,11 +397,11 @@
 		<key>expected</key>
 		<string>Inventory updated recently</string>
 		<key>actual</key>
-		<string>10:18 AM</string>
+		<string>5:08 PM</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>10:18 AM</string>
+		<string>5:08 PM</string>
 	</dict>
 	<key>apple_push_notification_hosts</key>
 	<dict>
@@ -500,24 +508,28 @@
 	<key>app_auto_patch</key>
 	<dict>
 		<key>status</key>
-		<string>healthy</string>
+		<string>attention</string>
 		<key>category</key>
 		<string>Maintenance</string>
 		<key>displayName</key>
 		<string>App Auto-Patch</string>
 		<key>expected</key>
-		<string>2 day(s) ago</string>
+		<string>Meets organizational standards</string>
 		<key>actual</key>
-		<string>2 day(s) ago</string>
+		<string>40 day(s) ago</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>You can run App Auto-Patch at any time from the Workforce App Store</string>
+		<string>Please run App Auto-Patch from the Workforce App Store</string>
+		<key>explanation</key>
+		<string>Please run App Auto-Patch from the Workforce App Store</string>
+		<key>remediation</key>
+		<string>Please run App Auto-Patch from the Workforce App Store</string>
 	</dict>
 	<key>homebrew_status</key>
 	<dict>
 		<key>status</key>
-		<string>healthy</string>
+		<string>attention</string>
 		<key>category</key>
 		<string>Applications</string>
 		<key>displayName</key>
@@ -525,11 +537,15 @@
 		<key>expected</key>
 		<string>Current or not installed</string>
 		<key>actual</key>
-		<string>Not installed</string>
+		<string>5.1.10 vs 6.0.3</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>Optional tool not detected on this Mac</string>
+		<string>Open Terminal and update Homebrew packages if you manage them on this Mac</string>
+		<key>explanation</key>
+		<string>Open Terminal and update Homebrew packages if you manage them on this Mac</string>
+		<key>remediation</key>
+		<string>Open Terminal and update Homebrew packages if you manage them on this Mac</string>
 	</dict>
 	<key>electron_corner_mask</key>
 	<dict>
@@ -542,11 +558,11 @@
 		<key>expected</key>
 		<string>No susceptible Electron apps detected</string>
 		<key>actual</key>
-		<string>No Electron apps found</string>
+		<string>All Electron apps patched</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>No Electron apps found</string>
+		<string>All Electron apps patched</string>
 	</dict>
 	<key>microsoft_teams</key>
 	<dict>
@@ -646,11 +662,11 @@
 Good &gt;= -65
 Fair &gt;= -75, Poor &lt; -75</string>
 		<key>actual</key>
-		<string>Good (-64 dBm)</string>
+		<string>Excellent (-40 dBm)</string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>RSSI -64 dBm</string>
+		<string>RSSI -40 dBm</string>
 	</dict>
 	<key>network_quality_test</key>
 	<dict>
@@ -663,11 +679,11 @@ Fair &gt;= -75, Poor &lt; -75</string>
 		<key>expected</key>
 		<string>Network quality passed</string>
 		<key>actual</key>
-		<string>460.31 Mbps </string>
+		<string>542.17 Mbps </string>
 		<key>criticality</key>
 		<string>medium</string>
 		<key>message</key>
-		<string>460.31 Mbps </string>
+		<string>542.17 Mbps </string>
 	</dict>
 	<key>computer_inventory</key>
 	<dict>
@@ -684,7 +700,7 @@ Fair &gt;= -75, Poor &lt; -75</string>
 		<key>criticality</key>
 		<string>high</string>
 		<key>message</key>
-		<string>Latest computer inventory submitted at Friday, May 15 at 10:42 AM EDT</string>
+		<string>Latest computer inventory submitted at Tuesday, June 23 at 05:14 PM EDT</string>
 	</dict>
 </dict>
 </plist>

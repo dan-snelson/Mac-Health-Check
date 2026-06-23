@@ -1,6 +1,6 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check) [![swiftDialog](https://img.shields.io/badge/swiftDialog-Enabled-blue)](https://swiftdialog.app) [![Semgrep Security Scan](https://img.shields.io/badge/security%20scanned%20by-Semgrep-00C7B7?style=flat&logo=semgrep&logoColor=white)](https://semgrep.dev)
 
-# Mac Health Check (4.0.0b26)
+# Mac Health Check (4.0.0b27)
 
 > A **major** update to the practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users — and now **enterprise reporting data warehouses** — via your MDM's self-service app
 
@@ -235,7 +235,8 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - `Self Service` and full `Silent` health-check runs also generate `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
 - The generated config includes `/var/tmp/MacHealthCheck-Inspect.trigger`, `/var/tmp/MacHealthCheck-Inspect.ready` and `/var/tmp/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
 - Unhealthy runs now surface `Quick Actions Recommended` in `Overview`, add a conditional `Remediation Guide` step immediately after `Overview`, and keep `Unhealthy` as the audit-detail step
-- Category bento-grid cards now use status-aware backgrounds so unhealthy checks stand out more clearly in Preset 6
+- Category bento-grid cards now use status-aware backgrounds so unhealthy checks stand out more clearly in Preset 6, and `Available Updates` now expands across two columns when action is required
+- Plist-backed bento cells now emit FR #667 detail-sheet fields (`severity`, `explanation`, `remediation`, `actionButtonText`, `actionURL`) so warning and failure cards can explain why action is needed and link directly to next steps
 - Normal `Self Service` runs launch the detached swiftDialog Inspect Mode `preset6` guided summary after report generation while retaining the existing 60-second main-dialog countdown
 - `Silent` runs never launch swiftDialog; they only write Inspect Mode config assets for later review
 - The detached summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when no checks exist in that bucket
@@ -244,6 +245,49 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - Unhealthy `Self Service` runs now rely on the final unhealthy main-dialog state plus the detached inspect summary after report generation, without a separate pseudo-alert notification
 - If inspect-summary asset generation or launch fails, Mac Health Check falls back to the existing `completionTimer` countdown path
 - Requires swiftDialog `3.1.0.4979` or newer
+
+Example Preset 6 JSON fragments used by generated inspect assets:
+
+```json
+{
+  "key": "available_updates",
+  "displayName": "Available Updates",
+  "category": "Maintenance",
+  "isCritical": true,
+  "severity": "warning",
+  "explanation": "A macOS update is ready for this Mac. Installing current updates helps keep this Mac secure and aligned with Church standards.",
+  "remediation": "1. Open **System Settings**.\n2. Select **General > Software Update**.\n3. Install **macOS 26.5 (19-May-2026)**.\n4. Restart your Mac if prompted.\n5. Run **Mac Health Check** again.",
+  "actionButtonText": "Open Software Update",
+  "actionURL": "x-apple.systempreferences:com.apple.Software-Update-Settings.extension"
+}
+```
+
+```json
+{
+  "id": "support_resources",
+  "column": 0,
+  "row": 0,
+  "columnSpan": 3,
+  "title": "Help & Support",
+  "subtitle": "Action Recommended",
+  "sfSymbol": "person.crop.circle.badge.questionmark",
+  "contentType": "mixed",
+  "detailOverlay": {
+    "title": "Help & Support",
+    "subtitle": "Action Recommended",
+    "icon": "SF=person.crop.circle.badge.questionmark",
+    "content": [
+      {
+        "type": "info",
+        "content": "Use these support options if you need help completing recommended steps."
+      }
+    ],
+    "showSystemInfo": false,
+    "showProgressInfo": false,
+    "closeButtonText": "Close"
+  }
+}
+```
 
 #### IT Support
 - Dynamic `supportLabel1` / `supportValue1` through `supportLabel6` / `supportValue6`

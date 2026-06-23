@@ -1,5 +1,5 @@
 preset6_completed
-completed_steps:unhealthy,maintenance,remediation,healthy,help,nextSteps,connectivity,security,overview,mdm__inventory,applications
+completed_steps:overview,mdm__inventory,remediation,unhealthy,connectivity,nextSteps,security,applications,help,maintenance,healthy
 failed_steps:
 skipped_steps:
-timestamp:2026-05-15T14:44:13Z
+timestamp:2026-06-23T21:18:01Z

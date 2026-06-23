@@ -2,8 +2,8 @@
 
 ## CHANGELOG
 
-### 4.0.0b26 (15-May-2026)
-- Raised the minimum required swiftDialog version to `3.1.0.4979`
+### 4.0.0b27 (23-Jun-2026)
+- Raised the minimum required swiftDialog version to `3.1.0.4990`
 - Added JSON health reporting (with optional Splunk HTTP Event Collector (HEC) delivery)
 - Added a stand-alone swiftDialog Inspect Mode-flavored report (i.e., `inspectSummaryPreset="on"`), plus cached replay (i.e., `inspectReplayMaximumAgeSeconds`) for `Self Service` runs
 - Refactored full `Silent` health-check runs to write `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist` without launching swiftDialog
@@ -43,6 +43,7 @@
     - Added one-shot Force Fresh Run trigger-file support via `/var/tmp/MacHealthCheck-Force-Fresh-Run`
     - Repurposed Script Parameter 11 for `forceFreshRun` and converted `reportDebug` to a source-level variable
     - Removes any existing cached local Splunk JSON report before a forced fresh run so a brand-new report is generated and delivered to Splunk HEC
+- Enriched Preset 6 plist-backed bento cells with FR #667 detail-sheet fields (`severity`, `explanation`, `remediation`, `actionButtonText`, `actionURL`), widened the `Available Updates` warning card, and added a non-plist `detailOverlay` support card example
 
 ### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**

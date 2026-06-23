@@ -1,1 +1,438 @@
-{"metadata":{"scriptVersion":"4.0.0b26","timestamp":"2026-05-15T10:42:45-04:00","hostname":"C02DR4CZ-AD4012","localHostName":"C02DR4CZ-AD4012","serialNumber":"C02DR4CZQ6LT","hardwareUUID":"AD4012C9-505D-598F-B250-B54D5A39825E","operationMode":"Self Service","reportingMode":"production","jsonTool":"jq"},"summary":{"overallStatus":"warning","healthyCount":39,"warningCount":1,"failCount":0,"errorCount":0,"elapsedSeconds":328,"warningChecks":["Available Updates"],"failedChecks":[],"reportingErrors":[]},"systemInfo":{"computerName":"Dan K. Snelson MacBook Air (M1, 2020)","computerModel":"MacBookAir10,1","macOSVersion":"26.4.1","macOSBuild":"25E253","systemMemory":"16 GB","systemStorage":"500 GB","totalDiskBytes":494384795648,"freeDiskSpace":"425.7 GB free (86.10% available)","lastReboot":"4 days","sipStatus":"Enabled","signedSystemVolumeStatus":"Enabled","firewallStatus":"Enabled","fileVaultStatus":"Enabled","ssid":"NO SIGNAL","activeIPAddress":"Wi-Fi IP: 192.168.1.136","vpnStatus":"Connected 10.254.131.31 \"dan\" logged-in","networkTimeServer":"Network Time Server: time.apple.com","locationServicesStatus":"Enabled","bootstrapTokenStatus":"Bootstrap Token supported on server: YES; Bootstrap Token escrowed to server: YES","sshStatus":"On","oneDriveSyncDate":"15-May-2026","apnsStatus":"10:18 AM"},"mdm":{"vendor":"Jamf Pro","enrollmentStatus":"healthy","serverURL":"https://jamfpro-beta.churchofjesuschrist.org","profileResult":"Installed","profileUUID":"00000000-0000-0000-A000-4A414D460004","profileIdentifier":"","certificateExpiration":"09-Dec-2027","lastCheckIn":"10:32 AM","lastInventory":"10:18 AM","jamfProID":"1237","jamfProSiteName":"FHD-managed Laptops / Desktops"},"identity":{"entraIDRegistration":{"status":"registered","method":"psso","lastUser":"dan","lastUserHome":"/Users/dan","details":"PSSO registration metadata detected for /Users/dan"}},"checks":[{"index":0,"key":"macos_version","name":"macOS Version","status":"healthy","message":"macOS 26.4.1 (25E253)","rawValue":"macOS 26.4.1 (25E253)","remediation":"Meets Church standards"},{"index":1,"key":"available_updates","name":"Available Updates","status":"warning","message":"System Settings > General > Software Update; Ready to install (26.50 GB downloaded)","rawValue":"macOS 26.5 (19-May-2026)","remediation":"System Settings > General > Software Update; Ready to install (26.50 GB downloaded)"},{"index":2,"key":"system_integrity_protection","name":"System Integrity Protection","status":"healthy","message":"Enabled","rawValue":"Enabled","remediation":"Meets Church standards"},{"index":3,"key":"signed_system_volume","name":"Signed System Volume","status":"healthy","message":"Enabled","rawValue":"Enabled","remediation":"Meets Church standards"},{"index":4,"key":"firewall","name":"Firewall","status":"healthy","message":"Enabled","rawValue":"Enabled","remediation":"Meets Church standards"},{"index":5,"key":"filevault_encryption","name":"FileVault Encryption","status":"healthy","message":"Enabled","rawValue":"Enabled","remediation":"Meets Church standards"},{"index":6,"key":"gatekeeper__xprotect","name":"Gatekeeper / XProtect","status":"healthy","message":"Enabled","rawValue":"Enabled","remediation":"Meets Church standards"},{"index":7,"key":"touch_id","name":"Touch ID","status":"healthy","message":"Enrolled","rawValue":"Enrolled","remediation":"Meets Church standards"},{"index":8,"key":"airdrop","name":"AirDrop","status":"healthy","message":"Compliant","rawValue":"Compliant","remediation":"Meets Church standards"},{"index":9,"key":"airplay_receiver","name":"AirPlay Receiver","status":"healthy","message":"Disabled","rawValue":"Disabled","remediation":"Meets Church standards"},{"index":10,"key":"bluetooth_sharing","name":"Bluetooth Sharing","status":"healthy","message":"Disabled","rawValue":"Disabled","remediation":"Meets Church standards"},{"index":11,"key":"vpn_client","name":"VPN Client","status":"healthy","message":"Connected","rawValue":"Connected","remediation":"Meets Church standards"},{"index":12,"key":"last_reboot","name":"Last Reboot","status":"healthy","message":"Thanks for restarting your Mac regularly","rawValue":"4 days","remediation":"Thanks for restarting your Mac regularly"},{"index":13,"key":"free_disk_space","name":"Free Disk Space","status":"healthy","message":"425.7 GB free (86.10% available)","rawValue":"425.7 GB free (86.10% available)","remediation":"Meets Church standards"},{"index":14,"key":"desktop_size_and_item_count","name":"Desktop Size and Item Count","status":"healthy","message":"1.6M (3 items) — 0% of disk","rawValue":"1.6M (3 items) — 0% of disk","remediation":"Meets Church standards"},{"index":15,"key":"downloads_size_and_item_count","name":"Downloads Size and Item Count","status":"healthy","message":"Empty","rawValue":"Empty","remediation":"Meets Church standards"},{"index":16,"key":"trash_size_and_item_count","name":"Trash Size and Item Count","status":"healthy","message":"Empty","rawValue":"Empty","remediation":"Meets Church standards"},{"index":17,"key":"jamf_pro_mdm_profile","name":"Jamf Pro MDM Profile","status":"healthy","message":"Installed","rawValue":"Installed","remediation":"Meets Church standards"},{"index":18,"key":"entra_id_registration","name":"Entra ID Registration","status":"healthy","message":"Registered","rawValue":"Registered","remediation":"Meets Church standards"},{"index":19,"key":"jamf_pro_mdm_certificate_expiration","name":"Jamf Pro MDM Certificate Expiration","status":"healthy","message":"09-Dec-2027","rawValue":"09-Dec-2027","remediation":"Meets Church standards"},{"index":20,"key":"apple_push_notification_service","name":"Apple Push Notification service","status":"healthy","message":"10:18 AM","rawValue":"10:18 AM","remediation":"Meets Church standards"},{"index":21,"key":"jamf_pro_check_in","name":"Jamf Pro Check-In","status":"healthy","message":"10:32 AM","rawValue":"10:32 AM","remediation":"Meets Church standards"},{"index":22,"key":"jamf_pro_inventory","name":"Jamf Pro Inventory","status":"healthy","message":"10:18 AM","rawValue":"10:18 AM","remediation":"Meets Church standards"},{"index":23,"key":"apple_push_notification_hosts","name":"Apple Push Notification Hosts","status":"healthy","message":"Passed","rawValue":"Passed","remediation":"Meets Church standards"},{"index":24,"key":"apple_device_management","name":"Apple Device Management","status":"healthy","message":"Passed","rawValue":"Passed","remediation":"Meets Church standards"},{"index":25,"key":"apple_software_and_carrier_updates","name":"Apple Software and Carrier Updates","status":"healthy","message":"Passed","rawValue":"Passed","remediation":"Meets Church standards"},{"index":26,"key":"apple_certificate_validation","name":"Apple Certificate Validation","status":"healthy","message":"Passed","rawValue":"Passed","remediation":"Meets Church standards"},{"index":27,"key":"apple_identity_and_content_services","name":"Apple Identity and Content Services","status":"healthy","message":"Passed","rawValue":"Passed","remediation":"Meets Church standards"},{"index":28,"key":"jamf_hosts","name":"Jamf Hosts","status":"healthy","message":"Passed","rawValue":"Passed","remediation":"Meets Church standards"},{"index":29,"key":"app_auto_patch","name":"App Auto-Patch","status":"healthy","message":"You can run App Auto-Patch at any time from the Workforce App Store","rawValue":"2 day(s) ago","remediation":"You can run App Auto-Patch at any time from the Workforce App Store"},{"index":30,"key":"homebrew_status","name":"Homebrew Status","status":"healthy","message":"Optional tool not detected on this Mac","rawValue":"Not installed","remediation":"Optional tool not detected on this Mac"},{"index":31,"key":"electron_corner_mask","name":"Electron Corner Mask","status":"healthy","message":"No Electron apps found","rawValue":"No Electron apps found","remediation":"Meets Church standards"},{"index":32,"key":"microsoft_teams","name":"Microsoft Teams","status":"healthy","message":"Installed","rawValue":"Installed","remediation":"Meets Church standards"},{"index":33,"key":"beyondtrust_privilege_management","name":"BeyondTrust Privilege Management","status":"healthy","message":"Running","rawValue":"Running","remediation":"Meets Church standards"},{"index":34,"key":"cisco_umbrella","name":"Cisco Umbrella","status":"healthy","message":"Running","rawValue":"Running","remediation":"Meets Church standards"},{"index":35,"key":"crowdstrike_falcon","name":"CrowdStrike Falcon","status":"healthy","message":"Running","rawValue":"Running","remediation":"Meets Church standards"},{"index":36,"key":"palo_alto_globalprotect","name":"Palo Alto GlobalProtect","status":"healthy","message":"Running","rawValue":"Running","remediation":"Meets Church standards"},{"index":37,"key":"wi_fi_strength","name":"Wi-Fi Strength","status":"healthy","message":"RSSI -64 dBm","rawValue":"Good","remediation":"RSSI -64 dBm"},{"index":38,"key":"network_quality_test","name":"Network Quality Test","status":"healthy","message":"460.31 Mbps ","rawValue":"460.31 Mbps ","remediation":""},{"index":39,"key":"computer_inventory","name":"Computer Inventory","status":"healthy","message":"Latest computer inventory submitted at Friday, May 15 at 10:42 AM EDT","rawValue":"Updated","remediation":"Latest computer inventory submitted at Friday, May 15 at 10:42 AM EDT"}]}
+{
+    "metadata": {
+        "scriptVersion": "4.0.0b27",
+        "timestamp": "2026-06-23T17:14:42-04:00",
+        "hostname": "Dan's-Old-MacBook-Pro-(16-inch,-2024)",
+        "localHostName": "XDT8675309-922872",
+        "serialNumber": "XDT8675309",
+        "hardwareUUID": "0DC47181-2058-5107-BA1B-9E361571D586",
+        "operationMode": "Self Service",
+        "reportingMode": "test",
+        "jsonTool": "jq"
+    },
+    "summary": {
+        "overallStatus": "fail",
+        "healthyCount": 36,
+        "warningCount": 1,
+        "failCount": 3,
+        "errorCount": 0,
+        "elapsedSeconds": 292,
+        "warningChecks": [
+            "Homebrew Status"
+        ],
+        "failedChecks": [
+            "AirDrop",
+            "Bluetooth Sharing",
+            "App Auto-Patch"
+        ],
+        "reportingErrors": []
+    },
+    "systemInfo": {
+        "computerName": "Dan's Old MacBook Pro (16-inch, 2024)",
+        "computerModel": "Mac16,7",
+        "macOSVersion": "26.5.1",
+        "macOSBuild": "25F80",
+        "systemMemory": "48 GB",
+        "systemStorage": "1 TB",
+        "totalDiskBytes": 994662584320,
+        "freeDiskSpace": "439.2 GB free (44.15% available)",
+        "lastReboot": "6:01 (HH:MM)",
+        "sipStatus": "Enabled",
+        "signedSystemVolumeStatus": "Enabled",
+        "firewallStatus": "Enabled",
+        "fileVaultStatus": "Enabled",
+        "ssid": "NO SIGNAL",
+        "activeIPAddress": "Wi-Fi IP: 192.168.1.184",
+        "vpnStatus": "Connected 10.254.130.107 \"dan\" logged-in",
+        "networkTimeServer": "Network Time Server: time.apple.com",
+        "locationServicesStatus": "Enabled",
+        "bootstrapTokenStatus": "Bootstrap Token supported on server: YES; Bootstrap Token escrowed to server: YES",
+        "sshStatus": "On",
+        "oneDriveSyncDate": "23-Jun-2026",
+        "apnsStatus": "5:08 PM"
+    },
+    "mdm": {
+        "vendor": "Jamf Pro",
+        "enrollmentStatus": "healthy",
+        "serverURL": "https://jamfpro-beta.churchofjesuschrist.org",
+        "profileResult": "Installed",
+        "profileUUID": "00000000-0000-0000-A000-4A414D460004",
+        "profileIdentifier": "",
+        "certificateExpiration": "09-Dec-2027",
+        "lastCheckIn": "5:07 PM",
+        "lastInventory": "5:08 PM",
+        "jamfProID": "",
+        "jamfProSiteName": ""
+    },
+    "identity": {
+        "entraIDRegistration": {
+            "status": "registered",
+            "method": "psso",
+            "lastUser": "dan",
+            "lastUserHome": "/Users/dan",
+            "details": "PSSO registration metadata detected for /Users/dan"
+        }
+    },
+    "checks": [
+        {
+            "index": 0,
+            "key": "macos_version",
+            "name": "macOS Version",
+            "status": "healthy",
+            "message": "macOS 26.5.1 (25F80)",
+            "rawValue": "macOS 26.5.1 (25F80)",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 1,
+            "key": "available_updates",
+            "name": "Available Updates",
+            "status": "healthy",
+            "message": "Thanks for keeping your Mac up-to-date",
+            "rawValue": "None",
+            "remediation": "Thanks for keeping your Mac up-to-date"
+        },
+        {
+            "index": 2,
+            "key": "system_integrity_protection",
+            "name": "System Integrity Protection",
+            "status": "healthy",
+            "message": "Enabled",
+            "rawValue": "Enabled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 3,
+            "key": "signed_system_volume",
+            "name": "Signed System Volume",
+            "status": "healthy",
+            "message": "Enabled",
+            "rawValue": "Enabled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 4,
+            "key": "firewall",
+            "name": "Firewall",
+            "status": "healthy",
+            "message": "Enabled",
+            "rawValue": "Enabled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 5,
+            "key": "filevault_encryption",
+            "name": "FileVault Encryption",
+            "status": "healthy",
+            "message": "Enabled",
+            "rawValue": "Enabled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 6,
+            "key": "gatekeeper__xprotect",
+            "name": "Gatekeeper / XProtect",
+            "status": "healthy",
+            "message": "Enabled",
+            "rawValue": "Enabled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 7,
+            "key": "touch_id",
+            "name": "Touch ID",
+            "status": "healthy",
+            "message": "Enrolled",
+            "rawValue": "Enrolled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 8,
+            "key": "airdrop",
+            "name": "AirDrop",
+            "status": "fail",
+            "message": "System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only",
+            "rawValue": "Everyone",
+            "remediation": "System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only"
+        },
+        {
+            "index": 9,
+            "key": "airplay_receiver",
+            "name": "AirPlay Receiver",
+            "status": "healthy",
+            "message": "Disabled",
+            "rawValue": "Disabled",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 10,
+            "key": "bluetooth_sharing",
+            "name": "Bluetooth Sharing",
+            "status": "fail",
+            "message": "System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable",
+            "rawValue": "Enabled",
+            "remediation": "System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable"
+        },
+        {
+            "index": 11,
+            "key": "vpn_client",
+            "name": "VPN Client",
+            "status": "healthy",
+            "message": "Connected",
+            "rawValue": "Connected",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 12,
+            "key": "last_reboot",
+            "name": "Last Reboot",
+            "status": "healthy",
+            "message": "Thanks for restarting your Mac regularly",
+            "rawValue": "6:01 (HH:MM)",
+            "remediation": "Thanks for restarting your Mac regularly"
+        },
+        {
+            "index": 13,
+            "key": "free_disk_space",
+            "name": "Free Disk Space",
+            "status": "healthy",
+            "message": "439.2 GB free (44.15% available)",
+            "rawValue": "439.2 GB free (44.15% available)",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 14,
+            "key": "desktop_size_and_item_count",
+            "name": "Desktop Size and Item Count",
+            "status": "healthy",
+            "message": "258M (172 items) — .02% of disk",
+            "rawValue": "258M (172 items) — .02% of disk",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 15,
+            "key": "downloads_size_and_item_count",
+            "name": "Downloads Size and Item Count",
+            "status": "healthy",
+            "message": "231M (20 items) — .02% of disk",
+            "rawValue": "231M (20 items) — .02% of disk",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 16,
+            "key": "trash_size_and_item_count",
+            "name": "Trash Size and Item Count",
+            "status": "healthy",
+            "message": "Empty",
+            "rawValue": "Empty",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 17,
+            "key": "jamf_pro_mdm_profile",
+            "name": "Jamf Pro MDM Profile",
+            "status": "healthy",
+            "message": "Installed",
+            "rawValue": "Installed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 18,
+            "key": "entra_id_registration",
+            "name": "Entra ID Registration",
+            "status": "healthy",
+            "message": "Registered",
+            "rawValue": "Registered",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 19,
+            "key": "jamf_pro_mdm_certificate_expiration",
+            "name": "Jamf Pro MDM Certificate Expiration",
+            "status": "healthy",
+            "message": "09-Dec-2027",
+            "rawValue": "09-Dec-2027",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 20,
+            "key": "apple_push_notification_service",
+            "name": "Apple Push Notification service",
+            "status": "healthy",
+            "message": "5:08 PM",
+            "rawValue": "5:08 PM",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 21,
+            "key": "jamf_pro_check_in",
+            "name": "Jamf Pro Check-In",
+            "status": "healthy",
+            "message": "5:07 PM",
+            "rawValue": "5:07 PM",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 22,
+            "key": "jamf_pro_inventory",
+            "name": "Jamf Pro Inventory",
+            "status": "healthy",
+            "message": "5:08 PM",
+            "rawValue": "5:08 PM",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 23,
+            "key": "apple_push_notification_hosts",
+            "name": "Apple Push Notification Hosts",
+            "status": "healthy",
+            "message": "Passed",
+            "rawValue": "Passed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 24,
+            "key": "apple_device_management",
+            "name": "Apple Device Management",
+            "status": "healthy",
+            "message": "Passed",
+            "rawValue": "Passed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 25,
+            "key": "apple_software_and_carrier_updates",
+            "name": "Apple Software and Carrier Updates",
+            "status": "healthy",
+            "message": "Passed",
+            "rawValue": "Passed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 26,
+            "key": "apple_certificate_validation",
+            "name": "Apple Certificate Validation",
+            "status": "healthy",
+            "message": "Passed",
+            "rawValue": "Passed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 27,
+            "key": "apple_identity_and_content_services",
+            "name": "Apple Identity and Content Services",
+            "status": "healthy",
+            "message": "Passed",
+            "rawValue": "Passed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 28,
+            "key": "jamf_hosts",
+            "name": "Jamf Hosts",
+            "status": "healthy",
+            "message": "Passed",
+            "rawValue": "Passed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 29,
+            "key": "app_auto_patch",
+            "name": "App Auto-Patch",
+            "status": "fail",
+            "message": "Please run App Auto-Patch from the Workforce App Store",
+            "rawValue": "40 day(s) ago",
+            "remediation": "Please run App Auto-Patch from the Workforce App Store"
+        },
+        {
+            "index": 30,
+            "key": "homebrew_status",
+            "name": "Homebrew Status",
+            "status": "warning",
+            "message": "Open Terminal and update Homebrew packages if you manage them on this Mac",
+            "rawValue": "5.1.10 vs 6.0.3",
+            "remediation": "Open Terminal and update Homebrew packages if you manage them on this Mac"
+        },
+        {
+            "index": 31,
+            "key": "electron_corner_mask",
+            "name": "Electron Corner Mask",
+            "status": "healthy",
+            "message": "All Electron apps patched",
+            "rawValue": "All Electron apps patched",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 32,
+            "key": "microsoft_teams",
+            "name": "Microsoft Teams",
+            "status": "healthy",
+            "message": "Installed",
+            "rawValue": "Installed",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 33,
+            "key": "beyondtrust_privilege_management",
+            "name": "BeyondTrust Privilege Management",
+            "status": "healthy",
+            "message": "Running",
+            "rawValue": "Running",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 34,
+            "key": "cisco_umbrella",
+            "name": "Cisco Umbrella",
+            "status": "healthy",
+            "message": "Running",
+            "rawValue": "Running",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 35,
+            "key": "crowdstrike_falcon",
+            "name": "CrowdStrike Falcon",
+            "status": "healthy",
+            "message": "Running",
+            "rawValue": "Running",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 36,
+            "key": "palo_alto_globalprotect",
+            "name": "Palo Alto GlobalProtect",
+            "status": "healthy",
+            "message": "Running",
+            "rawValue": "Running",
+            "remediation": "Meets organizational standards"
+        },
+        {
+            "index": 37,
+            "key": "wi_fi_strength",
+            "name": "Wi-Fi Strength",
+            "status": "healthy",
+            "message": "RSSI -40 dBm",
+            "rawValue": "Excellent",
+            "remediation": "RSSI -40 dBm"
+        },
+        {
+            "index": 38,
+            "key": "network_quality_test",
+            "name": "Network Quality Test",
+            "status": "healthy",
+            "message": "542.17 Mbps ",
+            "rawValue": "542.17 Mbps ",
+            "remediation": ""
+        },
+        {
+            "index": 39,
+            "key": "computer_inventory",
+            "name": "Computer Inventory",
+            "status": "healthy",
+            "message": "Latest computer inventory submitted at Tuesday, June 23 at 05:14 PM EDT",
+            "rawValue": "Updated",
+            "remediation": "Latest computer inventory submitted at Tuesday, June 23 at 05:14 PM EDT"
+        }
+    ]
+}
