@@ -391,7 +391,10 @@ sofaCacheMaximumAge="1d"
 # Allowed number of uptime minutes
 # - 1 day = 24 hours × 60 minutes/hour = 1,440 minutes
 # - 7 days, multiply: 7 × 1,440 minutes = 10,080 minutes
+# - 30 days, multiply: 30 × 1,440 minutes = 43,200 minutes
+# Use maxUptimeMinutes="" to turn the max uptime check off if desired.
 allowedUptimeMinutes="10080"
+maxUptimeMinutes="43200"
 
 # Should excessive uptime result in a "warning" or "error" ?
 excessiveUptimeAlertStyle="warning"
@@ -6600,13 +6603,12 @@ function checkFirewall() {
 function checkUptime() {
 
     local humanReadableCheckName="Uptime"
-    local footerStatusColor="${statusColorSuccess}"
-    notice "Check ${humanReadableCheckName} …"
+    notice "Check ${humanReadableCheckName} ..."
 
     dialogUpdate "icon: SF=stopwatch,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking ..."
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Calculating time since last reboot …"
+    dialogUpdate "progresstext: Calculating time since last reboot ..."
 
     sleep "${anticipationDuration}"
 
@@ -6618,6 +6620,8 @@ function checkUptime() {
     upTimeHours=$((upTimeMin/60))
     uptimeDays=$( uptime | awk '{ print $4 }' | sed 's/,//g' )
     uptimeNumber=$( uptime | awk '{ print $3 }' | sed 's/,//g' )
+
+    uptimeExtendedStatus="Thanks for restarting your Mac regularly."
 
     if [[ "${uptimeDays}" = "day"* ]]; then
         if [[ "${uptimeNumber}" -gt 1 ]]; then
@@ -6631,38 +6635,33 @@ function checkUptime() {
         uptimeHumanReadable="${uptimeNumber} (HH:MM)"
     fi
 
-    if [[ "${upTimeMin}" -gt "${allowedUptimeMinutes}" ]]; then
-
+    if [[ "${upTimeMin}" -gt "${maxUptimeMinutes}" ]] && [[ -n "${maxUptimeMinutes}" ]]; then
+        uptimeExtendedStatus="Your Mac's uptime is beyond the maximum 30 days allowed."
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: fail, statustext: ${uptimeHumanReadable}"
+        errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: "
+        overallHealth+="${humanReadableCheckName}; "
+    elif [[ "${upTimeMin}" -gt "${allowedUptimeMinutes}" ]]; then
+        uptimeExtendedStatus="Please restart your Mac regularly. "
         case ${excessiveUptimeAlertStyle} in
 
-            "warning" ) 
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please restart your Mac regularly, status: error, statustext: ${uptimeHumanReadable}"
-                footerStatusColor="${statusColorError}"
-                warning "${humanReadableCheckName}: ${uptimeHumanReadable}"
+            "warning" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: error, statustext: ${uptimeHumanReadable}"
+                warning "${humanReadableCheckName}: ${uptimeHumanReadable}: "
                 ;;
 
-            "error" | * )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please restart your Mac regularly, status: fail, statustext: ${uptimeHumanReadable}"
-                footerStatusColor="${statusColorFail}"
-                errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}"
+            "error" )
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: fail, statustext: ${uptimeHumanReadable}"
+                errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: "
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
 
         esac
-    
     else
-    
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Thanks for restarting your Mac regularly, status: success, statustext: ${uptimeHumanReadable}"
-        footerStatusColor="${statusColorSuccess}"
-        info "${humanReadableCheckName}: ${uptimeHumanReadable}"
-    
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.6, subtitle: ${uptimeExtendedStatus}, status: success, statustext: ${uptimeHumanReadable}"
+        info "${humanReadableCheckName}: ${uptimeHumanReadable}: "   
     fi
 
-    dialogUpdate "icon: SF=stopwatch,weight=semibold,colour=${footerStatusColor}"
-    sleep $((anticipationDuration / 2))
-
 }
-
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
