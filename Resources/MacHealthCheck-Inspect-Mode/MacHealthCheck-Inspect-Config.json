@@ -1,6 +1,6 @@
 {
     "preset": "6",
-    "title": "Mac Health Check (4.0.0b27)",
+    "title": "Mac Health Check (4.0.0b28)",
     "highlightColor": "#F69325",
     "moveable": true,
     "triggerFile": "/var/tmp/MacHealthCheck-Inspect.trigger",
@@ -253,6 +253,10 @@
             "displayName": "Overview",
             "guidanceContent": [
                 {
+                    "content": "Your recent Mac Health Check results are ready to review. One or more executed checks failed.",
+                    "type": "highlight"
+                },
+                {
                     "content": "Results as of: **Tuesday, June 23 at 05:14 PM EDT**.\n\nThese cached results may be reused for up to 15 minutes.",
                     "type": "info"
                 },
@@ -344,6 +348,7 @@
                 {
                     "type": "bento-grid",
                     "bentoColumns": 3,
+                    "bentoGap": 12,
                     "bentoRowHeight": 110,
                     "bentoCells": [
                         {
@@ -477,6 +482,7 @@
                 {
                     "type": "bento-grid",
                     "bentoColumns": 3,
+                    "bentoGap": 12,
                     "bentoRowHeight": 110,
                     "bentoCells": [
                         {
@@ -662,6 +668,7 @@
                 {
                     "type": "bento-grid",
                     "bentoColumns": 3,
+                    "bentoGap": 12,
                     "bentoRowHeight": 110,
                     "bentoCells": [
                         {
@@ -769,6 +776,7 @@
                 {
                     "type": "bento-grid",
                     "bentoColumns": 3,
+                    "bentoGap": 12,
                     "bentoRowHeight": 110,
                     "bentoCells": [
                         {
@@ -889,6 +897,7 @@
                 {
                     "type": "bento-grid",
                     "bentoColumns": 3,
+                    "bentoGap": 12,
                     "bentoRowHeight": 110,
                     "bentoCells": [
                         {
@@ -1490,6 +1499,7 @@
                 {
                     "type": "bento-grid",
                     "bentoColumns": 3,
+                    "bentoGap": 12,
                     "bentoRowHeight": 110,
                     "bentoCells": [
                         {
@@ -1581,8 +1591,8 @@
                 {
                     "items": [
                         "**macOS:** 26.5.1 (25F80)",
-                        "**Dialog:** 3.1.0.4990",
-                        "**Script:** 4.0.0b27",
+                        "**Dialog:** 3.1.0.4993",
+                        "**Script:** 4.0.0b28",
                         "**Computer Name:** Dan's Old MacBook Pro (16-inch, 2024)",
                         "**Serial Number:** XDT8675309",
                         "**Wi-Fi:** NO SIGNAL",

@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.0.0b27, 23-Jun-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.0.0b28, 13-Jul-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.0.0b27"
+scriptVersion="4.0.0b28"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -42,7 +42,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.0.4990"
+swiftDialogMinimumRequiredVersion="3.1.0.4993"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -410,6 +410,9 @@ inspectReadinessFilePath="/var/tmp/MacHealthCheck-Inspect.ready"
 inspectResultFilePath="/var/tmp/MacHealthCheck-Inspect-Result.json"
 inspectLaunchLogPath="/var/tmp/MacHealthCheck-Inspect-Summary.log"
 inspectReplayMaximumAgeSeconds="900" # 15 minutes
+# swiftDialog PR #684 uses a renderer-owned 12pt spacing scale: 6pt intra, 12pt inner,
+# 24pt section and 36pt outer. Preset 6 exposes only the bento-grid gap as JSON.
+inspectBentoGap="12"
 
 # Splunk and JSON reporting defaults
 splunkPrettyPrintJSON="false"
@@ -4121,7 +4124,7 @@ function buildInspectCategoryItemJSON() {
 
     printf '%s' "{"
     printf '%s' "\"displayName\":$( jsonString "${displayName}" ),"
-    printf '%s' "\"guidanceContent\":[{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoRowHeight\":110,\"bentoCells\":[${bentoCellsJSON}]}],"
+    printf '%s' "\"guidanceContent\":[{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoGap\":${inspectBentoGap},\"bentoRowHeight\":110,\"bentoCells\":[${bentoCellsJSON}]}],"
     printf '%s' "\"guidanceTitle\":$( jsonString "${displayName} Status" ),"
     printf '%s' "\"icon\":$( jsonString "${icon}" ),"
     printf '%s' "\"id\":$( jsonString "$( sanitizeCheckKey "${displayName}" )" ),"
@@ -4252,6 +4255,8 @@ function buildInspectSummaryComparisonTableJSON() {
 function buildInspectOverviewGuidanceContentJSON() {
 
     printf '%s' "["
+    # swiftDialog PR #684 renders Preset 6 highlights as centered onboarding copy without a chip.
+    printf '%s' "{\"content\":$( jsonString "$( getInspectIntroductionText )" ),\"type\":\"highlight\"},"
     printf '%s' "{\"content\":$( jsonString "$( getInspectTimestampAndReplayMessage )" ),\"type\":\"info\"},"
     printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Overall Compliance Status\"},"
     printf '%s' "{\"type\":\"findings-list\"}"
@@ -4505,7 +4510,7 @@ function buildInspectHelpGuidanceContentJSON() {
     supportOverlayContentJSON+="]"
 
     printf '%s' "["
-    printf '%s' "{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoRowHeight\":110,\"bentoCells\":[{\"id\":\"support_resources\",\"column\":0,\"row\":0,\"columnSpan\":3,\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"sfSymbol\":\"person.crop.circle.badge.questionmark\",\"contentType\":\"mixed\",\"iconSize\":36,\"iconWeight\":\"semibold\",\"textSize\":\"small\",\"textColor\":\"#FFFFFF\",\"backgroundColor\":\"#143A52\",\"detailOverlay\":{\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"icon\":\"SF=person.crop.circle.badge.questionmark\",\"content\":${supportOverlayContentJSON},\"showSystemInfo\":false,\"showProgressInfo\":false,\"closeButtonText\":\"Close\"}}]},"
+    printf '%s' "{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoGap\":${inspectBentoGap},\"bentoRowHeight\":110,\"bentoCells\":[{\"id\":\"support_resources\",\"column\":0,\"row\":0,\"columnSpan\":3,\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"sfSymbol\":\"person.crop.circle.badge.questionmark\",\"contentType\":\"mixed\",\"iconSize\":36,\"iconWeight\":\"semibold\",\"textSize\":\"small\",\"textColor\":\"#FFFFFF\",\"backgroundColor\":\"#143A52\",\"detailOverlay\":{\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"icon\":\"SF=person.crop.circle.badge.questionmark\",\"content\":${supportOverlayContentJSON},\"showSystemInfo\":false,\"showProgressInfo\":false,\"closeButtonText\":\"Close\"}}]},"
     printf '%s' "{\"content\":$( jsonString "${helpText}" ),\"type\":\"info\"}"
 
     if [[ "${supportItemsJSON}" != "[]" ]]; then
@@ -4691,6 +4696,8 @@ function validateInspectConfigFile() {
                         (.action == "url")
                         and (.content | type == "string") and (.content | length > 0)
                         and (.url | type == "string") and (.url | length > 0)
+                    elif .type == "highlight" then
+                        (.content | type == "string") and (.content | length > 0)
                     elif .type == "comparison-table" then
                         (.content | type == "string") and (.content | length > 0)
                         and (.expectedLabel | type == "string") and (.expectedLabel | length > 0)
@@ -4708,6 +4715,7 @@ function validateInspectConfigFile() {
                         true
                     elif .type == "bento-grid" then
                         (.bentoColumns | type == "number")
+                        and (.bentoGap == 12)
                         and (.bentoRowHeight | type == "number")
                         and (.bentoCells | type == "array")
                         and (.bentoCells | length > 0)

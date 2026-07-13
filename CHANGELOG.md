@@ -2,6 +2,15 @@
 
 ## CHANGELOG
 
+### 4.0.0b28 (13-Jul-2026)
+- Raised the minimum required swiftDialog version to `3.1.0.4993`, the unpublished RC2 build containing swiftDialog PR #684 Inspect Mode refinements
+- Kept the end-user Inspect summary hard-coded to Preset 6 while adopting the renderer-owned 6 / 12 / 24 / 36pt spacing scale
+- Added an explicit `12`-point gap to every generated Preset 6 bento grid
+- Added a status-aware Overview highlight that swiftDialog `3.1.0.4993` renders as centered onboarding copy while remaining schema-compatible with older builds
+- Extended generated Inspect config validation to require non-empty highlight content and the 12-point bento-grid gap
+- Documented PR #684 tolerant scalar decoding while continuing to emit strictly typed JSON
+- Refreshed tracked Preset 6 demo assets and Inspect Mode documentation for `4.0.0b28`
+
 ### 4.0.0b27 (23-Jun-2026)
 - Raised the minimum required swiftDialog version to `3.1.0.4990`
 - Added JSON health reporting (with optional Splunk HTTP Event Collector (HEC) delivery)
