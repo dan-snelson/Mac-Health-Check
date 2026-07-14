@@ -2,57 +2,26 @@
 
 ## CHANGELOG
 
-### 4.0.0b28 (13-Jul-2026)
-- Raised the minimum required swiftDialog version to `3.1.0.4993`, the unpublished RC2 build containing swiftDialog PR #684 Inspect Mode refinements
-- Kept the end-user Inspect summary hard-coded to Preset 6 while adopting the renderer-owned 6 / 12 / 24 / 36pt spacing scale
-- Added an explicit `12`-point gap to every generated Preset 6 bento grid
-- Added a status-aware Overview highlight that swiftDialog `3.1.0.4993` renders as centered onboarding copy while remaining schema-compatible with older builds
-- Extended generated Inspect config validation to require non-empty highlight content and the 12-point bento-grid gap
-- Documented PR #684 tolerant scalar decoding while continuing to emit strictly typed JSON
-- Refreshed tracked Preset 6 demo assets and Inspect Mode documentation for `4.0.0b28`
-
-### 4.0.0b27 (23-Jun-2026)
-- Raised the minimum required swiftDialog version to `3.1.0.4990`
-- Added JSON health reporting (with optional Splunk HTTP Event Collector (HEC) delivery)
-- Added a stand-alone swiftDialog Inspect Mode-flavored report (i.e., `inspectSummaryPreset="on"`), plus cached replay (i.e., `inspectReplayMaximumAgeSeconds`) for `Self Service` runs
+### 4.0.0 (16-Jul-2026)
+- Raised the minimum required swiftDialog version to `3.1.0.4994` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build
+- Added JSON health reporting with optional Splunk HTTP Event Collector (HEC) delivery, plus stricter cached-report validation so failed cached uploads no longer look like successful report generation
+- Added the Inspect Mode-flavored end-user report (`inspectSummaryPreset="on"`) for `Self Service`, including cached replay via `inspectReplayMaximumAgeSeconds`, `Next Steps`, `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, and a stronger unhealthy-results hierarchy
+- Updated the generated and detached Preset 6 Inspect configs and demo assets for swiftDialog `3.1.0.4979` compliance findings with live compliance plist sources, trigger/readiness/result control paths, source-level labels, plist-backed detail sheets, non-plist `detailOverlay` support, renderer-owned 6 / 12 / 24 / 36pt spacing, an explicit `12`-point bento-grid gap, and stricter validation for highlight content
 - Refactored full `Silent` health-check runs to write `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist` without launching swiftDialog
-- Refactored `checkElectronCornerMask` to reduce execution time
-- Many quality-of-life user-interface improvements
-- Refactored `checkHomebrewStatus()` to more accurately reflect Homebrew's actual installation status
-- Added "Next Steps" to Inspect Mode-flavored report
-- Added `checkWiFiStrength()`; thanks, @kgolden-code!
-- Removed `displayFailureNotification()` in favor of the Inspect Mode-flavored report
-- Refactored `Silent` when used with `splunkOperationMode=production` to suppress non-Splunk console output while still logging fully to `scriptLog`, and to return success when local report generation plus Splunk HEC delivery succeed, regardless of recorded health findings
-- Refactored `updateComputerInventory()` to log and skip `jamf recon` during `Silent` runs when `splunkOperationMode=production`
-- Refactored Palo Alto GlobalProtect-related code (inspired by @kgolden-code’s PR #88) to add support for connected-non-pa status, safe plist reads, disconnected-as-warning behavior and normalized external-check output
+- Refactored `Silent` with `splunkOperationMode=production` to suppress non-Splunk console output while still logging fully to `scriptLog`, skip `jamf recon`, and return success when local report generation plus Splunk HEC delivery succeed regardless of recorded health findings
+- Added Force Fresh Run support for `Silent` with `splunkOperationMode=production`, including the `/var/tmp/MacHealthCheck-Force-Fresh-Run` one-shot trigger file, Script Parameter 11 `forceFreshRun`, source-level `reportDebug`, and cached local Splunk report removal before fresh report generation
+- Added Client-Side Cache nightly report generation, Jamf Pro cached Splunk upload optimization, LaunchDaemon deployment for daily `Silent` report refresh with deterministic per-Mac jitter around 1:23 a.m., and LaunchDaemon-only loginwindow `lastUserName` fallback for user-scoped checks when no GUI user is active
+- Sanitized the client-side script copy so it does not perform Jamf inventory submission, routed LaunchDaemon stdout/stderr to `/dev/null` to prevent duplicate prefixed `Silent` log lines, and normalized client-side cache, LaunchDaemon validation/loading, external-check helper, and user-context command-preview logging
+- Added `checkWiFiStrength()` and enhanced Wi-Fi Strength test reporting; thanks, @kgolden-code and thanks for PR #90, @HowardGMac!
+- Added `checkEntraIDRegistration()` to Jamf Pro-specific checks and included `identity.entraIDRegistration` in JSON reports and Inspect Mode summaries
+- Refactored Palo Alto GlobalProtect-related code to support connected-non-pa status, safe plist reads, disconnected-as-warning behavior, and normalized external-check output; inspired by @kgolden-code's PR #88
+- Refactored `checkHomebrewStatus()` to more accurately reflect Homebrew's actual installation status and `checkElectronCornerMask` to reduce execution time
+- Updated Free Disk Space and folder size/item count reporting info; thanks for PR #89, @HowardGMac!
+- Refactored `updateComputerInventory()` to warn end users when `jamf recon` fails and added a `90`-second timeout with timeout-specific logging and messaging
 - Refactored the final standard dialog to distinguish warning-only results from failures, showing `Computer Needs Attention` with an amber exclamation mark and returning exit code `0` when no checks failed
-- Update Free Disk Space and (Folder) Size and Item Count reporting Info (thanks for PR #89, @HowardGMac!)
-- Enhanced Wi-Fi Strength test reporting (thanks for PR #90, @HowardGMac!)
-- Refactored `Silent` when used with `splunkOperationMode=production` to suppress non-Splunk console output and return success when Splunk reporting succeeds, regardless of recorded health findings
-- Refactored Palo Alto GlobalProtect-related code (inspired by @kgolden-code’s PR #88) to add support for connected-non-pa status, safe plist reads and normalized external-check output
-- Added Client-Side Cache nightly cache generation and Jamf Pro cached Splunk upload optimization
-- Added LaunchDaemon deployment for a local daily `Silent` report refresh with deterministic per-Mac jitter around 1:23 a.m.
-- Added a LaunchDaemon-only loginwindow `lastUserName` fallback for user-scoped checks when no GUI user is active
-- Sanitized the client-side script copy so it does not perform Jamf inventory submission
-- Fixed duplicate prefixed `Silent` log lines from LaunchDaemon-triggered client-side runs by routing LaunchDaemon stdout/stderr to `/dev/null` and keeping `updateScriptLog()` as the single MHC-prefixed writer to `scriptLog`
-- Fixed truncated `Run` command-preview log entries by joining and quoting command arguments before logging user-context helper invocations
-- Normalized client-side cache, LaunchDaemon validation/loading, and Jamf external-check helper output so field logs stay MHC-prefixed
-- Tightened cached-report validation and cached Splunk upload state so cached upload failures no longer look like successful report generation
-- Updated the detached swiftDialog Inspect Mode Preset 6 report for swiftDialog `3.1.0.4979` compliance findings
-- Added a live compliance plist source for `compliance-summary`, `findings-list` and bento-grid `BentoPlistDetailSheet` popovers
-- Added Inspect Mode trigger, readiness and result control file paths to generated Preset 6 configs
-- Updated the Preset 6 demo resources to use source-level labels and cell IDs that bind directly to plist keys
-- Refactored swiftDialog pre-flight updates to skip redundant production package downloads when the installed release already matches the latest production build
-- Improved external-check result parsing, logging and client-side cache installs
-- Refactored `updateComputerInventory()` to show an end-user warning state when `jamf recon` fails instead of always reporting success
-- Added a `90`-second timeout for `jamf recon` during `updateComputerInventory()`, with timeout-specific logging and end-user messaging
-- Maximized swiftDialog Inspect Mode Preset 6 with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, and a stronger unhealthy-results hierarchy
-- Added `checkEntraIDRegistration()` function to Jamf Pro-specific checks and `identity.entraIDRegistration` in JSON reports and Inspect Mode summaries
-- Added Force Fresh Run support for `Silent` runs with `splunkOperationMode=production`, allowing next eligible check-in to bypass cached Splunk upload shortcut and execute a complete fresh health-check run
-    - Added one-shot Force Fresh Run trigger-file support via `/var/tmp/MacHealthCheck-Force-Fresh-Run`
-    - Repurposed Script Parameter 11 for `forceFreshRun` and converted `reportDebug` to a source-level variable
-    - Removes any existing cached local Splunk JSON report before a forced fresh run so a brand-new report is generated and delivered to Splunk HEC
-- Enriched Preset 6 plist-backed bento cells with FR #667 detail-sheet fields (`severity`, `explanation`, `remediation`, `actionButtonText`, `actionURL`), widened the `Available Updates` warning card, and added a non-plist `detailOverlay` support card example
+- Removed `displayFailureNotification()` in favor of the Inspect Mode-flavored report
+- Improved external-check result parsing, logging, and client-side cache installs
+- Documented PR #684 tolerant scalar decoding while continuing to emit strictly typed JSON, and refreshed tracked Preset 6 demo assets and Inspect Mode documentation
 
 ### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**

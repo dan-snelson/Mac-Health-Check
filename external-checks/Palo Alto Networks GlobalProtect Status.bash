@@ -17,7 +17,7 @@
 #   Version 0.0.2, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Updated based on Mac Health Check (2.3.0)
 #
-#   Version 0.0.3, 24-Apr-2026, Dan K. Snelson (@dan-snelson)
+#   Version 0.0.3, 14-Jul-2026, Dan K. Snelson (@dan-snelson)
 #   - Updated based on Mac Health Check (4.0.0) [inspired by @kgolden-code’s PR #88]
 #   - Added safe plist reads, connected-non-pa support and normalized external-check output
 #   - Report disconnected VPN as a warning instead of a failure
@@ -62,7 +62,7 @@ if [[ -d "${vpnAppPath}" ]]; then
         globalProtectTunnelStatus=$( readPlistValue "${globalProtectSettingsPlist}" ":'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" )
 
         case "${globalProtectTunnelStatus}" in
-            "connected"* | "connected-non-pa" )
+            "connected" | "connected-non-pa" )
                 globalProtectVpnIP=$( readPlistValue "${globalProtectSettingsPlist}" ':"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
                 globalProtectUserResult=$( getGlobalProtectUserStatus )
                 vpnStatus="Running: Connected ${globalProtectVpnIP:-<no-IP>}; ${globalProtectUserResult}"

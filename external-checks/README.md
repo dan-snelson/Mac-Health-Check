@@ -1,4 +1,4 @@
-# Mac Health Check (4.0.0b26)
+# Mac Health Check (4.0.0)
 ## External Checks
 
 This directory contains scripts that perform external checks for the services of various third-party applications. 

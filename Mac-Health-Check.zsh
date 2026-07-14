@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.0.0b28, 13-Jul-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.0.0, 14-Jul-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.0.0b28"
+scriptVersion="4.0.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -42,7 +42,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.0.4993"
+swiftDialogMinimumRequiredVersion="3.1.0.4994"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"

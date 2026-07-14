@@ -50,7 +50,7 @@ body:
       label: What is wrong today?
       description: Describe the current documentation problem.
       placeholder: |
-        Example: README still implies a behavior that changed in 4.0.0b26 and no longer matches Silent mode output.
+        Example: README still implies a behavior that changed in 4.0.0 and no longer matches Silent mode output.
     validations:
       required: true
 

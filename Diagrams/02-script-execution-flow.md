@@ -1,6 +1,6 @@
 # Mac Health Check: Script Execution Flow
 
-This flowchart documents the `4.0.0b28` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
+This flowchart documents the `4.0.0` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
 
 ```mermaid
 graph TB
@@ -63,7 +63,7 @@ graph TB
         CACHEDUPLOAD["Validate cached report again<br>wrap existing JSON in HEC payload<br>upload to Splunk and exit"]
         INSTALLCHECK{"Non-Silent or<br>Silent + Splunk production?"}
         INSTALLCACHE["Install or update client-side script<br>sanitize Jamf inventory code<br>validate and load LaunchDaemon"]
-        SDCHECK{"swiftDialog<br>≥ 3.1.0.4993?"}
+        SDCHECK{"swiftDialog<br>≥ 3.1.0.4994?"}
         SDINSTALL["Download & install<br>swiftDialog from GitHub"]
         KILLSD["Kill existing<br>Dialog instances"]
         REPLAYCHECK{"Self Service + inspectSummaryPreset=on<br>cached inspect config age<br>< inspectReplayMaximumAgeSeconds and valid?"}
@@ -105,12 +105,12 @@ graph TB
     subgraph MDMDetect["🔍 MDM Vendor Detection"]
         DETECTMDM["Inspect installed profiles<br>Match against known MDM vendors"]
         MDMVENDOR{"MDM Vendor<br>Identified?"}
-        JAMF["Jamf Pro<br>39 checks"]
+        JAMF["Jamf Pro<br>40 checks"]
         KANDJI["Kandji<br>31 checks"]
         INTUNE["Microsoft Intune<br>32 checks"]
         MOSYLE["Mosyle<br>33 checks"]
         JUMPCLOUD["JumpCloud<br>32 checks"]
-        OTHERS["Addigy / Filewave<br>Fleet / Generic<br>28–32 checks"]
+        OTHERS["Addigy / Fleet<br>32 checks<br>Filewave 31 checks<br>Generic 28 checks"]
 
         DOCKBADGE --> DETECTMDM
         DETECTMDM --> MDMVENDOR
@@ -134,7 +134,7 @@ graph TB
     subgraph ModeCheck2["🎛️ Operation Mode Branch"]
         MODESWITCH{"operationMode?"}
         ISSILENT["Silent Mode<br>Skip main dialog — log only"]
-        ISDEV["Development Mode<br>Run current dev subset<br>(Wi-Fi Strength only)"]
+        ISDEV["Development Mode<br>Run current dev subset<br>(Entra ID Registration only)"]
         ISTEST["Test Mode<br>Simulate current vendor list items<br>without running real checks"]
         NORMAL["Self Service / Debug<br>Full interactive run"]
 
@@ -238,10 +238,10 @@ Set via MDM policy parameter. Determines UI behavior and which checks execute. T
 The script must run as root. If not, it calls `fatal()` and exits immediately with a log entry.
 
 ### 3. jq Availability
-The script requires `jq` for JSON validation, formatting, and dialog/listitem JSON merging. If `jq` is unavailable, `4.0.0b28` exits during pre-flight with a fatal dependency message.
+The script requires `jq` for JSON validation, formatting, and dialog/listitem JSON merging. If `jq` is unavailable, `4.0.0` exits during pre-flight with a fatal dependency message.
 
 ### 4. swiftDialog Version
-The script targets swiftDialog ≥ 3.1.0.4993. While that RC2 build remains unpublished, the existing non-production fallback permits an older compatible installed build instead of repeatedly downloading the latest production package.
+The script targets swiftDialog ≥ 3.1.0.4994. If the configured minimum is newer than the latest production package, pre-flight skips the redundant download when the installed version already matches or exceeds that latest production release.
 
 ### 5. Dock Integration
 If `enableDockIntegration` is `true` and the mode is not `Silent`, the script resolves the Dock icon, attempts a named `Dialog.app` launch so Dock hover text matches the script name, initializes `dockiconbadge`, and falls back to the standard dialog binary if the Dock-enabled launch fails.

@@ -1,11 +1,11 @@
 # Mac Health Check: System Architecture
 
-This diagram shows the `4.0.0b28` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
+This diagram shows the `4.0.0` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
 
 ```mermaid
 graph TB
     subgraph Admin["⚙️ Administrator Configuration"]
-        SCRIPT["Mac-Health-Check.zsh<br>Core script (7,400+ lines)"]
+        SCRIPT["Mac-Health-Check.zsh<br>Core script (9,500+ lines)"]
         ORGVARS["Organization + Support Defaults<br>Branding, Dock, thresholds,<br>VPN / firewall, support links"]
         EXTCHECKS["external-checks/<br>Optional third-party plugins<br>(BeyondTrust, CrowdStrike, etc.)"]
         RESOURCES["Resources/<br>Build utilities & Makefile"]
@@ -42,9 +42,9 @@ graph TB
 
     subgraph Client["💻 Client Mac"]
         TRIGGER["Policy Trigger<br>User via Self Service<br>or scheduled run"]
-        PREFLIGHT["Pre-flight Checks<br>• Running as root?<br>• jq available?<br>• swiftDialog ≥ 3.1.0.4993 installed?<br>• Kill existing Dialog instances"]
+        PREFLIGHT["Pre-flight Checks<br>• Running as root?<br>• jq available?<br>• swiftDialog ≥ 3.1.0.4994 installed?<br>• Kill existing Dialog instances"]
         MDMDETECT["MDM Vendor Detection<br>Auto-detect from installed profiles:<br>Jamf Pro / Kandji / Intune / Mosyle<br>JumpCloud / Addigy / Filewave / Fleet"]
-        CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(28–39 checks)"]
+        CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(28–40 checks)"]
 
         POLICY -->|Executes script| TRIGGER
         SILENT -.->|Executes script| TRIGGER
@@ -109,7 +109,7 @@ graph TB
 ### Administrator Configuration
 
 **`Mac-Health-Check.zsh`**
-The single deployable artifact (7,400+ lines). Contains the health check logic, swiftDialog UI layer, Dock handling, logging helpers, webhook delivery, and vendor-specific branching. Administrators typically customize the **Organization Variables** and **IT Support Variables** sections before uploading it to MDM.
+The single deployable artifact (9,500+ lines). Contains the health check logic, swiftDialog UI layer, Dock handling, logging helpers, webhook delivery, and vendor-specific branching. Administrators typically customize the **Organization Variables** and **IT Support Variables** sections before uploading it to MDM.
 
 **Organization + Support Defaults**
 Key settings administrators configure before deployment:
@@ -144,11 +144,11 @@ Mac Health Check is MDM-agnostic and has been tested with eight MDM platforms. T
 The script validates its environment before running any health checks:
 1. Confirms execution as root
 2. Verifies `jq` is available for JSON validation and formatting; exits during pre-flight if it is missing
-3. Checks for swiftDialog ≥ 3.1.0.4993 (retains the non-production fallback while RC2 remains unpublished)
+3. Checks for swiftDialog ≥ 3.1.0.4994, while avoiding redundant production downloads when the installed release already matches the latest production build
 4. Kills any existing swiftDialog instances
 
 **MDM Vendor Detection**
-The script inspects installed configuration profiles to identify the MDM vendor, then selects the appropriate health check set (28–39 checks depending on vendor capabilities).
+The script inspects installed configuration profiles to identify the MDM vendor, then selects the appropriate health check set (28–40 checks depending on vendor capabilities).
 
 ---
 

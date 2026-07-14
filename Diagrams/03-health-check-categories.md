@@ -1,6 +1,6 @@
 # Mac Health Check: Health Check Categories
 
-This diagram shows the `4.0.0b26` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
+This diagram shows the `4.0.0` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
 
 ```mermaid
 graph LR
@@ -56,11 +56,12 @@ graph LR
 
     subgraph MDMChecks["📱 MDM"]
         M1["checkMdmProfile()<br>MDM Profile"]
-        M2["checkAPNs()<br>Apple Push Notification service"]
-        M3["checkMdmCertificateExpiration()<br>MDM Certificate Expiration"]
-        M4["checkJamfProCheckIn()<br>Jamf Pro Check-In"]
-        M5["checkJamfProInventory()<br>Jamf Pro Inventory"]
-        M6["checkMosyleCheckIn()<br>Mosyle Check-In"]
+        M2["checkEntraIDRegistration()<br>Entra ID Registration"]
+        M3["checkAPNs()<br>Apple Push Notification service"]
+        M4["checkMdmCertificateExpiration()<br>MDM Certificate Expiration"]
+        M5["checkJamfProCheckIn()<br>Jamf Pro Check-In"]
+        M6["checkJamfProInventory()<br>Jamf Pro Inventory"]
+        M7["checkMosyleCheckIn()<br>Mosyle Check-In"]
 
         style M1 fill:#b2dfdb
         style M2 fill:#b2dfdb
@@ -68,6 +69,7 @@ graph LR
         style M4 fill:#b2dfdb
         style M5 fill:#b2dfdb
         style M6 fill:#b2dfdb
+        style M7 fill:#b2dfdb
     end
 
     subgraph Network["🌐 Network"]
@@ -178,7 +180,7 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkMdmProfile()` | MDM Profile | Verifies MDM enrollment profile is present |
-| `checkEntraIDRegistration()` | Entra ID Registration | Detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
+| `checkEntraIDRegistration()` | Entra ID Registration | Jamf Pro and Development mode; detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
 | `checkAPNs()` | Apple Push Notification service | Validates APNs connectivity |
 | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
@@ -186,7 +188,7 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | `checkMosyleCheckIn()` | Mosyle Check-In | Mosyle only |
 
 ### Network
-Validates reachability to Apple infrastructure and (for Jamf Pro) Jamf Cloud hosts. `checkWiFiStrength()` measures current RSSI and assigns a simple quality rating, treating Wi-Fi-inactive or Ethernet-primary systems as a non-failure skip. `checkNetworkQuality()` runs a `networkQuality` speed test, caching results for up to `networkQualityTestMaximumAge` (default: 1 hour) to avoid repeated tests.
+Validates reachability to Apple infrastructure and (for Jamf Pro) Jamf Cloud hosts. `checkWiFiStrength()` measures current RSSI and assigns a simple quality rating, treating Wi-Fi-inactive or Ethernet-primary systems as a non-failure skip. `checkNetworkQuality()` runs a `networkQuality` speed test, caching results for up to `networkQualityTestMaximumAge` (default: 4 hours) to avoid repeated tests.
 
 ### Apps
 Application-specific checks. `checkAppAutoPatch()` validates the App Auto-Patch patching agent where included. `checkHomebrewStatus()` compares the installed Homebrew release and outdated package counts without auto-updating Homebrew metadata. `checkInternal()` validates the presence of MDM vendor–specific companion apps (for example Microsoft Teams, Fleet Desktop, Company Portal, or Self-Service.app). Current Kandji flow leans more heavily on `checkInternal()` companion-app validation and pairs it with `checkWiFiStrength()` instead of `checkAppAutoPatch()`, `checkHomebrewStatus()`, and `checkElectronCornerMask()`.
@@ -202,4 +204,4 @@ Optional plugin checks for third-party security tools. These require separate MD
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
 
 ### Inventory
-`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.0.0b26` runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.0.0` runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.

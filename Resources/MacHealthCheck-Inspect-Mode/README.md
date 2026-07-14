@@ -1,4 +1,4 @@
-# Mac Health Check 4.0.0b28
+# Mac Health Check 4.0.0
 
 ## [Inspect Mode](https://swiftdialog.app/advanced/inspect-mode/)
 
@@ -6,7 +6,7 @@
 
 While version `4.0.0` of Mac Health Check was _initially_ focused on **enterprise** reporting (by uploading `JSON` to a data warehouse), it dawned on me one morning that client-side `JSON` could be used to leverage Henry's sweet, sweet Inspect Mode for end-user reporting.
 
-Version `4.0.0b28` keeps the report hard-coded to Preset 6 and targets swiftDialog `3.1.0.4993`, the RC2 build containing PR #684. Generated bento grids use the schema-supported `12`-point gap, and the Overview uses a status-aware `highlight` block that RC2 renders as centered onboarding copy. PR #684 also tolerates quoted scalar values from MDM templates; Mac Health Check continues to generate native JSON numbers and booleans. No form controls are included, so the report remains read-only.
+Version `4.0.0` keeps the report hard-coded to Preset 6 and targets swiftDialog `3.1.0.4993`, the RC2 build containing PR #684. Generated bento grids use the schema-supported `12`-point gap, and the Overview uses a status-aware `highlight` block that RC2 renders as centered onboarding copy. PR #684 also tolerates quoted scalar values from MDM templates; Mac Health Check continues to generate native JSON numbers and booleans. No form controls are included, so the report remains read-only.
 
 ## Screenshots
 

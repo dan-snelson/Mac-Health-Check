@@ -1,6 +1,6 @@
 # Mac Health Check: Operation Modes
 
-This diagram compares all five `4.0.0b26` Mac Health Check operation modes, showing how each mode differs in terms of UI, Dock behavior, logging, and intended use case.
+This diagram compares all five `4.0.0` Mac Health Check operation modes, showing how each mode differs in terms of UI, Dock behavior, logging, and intended use case.
 
 ```mermaid
 graph TB
@@ -32,7 +32,7 @@ graph TB
 
     subgraph Development["🔧 Development"]
         DV_DESC["Trigger: Manual / MDM policy<br>UI: swiftDialog — single-check dev path<br>Anticipation: 2s between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s auto-close<br>Logging: Full structured log"]
-        DV_USE["Use case:<br>Iterating on current Wi-Fi<br>signal health check"]
+        DV_USE["Use case:<br>Iterating on current Entra ID<br>registration health check"]
 
         style DV_DESC fill:#fff4e6
         style DV_USE fill:#ffecb3
@@ -65,7 +65,7 @@ graph TB
 |---|---|---|---|---|---|
 | **Parameter 4 value** | `Self Service` | `Silent` | `Debug` | `Development` | `Test` |
 | **Is default?** | Yes | No | No | No | No |
-| **swiftDialog UI** | Full dialog | None | Full dialog | Single Wi-Fi Strength check | Full dialog |
+| **swiftDialog UI** | Full dialog | None | Full dialog | Single Entra ID Registration check | Full dialog |
 | **Anticipation delay** | 2 seconds | 0 seconds | 2 seconds | 2 seconds | 2 seconds |
 | **Dock badge** | Yes (when enabled) | No | Yes (when enabled) | Yes (when enabled) | Yes (when enabled) |
 | **Completion timer** | 60s on normal full runs | N/A | 60s (configurable) | 60s (configurable) | 60s (configurable) |
@@ -73,7 +73,7 @@ graph TB
 | **Detached inspect summary** | Yes when `inspectSummaryPreset="on"` (moveable Preset 6) | No | No | No | No |
 | **Fresh-config replay** | Yes when `inspectSummaryPreset="on"` and cache age is below `inspectReplayMaximumAgeSeconds` | No | No | No | No |
 | **Logging** | Full | Full | Full + `set -x` | Full structured log | Full structured log |
-| **Real check data** | Yes | Yes | Yes | Yes (Wi-Fi Strength only) | No (simulated pass results) |
+| **Real check data** | Yes | Yes | Yes | Yes (Entra ID Registration only) | No (simulated pass results) |
 | **Intended actor** | End user | Automated / Jamf policy | Administrator | Developer | Developer |
 
 ---
@@ -102,9 +102,9 @@ Similar to Self Service, but with `set -x` tracing enabled plus swiftDialog debu
 ---
 
 ### Development
-Runs current development subset of checks in normal non-`Silent` dialog flow. In current release, subset includes `checkAirDropSettings()`, `checkEntraIDRegistration()`, and `checkWiFiStrength()`, keeping feedback focused and fast without waiting for full vendor-specific run.
+Runs current development subset of checks in normal non-`Silent` dialog flow. In current release, the subset includes only `checkEntraIDRegistration()`, keeping feedback focused and fast without waiting for a full vendor-specific run.
 
-**When to use:** Tuning targeted remediation copy, Entra registration reporting, Wi-Fi signal evaluation, or dialog presentation while keeping the run far shorter than a full production policy.
+**When to use:** Tuning targeted remediation copy, Entra registration reporting, or dialog presentation while keeping the run far shorter than a full production policy.
 
 ---
 

@@ -1,18 +1,18 @@
 # Mac Health Check: Health Check Reference
 
-This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0b28`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
+This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
 
 ---
 
-## 4.0.0b28 Runtime Notes
+## 4.0.0 Runtime Notes
 
-- `operationMode` is documented for the `4.0.0b28` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
+- `operationMode` is documented for the `4.0.0` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` and full `Silent` health-check runs now generate readable inspect-summary assets after the canonical report is written. `Self Service` launches a detached moveable swiftDialog Inspect Mode Preset 6 guided summary, separates recorded results into `Unhealthy` and `Healthy` sections, and retains the normal main-dialog completion countdown during full runs; `Silent` writes the assets without launching swiftDialog.
 - Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
-- `Development` mode currently runs `checkAirDropSettings()`, `checkEntraIDRegistration()`, and `checkWiFiStrength()` instead of the full vendor-specific suite.
+- `Development` mode currently runs only `checkEntraIDRegistration()` instead of the full vendor-specific suite.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
-- Pre-flight targets swiftDialog `3.1.0.4993` or newer and preserves the non-production fallback while RC2 remains unpublished.
+- Pre-flight targets swiftDialog `3.1.0.4994` or newer and skips redundant production downloads when the installed release already matches the latest production build.
 - When `enableDockIntegration` is `true`, non-`Silent` runs show a Dock icon with a decreasing `dockiconbadge` count.
 - Client-Side Cache installs a client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` and a `org.churchofjesuschrist.MHC` LaunchDaemon for nightly `Silent` report refreshes.
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, routes stdout/stderr to `/dev/null`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
@@ -60,7 +60,7 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 | `previousMinorOS` | `"2"` | Number of older minor macOS releases considered compliant | Integer string (`"0"`–`"5"`) |
 | `allowedMinimumFreeDiskPercentage` | `"10"` | Free disk space below this percentage triggers an error | Integer string |
 | `allowedMaximumDirectoryPercentage` | `"5"` | User directory (Desktop/Downloads/Trash) above this percentage of total disk triggers a warning | Integer string |
-| `networkQualityTestMaximumAge` | `"1H"` | Maximum age of a cached network quality result before re-running | `date -v-` suffix: `y`, `m`, `w`, `d`, `H`, `M`, `S` |
+| `networkQualityTestMaximumAge` | `"4H"` | Maximum age of a cached network quality result before re-running | `date -v-` suffix: `y`, `m`, `w`, `d`, `H`, `M`, `S` |
 | `allowedUptimeMinutes` | `"10080"` | Uptime above this threshold triggers an alert (10,080 min = 7 days) | Integer string |
 | `excessiveUptimeAlertStyle` | `"warning"` | Severity when uptime exceeds `allowedUptimeMinutes` | `warning` \| `error` |
 | `completionTimer` | `"60"` | Seconds before the fallback final dialog countdown auto-closes | Integer string |
@@ -81,7 +81,7 @@ The support/help experience uses both legacy support fields and dynamic `support
 | `supportLabel1`–`supportLabel6` | Mixed defaults / blanks | Dynamic support labels shown in the help message |
 | `supportValue1`–`supportValue6` | Mixed defaults / blanks | Matching dynamic support values; empty pairs are skipped |
 
-**4.0.0b28 behavior notes**
+**4.0.0 behavior notes**
 
 - If all `supportLabelN` / `supportValueN` pairs are blank, the script falls back to the legacy `supportTeam*` and KB values.
 - The first URL-like `supportValueN` becomes the Info button action in the dialog.
@@ -116,7 +116,7 @@ The table below lists every health check function, its human-readable name, and 
 | Disk | `checkUserDirectorySizeItems()` | Downloads Size and Item Count | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Disk | `checkUserDirectorySizeItems()` | Trash Size and Item Count | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | MDM | `checkMdmProfile()` | MDM Profile | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | — |
-| MDM | `checkEntraIDRegistration()` | Entra ID Registration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MDM | `checkEntraIDRegistration()` | Entra ID Registration | — | — | — | ✅ | — | — | — | — | — |
 | MDM | `checkAPNs()` | Apple Push Notification service | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | MDM | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | MDM | `checkJamfProCheckIn()` | Jamf Pro Check-In | — | — | — | ✅ | — | — | — | — | — |
@@ -156,14 +156,14 @@ The table below lists every health check function, its human-readable name, and 
 | MDM Vendor | Total Checks |
 |---|---|
 | Jamf Pro | 40 |
-| Mosyle | 34 |
-| Addigy | 33 |
-| Filewave | 32 |
-| Fleet | 33 |
-| JumpCloud | 33 |
-| Kandji | 32 |
-| Microsoft Intune | 33 |
-| Generic / None | 29 |
+| Mosyle | 33 |
+| Addigy | 32 |
+| Filewave | 31 |
+| Fleet | 32 |
+| JumpCloud | 32 |
+| Kandji | 31 |
+| Microsoft Intune | 32 |
+| Generic / None | 28 |
 
 > **Note:** `checkNetworkHosts()` is called once per host group; the five Apple host groups plus the Jamf-specific host group each count as one check. `checkUserDirectorySizeItems()` is called three times (Desktop, Downloads, Trash) and each counts as one check.
 

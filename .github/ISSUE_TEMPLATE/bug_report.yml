@@ -40,7 +40,7 @@ body:
     attributes:
       label: Script version
       description: Which Mac Health Check version are you deploying?
-      placeholder: "e.g. 4.0.0b26"
+      placeholder: "e.g. 4.0.0"
     validations:
       required: true
 

@@ -1,6 +1,6 @@
 # Mac Health Check: Deployment Workflow
 
-This diagram provides a step-by-step guide for deploying the `4.0.0b26` release of Mac Health Check through an MDM solution. Follow the phases in order for a successful deployment.
+This diagram provides a step-by-step guide for deploying the `4.0.0` release of Mac Health Check through an MDM solution. Follow the phases in order for a successful deployment.
 
 ```mermaid
 graph TB
@@ -111,7 +111,7 @@ graph TB
 
     subgraph Phase7["Phase 7: Testing"]
         P7A["Run in Debug mode<br>Parameter 4 = 'Debug'<br>Review set -x output"]
-        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise AirDrop, Entra ID Registration, and Wi-Fi Strength"]
+        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise Entra ID Registration only"]
         P7C["Run in Test mode<br>Parameter 4 = 'Test'<br>Validate full vendor UI with simulated success"]
         P7D{"All checks<br>render correctly?"}
         P7FIX["Review configuration<br>and re-test"]
@@ -247,7 +247,7 @@ Use the three developer-oriented modes to validate behavior before rolling out t
 | Mode | Purpose | How to Use |
 |---|---|---|
 | `Debug` | Shell tracing (`set -x`) for troubleshooting | Run policy and review MDM logs |
-| `Development` | Exercise only `checkWiFiStrength()` in normal dialog flow | Set Parameter 4 to `Development` |
+| `Development` | Exercise only `checkEntraIDRegistration()` in normal dialog flow | Set Parameter 4 to `Development` |
 | `Test` | Build the full current vendor list and mark each item successful without running the real checks | Validate UI layout and messages |
 
 ---
@@ -275,7 +275,7 @@ After production deployment, monitor:
 - [ ] Script uploaded to MDM with correct parameters
 - [ ] Self Service policy created, scoped, and published
 - [ ] Tested in Debug mode — no fatal errors
-- [ ] Tested in Development mode — AirDrop, Entra ID Registration, and Wi-Fi Strength behave as expected
+- [ ] Tested in Development mode — Entra ID Registration behaves as expected
 - [ ] Tested in Test mode — UI renders correctly
 - [ ] Silent mode policy created with Splunk production parameters (if desired)
 - [ ] Client-Side Cache script, LaunchDaemon, and cached JSON validated on a test Mac
