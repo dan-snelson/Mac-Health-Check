@@ -8,8 +8,8 @@ Mac Health Check is commonly deployed through MDM Self Service and support workf
 
 The latest stable release and the current prerelease line are actively supported for security updates.
 
-- Current stable: **v3.2.0**
-- Current prerelease line: **v3.2.0b\*** 
+- Current stable: **v4.0.0**
+- Current prerelease line: **v4.0.0b\***
 - Older releases receive no security patches.
 
 If you are running an older release, upgrade before requesting security support.
@@ -64,4 +64,4 @@ For non-vulnerability questions or general usage concerns, use the public projec
 
 Community-based, best-effort support is available on the [Mac Admins Slack](https://www.macadmins.org) (free, registration required) [#mac-health-check](https://slack.com/app_redirect?channel=C0977DRT7UY) Channel, or you can open an issue on [GitHub](https://github.com/dan-snelson/Mac-Health-Check/issues).
 
-Last updated: April 2026
+Last updated: July 2026
