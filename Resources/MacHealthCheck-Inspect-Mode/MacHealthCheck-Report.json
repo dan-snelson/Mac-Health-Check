@@ -54,7 +54,7 @@
     "mdm": {
         "vendor": "Jamf Pro",
         "enrollmentStatus": "healthy",
-        "serverURL": "https://jamfpro-beta.churchofjesuschrist.org",
+        "serverURL": "https://dan.jamfcloud.com",
         "profileResult": "Installed",
         "profileUUID": "00000000-0000-0000-A000-4A414D460004",
         "profileIdentifier": "",
