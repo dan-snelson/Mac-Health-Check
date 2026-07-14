@@ -41,9 +41,9 @@ Administrators can customize the user interface using swiftDialog’s visual cap
 
 Mac Health Check is particularly valuable in IT support workflows, serving as an initial triage point for Tier 1 support by confirming network access, credentials, and MDM connectivity, while also acting as a verification tool for Tier 2 teams both during and after remediation efforts.
 
-### :new: Enteprise Reporting
+### :new: Enterprise Reporting
 
-The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `4.0.0` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized in-memory results plus a live compliance plist for swiftDialog `3.1.0.4993` compliance findings. The summary adds a remediation-first flow with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, `compliance-summary`, `findings-list`, and the existing `Unhealthy` / `Healthy` details, while retaining the main dialog's 60-second completion countdown. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog. Reruns within 15 minutes can replay that cached summary without re-running health checks, and runs with health issues rely on the final main-dialog state plus that detached inspect summary instead of a separate pseudo-alert notification.
+The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `4.0.0` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized in-memory results plus a live compliance plist for swiftDialog `3.1.0.4994` compliance findings. The summary adds a remediation-first flow with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, `compliance-summary`, `findings-list`, and the existing `Unhealthy` / `Healthy` details, while retaining the main dialog's 60-second completion countdown. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog. Reruns within 15 minutes can replay that cached summary without re-running health checks, and runs with health issues rely on the final main-dialog state plus that detached inspect summary instead of a separate pseudo-alert notification.
 
 - Structured JSON health report generated at the end of every run
 - Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
@@ -64,7 +64,7 @@ See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Refere
 
 The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables cached replay; `off` disables asset generation, launch, and replay.
 
-The current `4.0.0` beta targets swiftDialog `3.1.0.4993` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements. Until RC2 is published, the existing non-production fallback permits older compatible swiftDialog builds to render the same schema-valid config with their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
+The current `4.0.0` beta targets swiftDialog `3.1.0.4994` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements. Until RC2 is published, the existing non-production fallback permits older compatible swiftDialog builds to render the same schema-valid config with their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
 
 User-facing report:
 
@@ -157,7 +157,7 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 ## Features
 The following health checks and information reporting are included in version `4.0.0`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
 
-> :new: Mac Health Check version `4.0.0` retains secure JSON report generation and optional Splunk HEC delivery, adds Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, updates Inspect Mode summary assets for swiftDialog `3.1.0.4993` PR #684 refinements, adds `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, and a status-aware Overview highlight, writes those assets during full `Silent` health-check runs without launching UI, supports 15-minute cached summary replay on rerun, and retains `Wi-Fi Strength` plus warning-only final dialog handling via `Computer Needs Attention`.
+> :new: Mac Health Check version `4.0.0` retains secure JSON report generation and optional Splunk HEC delivery, adds Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, updates Inspect Mode summary assets for swiftDialog `3.1.0.4994` PR #684 refinements, adds `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, and a status-aware Overview highlight, writes those assets during full `Silent` health-check runs without launching UI, supports 15-minute cached summary replay on rerun, and retains `Wi-Fi Strength` plus warning-only final dialog handling via `Computer Needs Attention`.
 
 
 
@@ -248,7 +248,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - `inspectSummaryPreset="on"` enables Preset 6 asset generation, `Self Service` launch and cached replay; set it to `off` to disable all three
 - Unhealthy `Self Service` runs now rely on the final unhealthy main-dialog state plus the detached inspect summary after report generation, without a separate pseudo-alert notification
 - If inspect-summary asset generation or launch fails, Mac Health Check falls back to the existing `completionTimer` countdown path
-- Targets swiftDialog `3.1.0.4993` or newer for PR #684 rendering; older compatible builds retain their prior Preset 6 appearance
+- Targets swiftDialog `3.1.0.4994` or newer for PR #684 rendering; older compatible builds retain their prior Preset 6 appearance
 
 Example Preset 6 JSON fragments used by generated inspect assets:
 

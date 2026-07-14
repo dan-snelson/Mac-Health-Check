@@ -221,7 +221,7 @@ falconBinary="/Applications/Falcon.app/Contents/Resources/falconctl"
 plistBuddyBinary="/usr/libexec/PlistBuddy"
 
 if [[ ! -x "${falconBinary}" ]]; then
-    echo "Not Installed"
+    echo "${RESULT}"
     exit 0
 fi
 

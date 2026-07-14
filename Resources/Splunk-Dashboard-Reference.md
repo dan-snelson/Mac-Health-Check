@@ -2,13 +2,13 @@
 
 > <img src="../images/MHC_4_Splunk_Dashboard.png" alt="Splunk Dashboard" width="800"/>
 >
-> See: [Splunk Mac Health Check (4.0.0)_2026-05-15 at 10.11.21-0400_Splunk.json](Splunk%20Mac%20Health%20Check%20(4.0.0)_2026-05-15%20at%2010.11.21-0400_Splunk.json)
+> See: [Splunk Mac Health Check (4.0.0b26)_2026-05-15 at 10.11.21-0400_Splunk.json](Splunk%20Mac%20Health%20Check%20(4.0.0b26)_2026-05-15%20at%2010.11.21-0400_Splunk.json)
 
 ## Overview
 
 This document describes actual sanitized Dashboard Studio definition in:
 
-- `Resources/Splunk Mac Health Check (4.0.0)_2026-05-15 at 10.11.21-0400_Splunk.json`
+- `Resources/Splunk Mac Health Check (4.0.0b26)_2026-05-15 at 10.11.21-0400_Splunk.json`
 
 Dashboard purpose:
 
@@ -22,7 +22,7 @@ Dashboard purpose:
 
 Public JSON intentionally uses:
 
-- title: `Mac Health Check (4.0.0)`
+- title: `Mac Health Check (4.0.0b26)`
 - description: `Latest status for Macs: macOS version, CrowdStrike Falcon, BeyondTrust EPM and Cisco Umbrella`
 - placeholder search root: `index=replace_with_your_index_prefix sourcetype=macHealthCheck`
 
