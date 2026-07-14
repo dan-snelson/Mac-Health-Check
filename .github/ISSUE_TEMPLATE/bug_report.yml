@@ -1,0 +1,167 @@
+name: Bug Report
+description: Something is sideways with Mac Health Check
+title: "[Bug]: "
+labels: ["bug"]
+assignees:
+  - dan-snelson
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thank you** for taking time to file a bug report for Mac Health Check!
+
+        Please complete this form with as much detail as possible.
+
+        Before filing, retest with the latest Mac Health Check release or prerelease you can deploy, review the current documentation at https://snelson.us/mhc, and check whether the issue is specific to swiftDialog by reviewing open upstream issues.
+
+        If you want to discuss first, Mac Admins Slack [#mac-health-check](https://slack.com/app_redirect?channel=C0977DRT7UY) is available.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you submit
+      options:
+        - label: I reviewed the current documentation and reproduced this with the latest Mac Health Check release or prerelease available to me.
+          required: true
+        - label: I reviewed open swiftDialog issues when the problem appears related to dialog rendering or UI behavior.
+          required: true
+
+  - type: input
+    id: installed-macos-version
+    attributes:
+      label: Installed macOS version
+      description: From About This Mac or `sw_vers -productVersion`
+      placeholder: "e.g. 15.7.5"
+    validations:
+      required: true
+
+  - type: input
+    id: script-version
+    attributes:
+      label: Script version
+      description: Which Mac Health Check version are you deploying?
+      placeholder: "e.g. 4.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: swiftdialog-version
+    attributes:
+      label: swiftDialog version
+      description: From `dialog --version`
+      placeholder: "e.g. 3.1.0.4979"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operation-mode
+    attributes:
+      label: Operation mode
+      description: Which Mac Health Check mode exposed the issue?
+      options:
+        - Self Service
+        - Silent
+        - Debug
+        - Development
+        - Test
+        - More than one mode
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device-management-solution
+    attributes:
+      label: Device management solution
+      description: Select the primary MDM / UEM platform used in your environment.
+      options:
+        - Addigy
+        - Apple Business Essentials
+        - Cisco Meraki
+        - FileWave
+        - Fleet
+        - Google Workspace
+        - Hexnode
+        - IBM MaaS360
+        - Ivanti
+        - Jamf
+        - Kandji
+        - ManageEngine
+        - Microsoft Intune
+        - Mosyle
+        - Omnissa Workspace ONE
+        - SOTI MobiControl
+        - Custom built
+        - Something else not on this list
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Which area looks broken?
+      options:
+        - Health check result or remediation text
+        - Inspect Mode summary or cached replay
+        - Silent mode or scheduled client-side cache run
+        - Splunk HEC reporting
+        - Jamf inventory or policy integration
+        - swiftDialog rendering or button behavior
+        - External check integration
+        - Packaging or deployment helper resources
+        - Documentation or examples
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe actual behavior.
+      placeholder: |
+        Example: The main dialog completed, but the detached Inspect Mode summary never launched and no cached replay assets were written to /var/tmp.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: What did you expect to happen?
+      placeholder: |
+        Example: The run should have written the Inspect Mode assets and launched the summary after report generation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps make bugs much easier to act on.
+      placeholder: |
+        1. Deploy Mac Health Check with your current parameters
+        2. Run it in the affected operation mode
+        3. Note any local modifications or enabled external checks
+        4. Observe the unexpected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic artifacts
+      description: Drag and drop sanitized logs, screenshots, JSON reports, plist exports, or other attachments here.
+      placeholder: |
+        Attach any of the following when available:
+        - Full command or policy parameters used to launch the script
+        - Relevant scriptLog excerpts
+        - Exported Terminal output or `zsh -x` trace
+        - /var/tmp/MacHealthCheck-Report.json excerpt
+        - Inspect Mode JSON / compliance plist artifacts
+        - Screenshots or screen recordings
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Anything else
+      description: Include environment details, workarounds, external checks, or deployment context that do not fit above.

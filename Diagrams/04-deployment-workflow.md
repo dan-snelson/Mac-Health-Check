@@ -1,6 +1,6 @@
 # Mac Health Check: Deployment Workflow
 
-This diagram provides a step-by-step guide for deploying the `3.2.0` release of Mac Health Check through an MDM solution. Follow the phases in order for a successful deployment.
+This diagram provides a step-by-step guide for deploying the `4.0.0` release of Mac Health Check through an MDM solution. Follow the phases in order for a successful deployment.
 
 ```mermaid
 graph TB
@@ -8,7 +8,7 @@ graph TB
 
     subgraph Phase1["Phase 1: Prerequisites"]
         P1A["Confirm MDM solution<br>Jamf Pro · Kandji · Intune · Mosyle<br>JumpCloud · Addigy · Filewave · Fleet"]
-        P1B["Confirm prerequisites<br>jq present; swiftDialog<br>preinstalled or installable"]
+        P1B["Confirm prerequisites<br>jq required; swiftDialog<br>preinstalled or installable"]
         P1C["Download Mac-Health-Check.zsh<br>from GitHub repository"]
 
         START --> P1A
@@ -89,12 +89,12 @@ graph TB
         style P5D fill:#c8e6c9
     end
 
-    subgraph Phase6["Phase 6: Silent Mode Policy (Optional)"]
-        P6Q{"Deploy recurring<br>silent checks?"}
-        P6A["Create second MDM policy<br>Parameter 4 = 'Silent'"]
-        P6B["Set recurring trigger<br>(e.g., Login, Check-in, Scheduled)"]
+    subgraph Phase6["Phase 6: Silent + Client-Side Cache (Optional)"]
+        P6Q{"Deploy recurring<br>silent reporting?"}
+        P6A["Create Jamf upload policy<br>Parameter 4 = 'Silent'<br>Parameter 6 = 'production'"]
+        P6B["Client LaunchDaemon refreshes<br>local report in a deterministic 00:53-01:53 window centered on 1:23 a.m.<br>No RunAtLoad"]
         P6C["Assign scope &amp; publish"]
-        P6SKIP2["Skip — Self Service only"]
+        P6SKIP2["Skip recurring silent reporting"]
 
         P5D --> P6Q
         P6Q -->|Yes| P6A
@@ -111,7 +111,7 @@ graph TB
 
     subgraph Phase7["Phase 7: Testing"]
         P7A["Run in Debug mode<br>Parameter 4 = 'Debug'<br>Review set -x output"]
-        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise curated dev subset"]
+        P7B["Run in Development mode<br>Parameter 4 = 'Development'<br>Exercise Entra ID Registration only"]
         P7C["Run in Test mode<br>Parameter 4 = 'Test'<br>Validate full vendor UI with simulated success"]
         P7D{"All checks<br>render correctly?"}
         P7FIX["Review configuration<br>and re-test"]
@@ -136,7 +136,7 @@ graph TB
         P8["Promote to production scope"]
         P8A["Monitor /var/log/org.churchofjesuschrist.log<br>Review structured log output"]
         P8B["Review webhook alerts<br>(if configured)"]
-        P8C["Validate Dock badge and failure notification<br>on unhealthy non-Silent runs"]
+        P8C["Validate Dock badge and unhealthy end-state<br>on non-Silent runs"]
         P8D["Check MDM inventory<br>for compliance trends"]
 
         P8 --> P8A
@@ -163,7 +163,7 @@ graph TB
 Before deploying Mac Health Check, confirm:
 
 - [ ] An MDM solution is in place (Jamf Pro, Kandji, Microsoft Intune, Mosyle, JumpCloud, Addigy, Filewave, or Fleet)
-- [ ] `jq` is present on target Macs
+- [ ] `jq` is present on target Macs that do not already bundle it
 - [ ] `swiftDialog` is approved for your environment and is either preinstalled or allowed to auto-install/update
 - [ ] You have downloaded the latest `Mac-Health-Check.zsh` from the [GitHub repository](https://github.com/dan-snelson/Mac-Health-Check)
 
@@ -189,9 +189,9 @@ Open `Mac-Health-Check.zsh` and review the **Organization Variables** and **IT S
 | `allowedUptimeMinutes` | `10080` (7 days) | Uptime warning threshold |
 | `allowedMinimumFreeDiskPercentage` | `10` | Free disk error threshold |
 | `previousMinorOS` | `2` | How many older macOS versions are compliant |
-| `completionTimer` | `60` | Dialog auto-close (seconds) |
+| `completionTimer` | `60` | Fallback dialog auto-close (seconds) |
 
-`webhookURL` is configured as **Parameter 5** in the MDM policy, not as a long-lived script default.
+`webhookURL` is configured as **Parameter 5** in the MDM policy, not as a long-lived script default. Splunk reporting is likewise enabled through runtime parameters rather than hard-coded tokens in the script.
 
 ---
 
@@ -212,6 +212,8 @@ If your organization uses BeyondTrust, Cisco Umbrella, CrowdStrike, or GlobalPro
 2. Configure the script parameters:
    - **Parameter 4** — Operation mode (start with `Debug` for initial testing)
    - **Parameter 5** — Webhook URL (optional)
+   - **Parameters 6-10** — Splunk reporting mode, HEC URL, HEC token, HEC index, and HEC sourcetype
+   - **Parameter 11** — `forceFreshRun` one-shot override for Jamf `Silent` + `production` cache bypass when you need next eligible run to recollect data instead of re-uploading cached JSON
 
 ---
 
@@ -224,13 +226,17 @@ Create an MDM policy with:
 
 ---
 
-### Phase 6: Silent Mode Policy (Optional)
+### Phase 6: Silent Mode Policy and Client-Side Cache (Optional)
 
 For background compliance monitoring, create a second policy:
-- **Script:** `Mac-Health-Check.zsh`, Parameter 4 = `Silent`
+- **Script:** `Mac-Health-Check.zsh`, Parameter 4 = `Silent`, Parameter 6 = `production`
 - **Trigger:** Login, recurring check-in, or scheduled
 - **No Self Service entry** — runs silently in the background
-- Combined with a webhook, this surfaces compliance issues without user interaction
+- **Splunk parameters:** Provide HEC URL/token/index/sourcetype from Jamf Pro policy parameters only
+- **Client-Side Cache:** Non-`Silent` runs and full Jamf production runs install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `org.churchofjesuschrist.MHC`; the script validates and loads a root LaunchDaemon without `RunAtLoad`, routes daemon stdout/stderr to `/dev/null`, and the client-side LaunchDaemon refreshes the local JSON report nightly with deterministic per-Mac jitter across 00:53-01:53 without uploading to Splunk
+- When Jamf Pro runs `Silent` + `production`, matching client/server versions and a valid report under 36 hours old allow cached upload without re-running health checks
+- When stale data must be overwritten immediately, set Parameter 11 to `true` for one policy invocation or create `/var/tmp/MacHealthCheck-Force-Fresh-Run` before next eligible `Silent` + `production` run; both paths bypass cached upload and force a complete fresh run
+- Expect two common timestamps in healthy production telemetry: an overnight full `Silent` refresh that writes fresh local JSON, then a later Jamf `Silent` + `production` policy that uploads that cached JSON without re-running checks
 
 ---
 
@@ -241,7 +247,7 @@ Use the three developer-oriented modes to validate behavior before rolling out t
 | Mode | Purpose | How to Use |
 |---|---|---|
 | `Debug` | Shell tracing (`set -x`) for troubleshooting | Run policy and review MDM logs |
-| `Development` | Exercise the curated development check subset | Set Parameter 4 to `Development` |
+| `Development` | Exercise only `checkEntraIDRegistration()` in normal dialog flow | Set Parameter 4 to `Development` |
 | `Test` | Build the full current vendor list and mark each item successful without running the real checks | Validate UI layout and messages |
 
 ---
@@ -251,9 +257,14 @@ Use the three developer-oriented modes to validate behavior before rolling out t
 After production deployment, monitor:
 
 - **Client logs** at `/var/log/org.churchofjesuschrist.log` on managed Macs — look for `[WARNING]` and `[ERROR]` entries
-- **Dock badge and persistent failure notifications** on test Macs in non-`Silent` modes — confirm countdown badges update per check and failed runs show the `3.2.0` pseudo-alert summary and support action
+- **Client-Side Cache assets** — confirm `/Library/Management/org.churchofjesuschrist/MHC.zsh`, `/Library/LaunchDaemons/org.churchofjesuschrist.MHC.plist`, and `/var/tmp/MacHealthCheck-Report.json` exist on test Macs
+- **LaunchDaemon jitter** — confirm the plist starts at 00:53, does not include `RunAtLoad`, and the client log records `Client-Side Cache: Jitter offset = X seconds` during daemon-triggered runs
+- **Fresh-write marker** — confirm full runs log `Splunk Reporting: local report written to /var/tmp/MacHealthCheck-Report.json`; this is the canonical proof that new report data was generated locally
+- **Cached-upload marker and age** — confirm later Jamf `Silent` + `production` uploads log `cached report is valid and <seconds>s old. Skipping health checks.` so operators can distinguish delivery time from collection time
+- **Force Fresh Run marker** — confirm bypassed runs log `Client-Side Cache: FORCE FRESH RUN triggered ...` followed by a fresh-write marker instead of cached-upload notices
+- **Dock badge, inspect summary handoff, cached replay, and unhealthy end-state handling** on test Macs in non-`Silent` modes — confirm countdown badges update per check, `Self Service` launches the detached moveable Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections during the retained main-dialog countdown when `inspectSummaryPreset="on"`, reruns replay the cached summary after pre-flight/client-side installation without re-running checks only while the cached handoff file remains younger than `inspectReplayMaximumAgeSeconds`, and failed runs now rely on the unhealthy main-dialog state plus the detached `Self Service` summary instead of a pseudo-alert notification
 - **Webhook notifications** in Teams or Slack (if configured) — review failure summaries
-- **MDM inventory** — for Jamf Pro, each run can trigger a recon; use Smart Group criteria based on extension attributes for fleet-wide compliance visibility
+- **MDM inventory** — Jamf Pro interactive/full runs can still trigger inventory submission, while `Silent` + Splunk production and Client-Side Cache LaunchDaemon runs skip it
 
 ---
 
@@ -264,8 +275,10 @@ After production deployment, monitor:
 - [ ] Script uploaded to MDM with correct parameters
 - [ ] Self Service policy created, scoped, and published
 - [ ] Tested in Debug mode — no fatal errors
-- [ ] Tested in Development mode — curated subset behaves as expected
+- [ ] Tested in Development mode — Entra ID Registration behaves as expected
 - [ ] Tested in Test mode — UI renders correctly
-- [ ] Silent mode policy created (if desired)
+- [ ] Silent mode policy created with Splunk production parameters (if desired)
+- [ ] Client-Side Cache script, LaunchDaemon, and cached JSON validated on a test Mac
+- [ ] Client-Side Cache jitter validated on multiple Macs; offsets differ but remain stable per Mac
 - [ ] Webhook validated (if configured)
 - [ ] Rolled out to full production scope

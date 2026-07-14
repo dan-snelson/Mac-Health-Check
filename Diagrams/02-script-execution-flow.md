@@ -1,6 +1,6 @@
 # Mac Health Check: Script Execution Flow
 
-This flowchart documents the `3.2.0` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
+This flowchart documents the `4.0.0` decision logic executed each time Mac Health Check runs, from the initial invocation through pre-flight validation, health check execution, and final output.
 
 ```mermaid
 graph TB
@@ -9,11 +9,14 @@ graph TB
     subgraph Params["📋 Parameter Parsing"]
         P4["Parameter 4:<br>operationMode<br>intended default: 'Self Service'"]
         P5["Parameter 5:<br>webhookURL<br>default: empty"]
+        P6["Parameter 6:<br>splunkOperationMode<br>default: test"]
         START --> P4
         START --> P5
+        START --> P6
 
         style P4 fill:#f3e5f5
         style P5 fill:#f3e5f5
+        style P6 fill:#f3e5f5
     end
 
     subgraph Mode["🔀 Operation Mode Check"]
@@ -22,52 +25,92 @@ graph TB
 
         P4 --> ISDEBUG
         ISDEBUG -->|Yes| SETX
-        ISDEBUG -->|No| PREFLIGHT_START
+        SETX --> CSCCHECK
+        ISDEBUG -->|No| CSCCHECK
 
         style ISDEBUG fill:#ffecb3
         style SETX fill:#ffcdd2
     end
 
+    subgraph ClientSideCache["Client-Side Cache"]
+        CSCCHECK{"Silent + Splunk production<br>server-side Jamf run?"}
+        FORCEFRESH{"Parameter 11 forceFreshRun=true<br>or trigger file present?"}
+        CSCSKIP{"Client script version matches<br>and cached report valid<br>and < 36h old?"}
+        FORCEFULL["Remove trigger file when present<br>delete cached JSON report<br>bypass cached-upload shortcut"]
+        CSCSHORTCUT["Set clientSideSkipChecks=true<br>for cached Splunk upload"]
+
+        CSCCHECK -->|No| PREFLIGHT_START
+        CSCCHECK -->|Yes| FORCEFRESH
+        FORCEFRESH -->|Yes| FORCEFULL
+        FORCEFRESH -->|No| CSCSKIP
+        FORCEFULL --> PREFLIGHT_START
+        CSCSKIP -->|Yes| CSCSHORTCUT
+        CSCSKIP -->|No| PREFLIGHT_START
+        CSCSHORTCUT --> PREFLIGHT_START
+
+        style CSCCHECK fill:#ffecb3
+        style FORCEFRESH fill:#ffecb3
+        style FORCEFULL fill:#ffe0b2
+        style CSCSKIP fill:#ffecb3
+        style CSCSHORTCUT fill:#c8e6c9
+    end
+
     subgraph PreFlight["✈️ Pre-flight Checks"]
         PREFLIGHT_START["Initialize client log<br>/var/log/org.churchofjesuschrist.log"]
         ROOTCHECK{"Running as root?"}
-        JQCHECK{"jq installed?"}
-        SDCHECK{"swiftDialog<br>≥ 3.0.1.4955?"}
+        JSONTOOLS["Require jq<br>for JSON validation,<br>formatting, and merge helpers"]
+        CACHEDUPLOADCHECK{"clientSideSkipChecks<br>== true?"}
+        CACHEDUPLOAD["Validate cached report again<br>wrap existing JSON in HEC payload<br>upload to Splunk and exit"]
+        INSTALLCHECK{"Non-Silent or<br>Silent + Splunk production?"}
+        INSTALLCACHE["Install or update client-side script<br>sanitize Jamf inventory code<br>validate and load LaunchDaemon"]
+        SDCHECK{"swiftDialog<br>≥ 3.1.0.4994?"}
         SDINSTALL["Download & install<br>swiftDialog from GitHub"]
         KILLSD["Kill existing<br>Dialog instances"]
+        REPLAYCHECK{"Self Service + inspectSummaryPreset=on<br>cached inspect config age<br>< inspectReplayMaximumAgeSeconds and valid?"}
+        REPLAYLAUNCH["Launch cached moveable Preset 6 summary<br>skip checks and exit"]
         DOCKBADGE["Prepare Dock launch state<br>and initial badge<br>(non-Silent when enabled)"]
 
-        SETX --> PREFLIGHT_START
         PREFLIGHT_START --> ROOTCHECK
         ROOTCHECK -->|No| FATAL1(["💀 Fatal Error:<br>Not running as root"])
-        ROOTCHECK -->|Yes| JQCHECK
-        JQCHECK -->|No| FATAL2(["💀 Fatal Error:<br>jq not found"])
-        JQCHECK -->|Yes| SDCHECK
+        ROOTCHECK -->|Yes| JSONTOOLS
+        JSONTOOLS --> CACHEDUPLOADCHECK
+        CACHEDUPLOADCHECK -->|Yes| CACHEDUPLOAD
+        CACHEDUPLOADCHECK -->|No| INSTALLCHECK
+        INSTALLCHECK -->|Yes| INSTALLCACHE
+        INSTALLCHECK -->|No| SDCHECK
+        INSTALLCACHE --> SDCHECK
         SDCHECK -->|No| SDINSTALL
         SDINSTALL --> KILLSD
         SDCHECK -->|Yes| KILLSD
-        KILLSD --> DOCKBADGE
+        KILLSD --> REPLAYCHECK
+        REPLAYCHECK -->|Yes| REPLAYLAUNCH
+        REPLAYCHECK -->|No| DOCKBADGE
 
         style PREFLIGHT_START fill:#b2dfdb
         style ROOTCHECK fill:#ffecb3
-        style JQCHECK fill:#ffecb3
+        style JSONTOOLS fill:#e1f5ff
+        style CACHEDUPLOADCHECK fill:#ffecb3
+        style CACHEDUPLOAD fill:#c8e6c9
+        style INSTALLCHECK fill:#ffecb3
+        style INSTALLCACHE fill:#fff4e6
         style SDCHECK fill:#ffecb3
         style SDINSTALL fill:#fff4e6
         style KILLSD fill:#fff4e6
+        style REPLAYCHECK fill:#ffecb3
+        style REPLAYLAUNCH fill:#c8e6c9
         style DOCKBADGE fill:#e1f5ff
         style FATAL1 fill:#ffcdd2
-        style FATAL2 fill:#ffcdd2
     end
 
     subgraph MDMDetect["🔍 MDM Vendor Detection"]
         DETECTMDM["Inspect installed profiles<br>Match against known MDM vendors"]
         MDMVENDOR{"MDM Vendor<br>Identified?"}
-        JAMF["Jamf Pro<br>37 checks"]
-        KANDJI["Kandji<br>30 checks"]
-        INTUNE["Microsoft Intune<br>30 checks"]
-        MOSYLE["Mosyle<br>31 checks"]
-        JUMPCLOUD["JumpCloud<br>30 checks"]
-        OTHERS["Addigy / Filewave<br>Fleet / Generic<br>28–30 checks"]
+        JAMF["Jamf Pro<br>40 checks"]
+        KANDJI["Kandji<br>31 checks"]
+        INTUNE["Microsoft Intune<br>32 checks"]
+        MOSYLE["Mosyle<br>33 checks"]
+        JUMPCLOUD["JumpCloud<br>32 checks"]
+        OTHERS["Addigy / Fleet<br>32 checks<br>Filewave 31 checks<br>Generic 28 checks"]
 
         DOCKBADGE --> DETECTMDM
         DETECTMDM --> MDMVENDOR
@@ -91,7 +134,7 @@ graph TB
     subgraph ModeCheck2["🎛️ Operation Mode Branch"]
         MODESWITCH{"operationMode?"}
         ISSILENT["Silent Mode<br>Skip main dialog — log only"]
-        ISDEV["Development Mode<br>Run curated dev subset<br>(Updates, AirDrop, Jamf Hosts,<br>Disk and user folders)"]
+        ISDEV["Development Mode<br>Run current dev subset<br>(Entra ID Registration only)"]
         ISTEST["Test Mode<br>Simulate current vendor list items<br>without running real checks"]
         NORMAL["Self Service / Debug<br>Full interactive run"]
 
@@ -139,27 +182,31 @@ graph TB
 
     subgraph Final["🏁 Final State & Output"]
         FINALSTATE["Evaluate overall compliance<br>Update dialog to final state"]
-        FAILURES{"Failures detected?"}
-        FAILNOTICE{"Non-Silent mode?"}
-        NOTIFY["Display persistent failure notification<br>swiftDialog pseudo-alert"]
+        FAILURES{"Health issues detected?"}
         WEBHOOK{"webhookURL<br>configured?"}
-        SENDWEBHOOK["Post failure summary<br>to Teams or Slack"]
+        SENDWEBHOOK["Post issue summary<br>to Teams or Slack"]
+        REPORT["Write canonical local JSON report<br>and optional Splunk HEC payload"]
         COMPLETIONUI{"Non-Silent mode?"}
+        INSPECTHANDOFF{"Self Service + inspectSummaryPreset=on<br>inspect handoff succeeds?"}
+        INSPECT["Launch detached moveable Preset 6 summary<br>retain main dialog countdown"]
         COMPLETIONTIMER["Display completion timer<br>enable Close button"]
         CLEANUP["Remove temp files<br>clear Dock badge"]
         EXIT(["⏹ Script Exits"])
 
         FINALSTATE --> FAILURES
-        FAILURES -->|Yes| FAILNOTICE
-        FAILURES -->|No| COMPLETIONUI
-        FAILNOTICE -->|Yes| NOTIFY
-        FAILNOTICE -->|No| WEBHOOK
-        NOTIFY --> WEBHOOK
+    FAILURES -->|Yes| WEBHOOK
+        FAILURES -->|No| REPORT
         WEBHOOK -->|Yes| SENDWEBHOOK
-        WEBHOOK -->|No| COMPLETIONUI
-        SENDWEBHOOK --> COMPLETIONUI
-        COMPLETIONUI -->|Yes| COMPLETIONTIMER
+        WEBHOOK -->|No| REPORT
+        SENDWEBHOOK --> REPORT
+        REPORT --> COMPLETIONUI
+        CACHEDUPLOAD --> EXIT
+        REPLAYLAUNCH --> EXIT
+        COMPLETIONUI -->|Yes| INSPECTHANDOFF
         COMPLETIONUI -->|No| CLEANUP
+        INSPECTHANDOFF -->|Yes| INSPECT
+        INSPECTHANDOFF -->|No| COMPLETIONTIMER
+        INSPECT --> COMPLETIONTIMER
         COMPLETIONTIMER --> CLEANUP
         CLEANUP --> EXIT
 
@@ -169,7 +216,10 @@ graph TB
         style NOTIFY fill:#c8e6c9
         style WEBHOOK fill:#ffecb3
         style SENDWEBHOOK fill:#c8e6c9
+        style REPORT fill:#c8e6c9
         style COMPLETIONUI fill:#ffecb3
+        style INSPECTHANDOFF fill:#ffecb3
+        style INSPECT fill:#c8e6c9
         style COMPLETIONTIMER fill:#cfd8dc
         style CLEANUP fill:#c8e6c9
     end
@@ -188,29 +238,41 @@ Set via MDM policy parameter. Determines UI behavior and which checks execute. T
 The script must run as root. If not, it calls `fatal()` and exits immediately with a log entry.
 
 ### 3. jq Availability
-The `jq` JSON processor is required for building the swiftDialog JSON payload. The script exits with a fatal error if not found.
+The script requires `jq` for JSON validation, formatting, and dialog/listitem JSON merging. If `jq` is unavailable, `4.0.0` exits during pre-flight with a fatal dependency message.
 
 ### 4. swiftDialog Version
-The script requires swiftDialog ≥ 3.0.1.4955. If the installed version is older (or swiftDialog is absent), the script downloads and installs the latest release from GitHub before proceeding.
+The script targets swiftDialog ≥ 3.1.0.4994. If the configured minimum is newer than the latest production package, pre-flight skips the redundant download when the installed version already matches or exceeds that latest production release.
 
 ### 5. Dock Integration
 If `enableDockIntegration` is `true` and the mode is not `Silent`, the script resolves the Dock icon, attempts a named `Dialog.app` launch so Dock hover text matches the script name, initializes `dockiconbadge`, and falls back to the standard dialog binary if the Dock-enabled launch fails.
 
-### 6. MDM Vendor Detection
+### 6. Client-Side Cache Upload
+When Jamf Pro runs the server-side script in `Silent` mode with `splunkOperationMode=production`, the script first checks whether operators forced a full refresh through Parameter 11 `forceFreshRun=true` or `/var/tmp/MacHealthCheck-Force-Fresh-Run`. If either override is present, it removes the trigger file when present, deletes `/var/tmp/MacHealthCheck-Report.json` if it exists, logs the bypass, and continues into a complete fresh health-check run. Without that override, the script compares the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` to the running server-side version. If versions match and `/var/tmp/MacHealthCheck-Report.json` is valid and younger than 36 hours, it marks the run for cached upload. After root and `jq` pre-flight checks pass, the script validates the cached report again, wraps that existing JSON in the normal Splunk HEC payload, uploads it, and exits without running health checks or reinstalling client-side files. Operationally this path is identified by log lines such as `Client-Side Cache: ... cached report is valid and <seconds>s old. Skipping health checks.`, followed by the cached-upload notices and a successful Splunk HEC delivery. The upload timestamp can therefore trail the underlying data-collection timestamp by several hours and, by policy, up to the 36-hour cache window.
+
+### 7. MDM Vendor Detection
 The script reads installed configuration profiles to identify the MDM platform. Each vendor maps to a specific ordered list of health checks. Unrecognized or no MDM vendor falls through to a generic baseline check set.
 
-### 7. Individual Check Results
+### 8. Individual Check Results
 Each health check function returns one of four statuses posted to swiftDialog via `dialogUpdate`:
 - `pass` — Check succeeded, requirement met
 - `warning` — Check found a non-critical condition
 - `error` — Check found a compliance failure
 - `skipped` — Check not applicable (e.g., VPN vendor set to `none`)
 
-### 8. Webhook Delivery
-If `webhookURL` (Parameter 5) is populated and failures are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing failed checks. The payload auto-detects the webhook type from the URL.
+### 9. Webhook Delivery
+If `webhookURL` (Parameter 5) is populated and health issues are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing warning, failed, or errored checks. The payload auto-detects the webhook type from the URL.
 
-### 9. Failure Notification
-When non-`Silent` runs detect failures, `displayFailureNotification()` launches a persistent swiftDialog pseudo-alert summarizing the failed health checks and offering a support action link.
+### 10. JSON Report + Splunk Delivery
+At the end of the run, `generateAndSendSplunkReport()` writes the canonical local JSON report and, when `splunkOperationMode=production` plus Parameters 7 and 8 are configured, optionally delivers a Splunk HEC envelope. The exact log line `Splunk Reporting: local report written to /var/tmp/MacHealthCheck-Report.json` is the canonical marker that a full run generated fresh local data. `splunkOperationMode=off` or `test` still generates the report but skips network transmission. The Client-Side Cache LaunchDaemon uses the local client copy with `Silent` + default `splunkOperationMode=test`, refreshing the report without storing HEC secrets on disk. The daemon does not use `RunAtLoad`; scheduled runs set `launchDaemonRun=true`, the client script uses that marker to apply deterministic hardware-derived jitter only for daemon-triggered runs, and daemon stdout/stderr route to `/dev/null` so MHC-prefixed log writes remain single entries. In field logs this typically produces an overnight fresh-write event from the LaunchDaemon or another full `Silent` run, followed later by a Jamf-driven cached upload that reuses the already-written JSON when the cache remains valid unless operators force a fresh run through Parameter 11 or the trigger file.
+
+### 11. Inspect Summary Assets
+In `Self Service` and full `Silent` health-check runs, the script uses finalized in-memory results to generate `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`. `Self Service` then tries to launch a detached, moveable swiftDialog Inspect Mode Preset 6 guided summary; `Silent` writes the assets without launching swiftDialog. That summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when that bucket is empty. On a normal `Self Service` run, the existing `completionTimer` countdown remains on the main dialog whether the detached summary launches or not. Set `inspectSummaryPreset="off"` to skip asset generation, detached launch and cached replay.
+
+### 12. Self Service Cached Replay
+If `/var/tmp/MacHealthCheck-Inspect-Config.json` is younger than `inspectReplayMaximumAgeSeconds` and the cached inspect JSON still validates, a rerun in `Self Service` skips the health-check loop, launches the cached moveable Preset 6 guided summary after pre-flight/client-side installation, and exits without showing the main dialog countdown. Setting `inspectSummaryPreset="off"` disables this replay path.
+
+### 13. Final Health State
+When health issues are detected, non-`Silent` runs update the main dialog to either `Computer Needs Attention` for warning-only results or `Computer Unhealthy` for failures and errors, then continue through report generation, webhook delivery when configured, and the existing completion flow. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue detail surface.
 
 ---
 
@@ -219,9 +281,10 @@ When non-`Silent` runs detect failures, `displayFailureNotification()` launches 
 | Path | Trigger | Logged? |
 |---|---|---|
 | Fatal: Not root | `EUID != 0` | Yes (`[FATAL ERROR]`) |
-| Fatal: jq missing | `jq` not found | Yes (`[FATAL ERROR]`) |
+| Client-Side Cache upload | Matching client/server version and fresh cached JSON in Jamf `Silent` + Splunk production | Yes |
 | Normal: Silent | All checks complete, no UI | Yes |
-| Normal: Self Service | User dismisses or timer expires | Yes |
+| Normal: Self Service | Detached moveable Preset 6 guided summary launches after report generation and the main dialog still completes its normal countdown | Yes |
+| Replay: Self Service cached summary | Fresh inspect config launches cached moveable Preset 6 guided summary and skips the health-check loop | Yes |
 | Normal: Test | Current vendor list items simulated as success | Yes |
-| Normal: With failure notification | Non-`Silent` failures trigger pseudo-alert summary | Yes |
-| Normal: With webhook | Failed run posts webhook before final countdown/cleanup | Yes |
+| Normal: Unhealthy non-`Silent` run | Main dialog ends unhealthy; `Self Service` can still launch detached inspect summary | Yes |
+| Normal: With webhook | Failed run posts webhook before report generation and final UI cleanup | Yes |

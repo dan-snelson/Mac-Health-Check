@@ -1,0 +1,78 @@
+name: Documentation
+description: Report missing, unclear, or outdated documentation for Mac Health Check
+title: "[Docs]: "
+labels: ["documentation"]
+assignees:
+  - dan-snelson
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for documentation-only issues: README gaps, diagram drift, setup guidance problems, screenshots, examples, or wording updates.
+
+        If your report includes a runtime defect, use the **Bug Report** form instead.
+
+  - type: dropdown
+    id: docs-area
+    attributes:
+      label: Which documentation area needs attention?
+      options:
+        - README.md
+        - CHANGELOG.md
+        - Diagrams
+        - Resources documentation
+        - external-checks documentation
+        - Issue templates
+        - Deployment or packaging guidance
+        - Screenshots or images
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: What kind of documentation problem is this?
+      options:
+        - Incorrect or outdated information
+        - Missing instructions or example
+        - Confusing wording or structure
+        - Broken link or bad reference
+        - Screenshot or diagram drift
+        - Typo or grammar issue
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-docs
+    attributes:
+      label: What is wrong today?
+      description: Describe the current documentation problem.
+      placeholder: |
+        Example: README still implies a behavior that changed in 4.0.0 and no longer matches Silent mode output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-update
+    attributes:
+      label: What should it say instead?
+      description: Suggest corrected wording, structure, or content when possible.
+      placeholder: |
+        Example: Update the Silent mode section to explain that full health-check runs write Inspect Mode assets without launching swiftDialog.
+    validations:
+      required: true
+
+  - type: input
+    id: affected-links
+    attributes:
+      label: Affected file or URL
+      description: Add the repo path, section heading, or public URL that needs updating.
+      placeholder: "e.g. README.md#silent-mode or Diagrams/05-operation-modes.md"
+
+  - type: textarea
+    id: supporting-context
+    attributes:
+      label: Supporting context
+      description: Add screenshots, references, related commits, or release/version context.

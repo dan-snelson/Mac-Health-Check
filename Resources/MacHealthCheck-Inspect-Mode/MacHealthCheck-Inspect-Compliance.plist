@@ -1,0 +1,706 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>lastComplianceCheck</key>
+	<string>2026-06-23T17:14:42-04:00</string>
+	<key>macos_version</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>macOS Version</string>
+		<key>expected</key>
+		<string>Supported macOS release</string>
+		<key>actual</key>
+		<string>macOS 26.5.1 (25F80)</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>macOS 26.5.1 (25F80)</string>
+	</dict>
+	<key>available_updates</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Available Updates</string>
+		<key>expected</key>
+		<string>No updates pending</string>
+		<key>actual</key>
+		<string>None</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Thanks for keeping your Mac up-to-date</string>
+	</dict>
+	<key>system_integrity_protection</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>System Integrity Protection</string>
+		<key>expected</key>
+		<string>Enabled</string>
+		<key>actual</key>
+		<string>Enabled</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Enabled</string>
+	</dict>
+	<key>signed_system_volume</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>Signed System Volume</string>
+		<key>expected</key>
+		<string>Enabled</string>
+		<key>actual</key>
+		<string>Enabled</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Enabled</string>
+	</dict>
+	<key>firewall</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>Firewall</string>
+		<key>expected</key>
+		<string>Enabled</string>
+		<key>actual</key>
+		<string>Enabled</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Enabled</string>
+	</dict>
+	<key>filevault_encryption</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>FileVault Encryption</string>
+		<key>expected</key>
+		<string>Enabled</string>
+		<key>actual</key>
+		<string>Enabled</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Enabled</string>
+	</dict>
+	<key>gatekeeper__xprotect</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>Gatekeeper / XProtect</string>
+		<key>expected</key>
+		<string>Enabled</string>
+		<key>actual</key>
+		<string>Enabled</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Enabled</string>
+	</dict>
+	<key>touch_id</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>Touch ID</string>
+		<key>expected</key>
+		<string>Enrolled</string>
+		<key>actual</key>
+		<string>Enrolled</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Enrolled</string>
+	</dict>
+	<key>airdrop</key>
+	<dict>
+		<key>status</key>
+		<string>attention</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>AirDrop</string>
+		<key>expected</key>
+		<string>No One / Contacts Only</string>
+		<key>actual</key>
+		<string>Everyone</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>System Settings &gt; General &gt; AirDrop &amp; Handoff &gt; AirDrop &gt; No One / Contacts Only</string>
+		<key>explanation</key>
+		<string>System Settings &gt; General &gt; AirDrop &amp; Handoff &gt; AirDrop &gt; No One / Contacts Only</string>
+		<key>remediation</key>
+		<string>System Settings &gt; General &gt; AirDrop &amp; Handoff &gt; AirDrop &gt; No One / Contacts Only</string>
+	</dict>
+	<key>airplay_receiver</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>AirPlay Receiver</string>
+		<key>expected</key>
+		<string>Disabled</string>
+		<key>actual</key>
+		<string>Disabled</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>Disabled</string>
+	</dict>
+	<key>bluetooth_sharing</key>
+	<dict>
+		<key>status</key>
+		<string>attention</string>
+		<key>category</key>
+		<string>Security</string>
+		<key>displayName</key>
+		<string>Bluetooth Sharing</string>
+		<key>expected</key>
+		<string>Disabled</string>
+		<key>actual</key>
+		<string>Enabled</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>System Settings &gt; General &gt; Sharing &gt; Accessories &amp; Internet &gt; Bluetooth Sharing &gt; Disable</string>
+		<key>explanation</key>
+		<string>System Settings &gt; General &gt; Sharing &gt; Accessories &amp; Internet &gt; Bluetooth Sharing &gt; Disable</string>
+		<key>remediation</key>
+		<string>System Settings &gt; General &gt; Sharing &gt; Accessories &amp; Internet &gt; Bluetooth Sharing &gt; Disable</string>
+	</dict>
+	<key>vpn_client</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>VPN Client</string>
+		<key>expected</key>
+		<string>Connected when required</string>
+		<key>actual</key>
+		<string>Connected</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Connected</string>
+	</dict>
+	<key>last_reboot</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Last Reboot</string>
+		<key>expected</key>
+		<string>Restarted within policy</string>
+		<key>actual</key>
+		<string>6:01 (HH:MM)</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Thanks for restarting your Mac regularly</string>
+	</dict>
+	<key>free_disk_space</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Free Disk Space</string>
+		<key>expected</key>
+		<string>At least 10% free</string>
+		<key>actual</key>
+		<string>439.2 GB free (44.15% available)</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>439.2 GB free (44.15% available)</string>
+	</dict>
+	<key>desktop_size_and_item_count</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Desktop Size and Item Count</string>
+		<key>expected</key>
+		<string>At most 5% of disk</string>
+		<key>actual</key>
+		<string>258M (172 items) — .02% of disk</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>258M (172 items) — .02% of disk</string>
+	</dict>
+	<key>downloads_size_and_item_count</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Downloads Size and Item Count</string>
+		<key>expected</key>
+		<string>At most 5% of disk</string>
+		<key>actual</key>
+		<string>231M (20 items) — .02% of disk</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>231M (20 items) — .02% of disk</string>
+	</dict>
+	<key>trash_size_and_item_count</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Trash Size and Item Count</string>
+		<key>expected</key>
+		<string>At most 5% of disk</string>
+		<key>actual</key>
+		<string>Empty</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>Empty</string>
+	</dict>
+	<key>jamf_pro_mdm_profile</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Jamf Pro MDM Profile</string>
+		<key>expected</key>
+		<string>Installed</string>
+		<key>actual</key>
+		<string>Installed</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Installed</string>
+	</dict>
+	<key>entra_id_registration</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Entra ID Registration</string>
+		<key>expected</key>
+		<string>Registered or not applicable</string>
+		<key>actual</key>
+		<string>Registered</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Registered</string>
+	</dict>
+	<key>jamf_pro_mdm_certificate_expiration</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Jamf Pro MDM Certificate Expiration</string>
+		<key>expected</key>
+		<string>Certificate not expired</string>
+		<key>actual</key>
+		<string>09-Dec-2027</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>09-Dec-2027</string>
+	</dict>
+	<key>apple_push_notification_service</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Apple Push Notification service</string>
+		<key>expected</key>
+		<string>Recent APNS communication</string>
+		<key>actual</key>
+		<string>5:08 PM</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>5:08 PM</string>
+	</dict>
+	<key>jamf_pro_check_in</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Jamf Pro Check-In</string>
+		<key>expected</key>
+		<string>Checked in recently</string>
+		<key>actual</key>
+		<string>5:07 PM</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>5:07 PM</string>
+	</dict>
+	<key>jamf_pro_inventory</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Jamf Pro Inventory</string>
+		<key>expected</key>
+		<string>Inventory updated recently</string>
+		<key>actual</key>
+		<string>5:08 PM</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>5:08 PM</string>
+	</dict>
+	<key>apple_push_notification_hosts</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Apple Push Notification Hosts</string>
+		<key>expected</key>
+		<string>Reachable</string>
+		<key>actual</key>
+		<string>Passed</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Passed</string>
+	</dict>
+	<key>apple_device_management</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Apple Device Management</string>
+		<key>expected</key>
+		<string>Reachable</string>
+		<key>actual</key>
+		<string>Passed</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Passed</string>
+	</dict>
+	<key>apple_software_and_carrier_updates</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Apple Software and Carrier Updates</string>
+		<key>expected</key>
+		<string>Reachable</string>
+		<key>actual</key>
+		<string>Passed</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Passed</string>
+	</dict>
+	<key>apple_certificate_validation</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Apple Certificate Validation</string>
+		<key>expected</key>
+		<string>Reachable</string>
+		<key>actual</key>
+		<string>Passed</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Passed</string>
+	</dict>
+	<key>apple_identity_and_content_services</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Apple Identity and Content Services</string>
+		<key>expected</key>
+		<string>Reachable</string>
+		<key>actual</key>
+		<string>Passed</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Passed</string>
+	</dict>
+	<key>jamf_hosts</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Jamf Hosts</string>
+		<key>expected</key>
+		<string>Passed</string>
+		<key>actual</key>
+		<string>Passed</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Passed</string>
+	</dict>
+	<key>app_auto_patch</key>
+	<dict>
+		<key>status</key>
+		<string>attention</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>App Auto-Patch</string>
+		<key>expected</key>
+		<string>Meets organizational standards</string>
+		<key>actual</key>
+		<string>40 day(s) ago</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Please run App Auto-Patch from the Workforce App Store</string>
+		<key>explanation</key>
+		<string>Please run App Auto-Patch from the Workforce App Store</string>
+		<key>remediation</key>
+		<string>Please run App Auto-Patch from the Workforce App Store</string>
+	</dict>
+	<key>homebrew_status</key>
+	<dict>
+		<key>status</key>
+		<string>attention</string>
+		<key>category</key>
+		<string>Applications</string>
+		<key>displayName</key>
+		<string>Homebrew Status</string>
+		<key>expected</key>
+		<string>Current or not installed</string>
+		<key>actual</key>
+		<string>5.1.10 vs 6.0.3</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Open Terminal and update Homebrew packages if you manage them on this Mac</string>
+		<key>explanation</key>
+		<string>Open Terminal and update Homebrew packages if you manage them on this Mac</string>
+		<key>remediation</key>
+		<string>Open Terminal and update Homebrew packages if you manage them on this Mac</string>
+	</dict>
+	<key>electron_corner_mask</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Applications</string>
+		<key>displayName</key>
+		<string>Electron Corner Mask</string>
+		<key>expected</key>
+		<string>No susceptible Electron apps detected</string>
+		<key>actual</key>
+		<string>All Electron apps patched</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>All Electron apps patched</string>
+	</dict>
+	<key>microsoft_teams</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Applications</string>
+		<key>displayName</key>
+		<string>Microsoft Teams</string>
+		<key>expected</key>
+		<string>Installed</string>
+		<key>actual</key>
+		<string>Installed</string>
+		<key>criticality</key>
+		<string>low</string>
+		<key>message</key>
+		<string>Installed</string>
+	</dict>
+	<key>beyondtrust_privilege_management</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>BeyondTrust Privilege Management</string>
+		<key>expected</key>
+		<string>Running</string>
+		<key>actual</key>
+		<string>Running</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Running</string>
+	</dict>
+	<key>cisco_umbrella</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Cisco Umbrella</string>
+		<key>expected</key>
+		<string>Running</string>
+		<key>actual</key>
+		<string>Running</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Running</string>
+	</dict>
+	<key>crowdstrike_falcon</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>CrowdStrike Falcon</string>
+		<key>expected</key>
+		<string>Running</string>
+		<key>actual</key>
+		<string>Running</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Running</string>
+	</dict>
+	<key>palo_alto_globalprotect</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Maintenance</string>
+		<key>displayName</key>
+		<string>Palo Alto GlobalProtect</string>
+		<key>expected</key>
+		<string>Running</string>
+		<key>actual</key>
+		<string>Running</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>Running</string>
+	</dict>
+	<key>wi_fi_strength</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Wi-Fi Strength</string>
+		<key>expected</key>
+		<string>Excellent &gt;= -55
+Good &gt;= -65
+Fair &gt;= -75, Poor &lt; -75</string>
+		<key>actual</key>
+		<string>Excellent (-40 dBm)</string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>RSSI -40 dBm</string>
+	</dict>
+	<key>network_quality_test</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>Connectivity</string>
+		<key>displayName</key>
+		<string>Network Quality Test</string>
+		<key>expected</key>
+		<string>Network quality passed</string>
+		<key>actual</key>
+		<string>542.17 Mbps </string>
+		<key>criticality</key>
+		<string>medium</string>
+		<key>message</key>
+		<string>542.17 Mbps </string>
+	</dict>
+	<key>computer_inventory</key>
+	<dict>
+		<key>status</key>
+		<string>healthy</string>
+		<key>category</key>
+		<string>MDM</string>
+		<key>displayName</key>
+		<string>Computer Inventory</string>
+		<key>expected</key>
+		<string>Inventory updated recently</string>
+		<key>actual</key>
+		<string>Updated</string>
+		<key>criticality</key>
+		<string>high</string>
+		<key>message</key>
+		<string>Latest computer inventory submitted at Tuesday, June 23 at 05:14 PM EDT</string>
+	</dict>
+</dict>
+</plist>

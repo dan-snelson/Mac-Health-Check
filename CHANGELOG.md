@@ -2,24 +2,26 @@
 
 ## CHANGELOG
 
-### 3.3.0b1 (21-Apr-2026)
-- Iru-specific updates [Pull Request #88](https://github.com/dan-snelson/Mac-Health-Check/pull/88); thanks, @kgolden-code!
-- New `checkWiFiStrength()` check [Pull Request #88](https://github.com/dan-snelson/Mac-Health-Check/pull/88); thanks, @kgolden-code!
-
-### 3.2.0 (02-Apr-2026)
-- Preserved user-provided local `organizationOverlayiconURL` files by downloading remote overlay icons to a per-run temporary file and only cleaning up that script-managed asset at exit (Thanks for the heads-up, @brian_b!)
-- Corrected Jamf Pro inventory warning text for non-SSO sessions so omitted `-endUsername` logging now explains that no SSO username was available for the logged-in user.
-- Synced DDM OS enforcement detection in `checkAvailableSoftwareUpdates()` with newer [DDM OS Reminder](https://github.com/dan-snelson/DDM-OS-Reminder) corrections: prefer the newest trustworthy declaration timestamp, recognize currently applicable declarations, and use future padded enforcement deadlines when valid.
-- Updated Jamf Pro Cloud & On-prem Endpoints ([Pull Request #83](https://github.com/dan-snelson/Mac-Health-Check/pull/83); thanks for yet another one, @HowardGMac!)
-- Fix: SSO checks report 'not configured' instead of 'NOT logged in' when SSO type is absent ([Pull Request #82](https://github.com/dan-snelson/Mac-Health-Check/pull/82); thanks for yet another one, @bigdoodr!)
-- Added `displayFailureNotification` function to present a `--notification --style pseudo-alert` (swiftDialog 3.1.0) summary of failed health checks when failures are detected
-- Hardened Jamf Pro inventory submission to only send `-endUsername` when a valid SSO username is available, preventing `"NOT logged in"` placeholder values from being submitted in non-PSSO environments, and added explicit inventory notices that log whether `-endUsername` was used plus its source (Kerberos SSOe, Platform SSOe, or None) and resolved value (`<empty>` when not used). [Issue #81](https://github.com/dan-snelson/Mac-Health-Check/issues/81); sorry for any Dan-induced headaches, [@tonyyo11](https://github.com/tonyyo11)!
-- Refactored `checkOS()` to better handle beta versions vs. Background Security Improvement versions
-- Updated `checkFreeDiskSpace()` to prefer Finder-aligned available capacity via `NSURLVolumeAvailableCapacityForImportantUsageKey`, improving visibility of purgeable space such as local Time Machine snapshots and iCloud-managed capacity (thanks for the cross-project [Pull Request](https://github.com/dan-snelson/DDM-OS-Reminder/pull/80), @huexley!)
-    - Added sanity checks and automatic fallback to `diskutil info /` when the JXA/Foundation query returns invalid data, preserving safe behavior on affected systems
-    - Retained `allowedMinimumFreeDiskPercentage` as the threshold while updating the human-readable free-space display to use decimal `GB` formatting when the Finder-aligned result is valid
-- Refactored code to more reliably display `$humanReadableScriptName` in the Dock
-- Added Volume Owners to `$helpmessage`
+### 4.0.0 (16-Jul-2026)
+- Raised the minimum required swiftDialog version to `3.1.0.4994` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build
+- Added JSON health reporting with optional Splunk HTTP Event Collector (HEC) delivery, plus stricter cached-report validation so failed cached uploads no longer look like successful report generation
+- Added the Inspect Mode-flavored end-user report (`inspectSummaryPreset="on"`) for `Self Service`, including cached replay via `inspectReplayMaximumAgeSeconds`, `Next Steps`, `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, and a stronger unhealthy-results hierarchy
+- Updated the generated and detached Preset 6 Inspect configs and demo assets for swiftDialog `3.1.0.4979` compliance findings with live compliance plist sources, trigger/readiness/result control paths, source-level labels, plist-backed detail sheets, non-plist `detailOverlay` support, renderer-owned 6 / 12 / 24 / 36pt spacing, an explicit `12`-point bento-grid gap, and stricter validation for highlight content
+- Refactored full `Silent` health-check runs to write `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist` without launching swiftDialog
+- Refactored `Silent` with `splunkOperationMode=production` to suppress non-Splunk console output while still logging fully to `scriptLog`, skip `jamf recon`, and return success when local report generation plus Splunk HEC delivery succeed regardless of recorded health findings
+- Added Force Fresh Run support for `Silent` with `splunkOperationMode=production`, including the `/var/tmp/MacHealthCheck-Force-Fresh-Run` one-shot trigger file, Script Parameter 11 `forceFreshRun`, source-level `reportDebug`, and cached local Splunk report removal before fresh report generation
+- Added Client-Side Cache nightly report generation, Jamf Pro cached Splunk upload optimization, LaunchDaemon deployment for daily `Silent` report refresh with deterministic per-Mac jitter around 1:23 a.m., and LaunchDaemon-only loginwindow `lastUserName` fallback for user-scoped checks when no GUI user is active
+- Sanitized the client-side script copy so it does not perform Jamf inventory submission, routed LaunchDaemon stdout/stderr to `/dev/null` to prevent duplicate prefixed `Silent` log lines, and normalized client-side cache, LaunchDaemon validation/loading, external-check helper, and user-context command-preview logging
+- Added `checkWiFiStrength()` and enhanced Wi-Fi Strength test reporting; thanks, @kgolden-code and thanks for PR #90, @HowardGMac!
+- Added `checkEntraIDRegistration()` to Jamf Pro-specific checks and included `identity.entraIDRegistration` in JSON reports and Inspect Mode summaries
+- Refactored Palo Alto GlobalProtect-related code to support connected-non-pa status, safe plist reads, disconnected-as-warning behavior, and normalized external-check output; inspired by @kgolden-code's PR #88
+- Refactored `checkHomebrewStatus()` to more accurately reflect Homebrew's actual installation status and `checkElectronCornerMask` to reduce execution time
+- Updated Free Disk Space and folder size/item count reporting info; thanks for PR #89, @HowardGMac!
+- Refactored `updateComputerInventory()` to warn end users when `jamf recon` fails and added a `90`-second timeout with timeout-specific logging and messaging
+- Refactored the final standard dialog to distinguish warning-only results from failures, showing `Computer Needs Attention` with an amber exclamation mark and returning exit code `0` when no checks failed
+- Removed `displayFailureNotification()` in favor of the Inspect Mode-flavored report
+- Improved external-check result parsing, logging, and client-side cache installs
+- Documented PR #684 tolerant scalar decoding while continuing to emit strictly typed JSON, and refreshed tracked Preset 6 demo assets and Inspect Mode documentation
 
 ### 3.0.0 (23-Feb-2026)
 **First (attempt at a) MDM-agnostic release**

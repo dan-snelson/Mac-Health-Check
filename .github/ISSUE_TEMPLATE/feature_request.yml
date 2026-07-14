@@ -1,0 +1,73 @@
+name: Feature Request
+description: Suggest an improvement for Mac Health Check
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees:
+  - dan-snelson
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Note:** While all requests are welcome, finding cycles to custom-code features we will not use in production is always challenging.
+
+        If you want to discuss first, Mac Admins Slack [#mac-health-check](https://slack.com/app_redirect?channel=C0977DRT7UY) is also available.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the Mac Admin or end-user pain in concrete terms.
+      placeholder: |
+        Example: We need a clearer way to expose support details only when a device is unhealthy, without adding noise to healthy runs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe what Mac Health Check should do instead.
+      placeholder: |
+        Example: Add a configurable unhealthy-only support section in the detached Inspect Mode summary and final main-dialog state.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: Include workarounds, adjacent tools, or partial solutions you already tried.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which part of the project would this affect most?
+      options:
+        - End-user dialog experience
+        - Health check coverage or result handling
+        - Inspect Mode summary or cached replay
+        - Silent mode, reporting, or scheduled cache runs
+        - Splunk HEC or JSON report generation
+        - Deployment, packaging, or helper resources
+        - External checks
+        - Documentation or examples
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Who benefits most?
+      options:
+        - Mac Admins
+        - End-users
+        - Both
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Anything else
+      description: Add screenshots, UI sketches, sample configuration, or deployment constraints.

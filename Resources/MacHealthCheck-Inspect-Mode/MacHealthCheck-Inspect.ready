@@ -1,0 +1,21 @@
+{
+  "ackChannel" : "com.swiftdialog.ack",
+  "itemCount" : 11,
+  "preset" : "6",
+  "triggerFile" : "\/var\/tmp\/MacHealthCheck-Inspect.trigger",
+  "timestamp" : "2026-06-23T21:24:30Z",
+  "pid" : 22605,
+  "items" : [
+    "overview",
+    "remediation",
+    "security",
+    "maintenance",
+    "mdm__inventory",
+    "connectivity",
+    "applications",
+    "unhealthy",
+    "healthy",
+    "help",
+    "nextSteps"
+  ]
+}

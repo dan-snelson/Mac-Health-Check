@@ -1,0 +1,4 @@
+cli_auth_credentials_store = "keyring"
+
+[features]
+codex_hooks = true

@@ -1,0 +1,28 @@
+ERROR: Preset6: [DIAG] startMonitoring path='/var/tmp/MacHealthCheck-Inspect.trigger' exists=true
+🔧 CONFIG: loadConfigurationFromFile called with path: /var/tmp/MacHealthCheck-Inspect-Config.json
+🎨 CONFIG: No brandPalette found in config
+InspectState: About to extract configurations
+InspectState: loadedConfig.banner = nil
+InspectState: loadedConfig.listIndicatorStyle = nil
+InspectState: loadedConfig.stepStyle = nil
+Config.swift: extractUIConfiguration called
+Config.swift: config.banner = nil
+Config.swift: config.bannerHeight = 0
+Config.swift: config.bannerTitle = nil
+Config.swift: After extraction - uiConfig.bannerImage = nil
+Config: No listIndicatorStyle in JSON, using default: 'numbers'
+InspectState: After extraction - uiConfiguration.bannerImage = nil
+InspectState: After extraction - uiConfiguration.iconBasePath = /var/tmp
+InspectState: After extraction - uiConfiguration.listIndicatorStyle = numbers
+InspectState: After extraction - uiConfiguration.stepStyle = plain
+[SWIFTDIALOG] trigger_file: /var/tmp/MacHealthCheck-Inspect.trigger
+[SWIFTDIALOG] distributed_notifications: enabled
+[SWIFTDIALOG] trigger_mode: custom
+[SWIFTDIALOG] readiness_file: /var/tmp/MacHealthCheck-Inspect.ready
+[SWIFTDIALOG] published_session: /private/tmp/swiftdialog/sessions/22605.json
+[PRESET6_INTERACTION] event=launched step=preset6 current=0 completed=0
+[PRESET6_EVENT] view_appeared totalSteps=11 completedSteps=0 preset=6 triggerFile=/var/tmp/MacHealthCheck-Inspect.trigger currentStep=0
+[PRESET6_INTERACTION] event=completed_step step=overview current=0 completed=1
+[PRESET6_EVENT] step_completed totalSteps=11 stepIndex=0 stepId=overview completedSteps=1 currentStep=0 preset=6
+[PRESET6_INTERACTION] event=navigate_next step=step_1 current=1 completed=1
+[PRESET6_EVENT] step_transition currentStep=1 completedSteps=1 to=1 from=0 totalSteps=11 preset=6 reason=navigate_next

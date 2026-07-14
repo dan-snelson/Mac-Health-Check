@@ -17,9 +17,8 @@
 #
 # HISTORY
 #
-# Version 3.3.0b1 21-Apr-2026, Dan K. Snelson (@dan-snelson)
-# - Iru-specific updates [Pull Request #88](https://github.com/dan-snelson/Mac-Health-Check/pull/88); thanks, @kgolden-code!
-# - New `checkWiFiStrength()` check [Pull Request #88](https://github.com/dan-snelson/Mac-Health-Check/pull/88); thanks, @kgolden-code!
+# Version 4.0.0, 14-Jul-2026, Dan K. Snelson (@dan-snelson)
+# - See CHANGELOG.md for details
 #
 ####################################################################################################
 
@@ -34,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="3.3.0b1"
+scriptVersion="4.0.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -43,7 +42,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.0.1.4955"
+swiftDialogMinimumRequiredVersion="3.1.0.4994"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -54,7 +53,7 @@ SECONDS="0"
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Script Paramters
+# Script Parameters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
@@ -68,6 +67,75 @@ webhookURL="${5:-""}"
 
 
 
+# --- New in `4.0.0` ------------------------------------------------------------------------------
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Client-Side Cache Jitter
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+clientSideJitterEnabled="true"
+clientSideMaxJitterSeconds="1800" # +/- 30 minutes
+clientSideLaunchDaemonHour="0"
+clientSideLaunchDaemonMinute="53"
+
+function calculateClientSideJitterOffset() {
+
+    local maxJitter="${clientSideMaxJitterSeconds}"
+    local jitterRange=0
+    local hardwareUUID=""
+    local serialNumberFallback=""
+    local hashSeed=""
+    local hexSeed=""
+    local jitterOffset=0
+
+    if [[ "${maxJitter}" != <-> ]] || (( maxJitter < 0 )); then
+        maxJitter="1800"
+    fi
+
+    jitterRange=$(( ( maxJitter * 2 ) + 1 ))
+
+    hardwareUUID=$( ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformUUID/ {print $4}' )
+    if [[ -n "${hardwareUUID}" ]]; then
+        hexSeed="${hardwareUUID: -8}"
+    else
+        serialNumberFallback=$( ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformSerialNumber/ {print $4}' )
+        hashSeed=$( echo -n "${serialNumberFallback:-${HOST:-unknown}}" | md5 -q )
+        hexSeed="${hashSeed: -8}"
+    fi
+
+    if ! echo "${hexSeed}" | grep -Eq '^[[:xdigit:]]+$'; then
+        hexSeed="0"
+    fi
+
+    jitterOffset=$(( 16#${hexSeed:u} % jitterRange - maxJitter ))
+
+    echo "${jitterOffset}"
+
+}
+
+# Parameter 6: Splunk reporting mode [ off | test | production ]
+splunkOperationMode="${6:-"test"}"
+
+# Parameter 7: Splunk HEC URL [ Leave blank to disable (default) | https://splunk.example.com:8088/services/collector ]
+splunkHECURL="${7:-""}"
+
+# Parameter 8: Splunk HEC Token [ Leave blank to disable (default) ]
+splunkHECToken="${8:-""}"
+
+# Parameter 9: Splunk HEC Index
+splunkHECIndex="${9:-""}"
+
+# Parameter 10: Splunk HEC Sourcetype
+splunkHECSourcetype="${10:-""}"
+
+# Parameter 11: Force fresh run [ true | false ]
+forceFreshRun="${11:-"false"}"
+
+# Reporting debug mode [ true | false ]
+reportDebug="false"
+
+
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Organization Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -78,6 +146,175 @@ humanReadableScriptName="Mac Health Check"
 # Organization's Script Name
 organizationScriptName="MHC"
 
+# Organization's Reverse Domain Name Notation (i.e., com.company.division; used for plist domains)
+reverseDomainNameNotation="org.churchofjesuschrist"
+
+# Client-side Deployment
+# Organization's Directory (i.e., where client-side scripts reside)
+organizationDirectory="/Library/Management/${reverseDomainNameNotation}"
+clientSideScriptPath="${organizationDirectory}/${organizationScriptName}.zsh"
+
+# LaunchDaemon Name & Path
+launchDaemonLabel="${reverseDomainNameNotation}.${organizationScriptName}"
+launchDaemonPath="/Library/LaunchDaemons/${launchDaemonLabel}.plist"
+clientSideSkipChecks="false"
+clientSideMaximumCacheAgeSeconds="129600"
+currentScriptPath="${0:A}"
+forceFreshRunTriggerFilePath="/var/tmp/MacHealthCheck-Force-Fresh-Run"
+forceFreshRunDetected="false"
+forceFreshRunSource="not_requested"
+
+# Splunk and JSON reporting defaults
+splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
+cachedReportJSON=""
+cachedReportModificationEpoch="0"
+cachedReportAgeSeconds="0"
+cachedReportValidationStatus="not_checked"
+
+function validateCachedSplunkReport() {
+
+    local cachedReportPath="${1:-${splunkJSONReportPath}}"
+
+    cachedReportJSON=""
+    cachedReportModificationEpoch="0"
+    cachedReportAgeSeconds="0"
+    cachedReportValidationStatus="missing"
+
+    if [[ ! -f "${cachedReportPath}" ]]; then
+        return 1
+    fi
+
+    cachedReportModificationEpoch=$( stat -f %m "${cachedReportPath}" 2>/dev/null )
+    if [[ "${cachedReportModificationEpoch}" != <-> ]] || (( cachedReportModificationEpoch <= 0 )); then
+        cachedReportValidationStatus="invalid_mtime"
+        return 1
+    fi
+
+    cachedReportAgeSeconds=$(( $( date +%s ) - cachedReportModificationEpoch ))
+    if (( cachedReportAgeSeconds > clientSideMaximumCacheAgeSeconds )); then
+        cachedReportValidationStatus="stale"
+        return 1
+    fi
+
+    cachedReportJSON="$( < "${cachedReportPath}" )"
+    if ! printf '%s' "${cachedReportJSON}" | jq -e . >/dev/null 2>&1; then
+        cachedReportValidationStatus="invalid_json"
+        return 1
+    fi
+
+    cachedReportValidationStatus="valid"
+    return 0
+
+}
+
+case "${splunkOperationMode:l}" in
+    "off" )
+        splunkOperationMode="off"
+        ;;
+    "test" )
+        splunkOperationMode="test"
+        ;;
+    * )
+        splunkOperationMode="production"
+        ;;
+esac
+
+if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
+    suppressNonSplunkConsoleLogging="true"
+    if { : >> "${scriptLog}" } 2>/dev/null; then
+        exec 2>> "${scriptLog}"
+    fi
+else
+    suppressNonSplunkConsoleLogging="false"
+fi
+
+function clientSideEarlyLog() {
+
+    local messageText="${1}"
+
+    messageText="${messageText//$'\r'/ }"
+    messageText="${messageText//$'\n'/; }"
+    local logEntry="${organizationScriptName} (${scriptVersion}): $( date +%Y-%m-%d\ %H:%M:%S ) - [NOTICE]          Client-Side Cache: ${messageText}"
+
+    printf '%s\n' "${logEntry}" >> "${scriptLog}" 2>/dev/null
+
+    if [[ "${suppressNonSplunkConsoleLogging}" != "true" ]]; then
+        printf '%s\n' "Client-Side Cache: ${messageText}"
+    fi
+
+}
+
+# Client-Side Cache version check
+if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
+
+    if [[ -f "${forceFreshRunTriggerFilePath}" ]] || [[ "${forceFreshRun:l}" == "true" ]]; then
+
+        forceFreshRunDetected="true"
+
+        if [[ -f "${forceFreshRunTriggerFilePath}" ]] && [[ "${forceFreshRun:l}" == "true" ]]; then
+            forceFreshRunSource="trigger file and Parameter 11"
+        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            forceFreshRunSource="trigger file"
+        else
+            forceFreshRunSource="Parameter 11"
+        fi
+
+        clientSideSkipChecks="false"
+        clientSideEarlyLog "FORCE FRESH RUN triggered via ${forceFreshRunSource} — bypassing cache and forcing complete health check run."
+
+        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            rm -f "${forceFreshRunTriggerFilePath}"
+        fi
+
+        if [[ -f "${splunkJSONReportPath}" ]]; then
+            rm -f "${splunkJSONReportPath}"
+            clientSideEarlyLog "Removed cached Splunk report at ${splunkJSONReportPath} before forced run."
+        fi
+
+    elif [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
+
+        clientSideEarlyLog "Running from client-side script path; skipping cached-upload shortcut."
+
+    elif [[ -f "${clientSideScriptPath}" ]]; then
+
+        clientVersion=$( grep -m1 '^scriptVersion=' "${clientSideScriptPath}" 2>/dev/null | awk -F'"' '{print $2}' )
+
+        if [[ "${clientVersion}" == "${scriptVersion}" ]]; then
+
+            if validateCachedSplunkReport "${splunkJSONReportPath}"; then
+                clientSideSkipChecks="true"
+                clientSideEarlyLog "Client-side script version matches (${scriptVersion}); cached report is valid and ${cachedReportAgeSeconds}s old. Skipping health checks."
+            else
+                case "${cachedReportValidationStatus}" in
+                    "missing" )
+                        clientSideEarlyLog "Client-side script version matches (${scriptVersion}) but no cached report exists. Falling back to full health check."
+                        ;;
+                    "invalid_json" )
+                        clientSideEarlyLog "Cached report exists but is invalid JSON. Falling back to full health check."
+                        ;;
+                    "stale" )
+                        clientSideEarlyLog "Cached report is stale (${cachedReportAgeSeconds}s old; maximum ${clientSideMaximumCacheAgeSeconds}s). Falling back to full health check."
+                        ;;
+                    * )
+                        clientSideEarlyLog "Cached report could not be validated (${cachedReportValidationStatus}). Falling back to full health check."
+                        ;;
+                esac
+            fi
+
+        else
+
+            clientSideEarlyLog "Version mismatch (client=${clientVersion:-not found}, server=${scriptVersion}). Running full health check."
+
+        fi
+
+    else
+
+        clientSideEarlyLog "Client-side script not found at ${clientSideScriptPath}. Running full health check."
+
+    fi
+
+fi
+
 # Organization's Self Service Marketing Name 
 organizationSelfServiceMarketingName="Workforce App Store"
 
@@ -85,7 +322,7 @@ organizationSelfServiceMarketingName="Workforce App Store"
 organizationBoilerplateComplianceMessage="Meets organizational standards"
 
 # Organization's Branding Banner URL
-organizationBrandingBannerURL="https://img.freepik.com/free-photo/abstract-textured-backgound_1258-30469.jpg" # [Image by benzoix on Freepik](https://www.freepik.com/author/benzoix)
+organizationBrandingBannerURL="https://img.freepik.com/free-photo/black-wall-texture_1194-5564.jpg" # [Image by rawpixel.com on Freepik](https://www.freepik.com/author/rawpixel-com)
 
 # Organization's Overlayicon URL
 organizationOverlayiconURL="/System/Library/CoreServices/Apple Diagnostics.app"
@@ -102,11 +339,16 @@ organizationDefaultsDomain="org.churchofjesuschrist.external"
 # Organization's Color Scheme
 if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
     # Dark Mode
-    organizationColorScheme="weight=semibold,colour1=#2E5B91,colour2=#4291C8"
+    organizationColorScheme="weight=semibold,colour1=#D1D5DC,colour2=#F5F5F5"
 else
     # Light Mode
-    organizationColorScheme="weight=semibold,colour1=#2E5B91,colour2=#4291C8"
+    organizationColorScheme="weight=semibold,colour1=#18181B,colour2=#4D4D56"
 fi
+
+# Status Colors
+statusColorSuccess="#65C466"
+statusColorFail="#EB4C46"
+statusColorError="#F5BE0A"
 
 # Organization's Kerberos Realm (leave blank to disable check)
 kerberosRealm=""
@@ -156,6 +398,89 @@ excessiveUptimeAlertStyle="warning"
 
 # Completion Timer (in seconds)
 completionTimer="60"
+
+# --- New in `4.0.0` ------------------------------------------------------------------------------
+# Inspect Mode Defaults
+# Toggle detached inspect summary generation and cached replay [ on | off ]
+inspectSummaryPreset="on"
+inspectConfigPath="/var/tmp/MacHealthCheck-Inspect-Config.json"
+inspectCompliancePlistPath="/var/tmp/MacHealthCheck-Inspect-Compliance.plist"
+inspectTriggerFilePath="/var/tmp/MacHealthCheck-Inspect.trigger"
+inspectReadinessFilePath="/var/tmp/MacHealthCheck-Inspect.ready"
+inspectResultFilePath="/var/tmp/MacHealthCheck-Inspect-Result.json"
+inspectLaunchLogPath="/var/tmp/MacHealthCheck-Inspect-Summary.log"
+inspectReplayMaximumAgeSeconds="900" # 15 minutes
+# swiftDialog PR #684 uses a renderer-owned 12pt spacing scale: 6pt intra, 12pt inner,
+# 24pt section and 36pt outer. Preset 6 exposes only the bento-grid gap as JSON.
+inspectBentoGap="12"
+
+# Splunk and JSON reporting defaults
+splunkPrettyPrintJSON="false"
+splunkReportDebug="false"
+splunkAllowInsecureTLS="false"
+
+# Result-collection defaults
+reportingErrorCount=0
+reportingErrors=""
+reportGenerated="false"
+reportTransmissionStatus="not_configured"
+reportTransmissionHttpCode=""
+reportTransmissionAttemptCount="0"
+reportOverallStatus="healthy"
+reportTimestamp=""
+reportTimestampEpoch=""
+reportFilePayload=""
+reportHECPayload=""
+reportJSONTool="jq"
+exitCode="0"
+overallHealth=""
+errorCount="0"
+currentTimeEpoch=$(date +%s)
+
+typeset -A checkTitleByIndex
+typeset -A checkKeyByIndex
+typeset -A checkNormalizedStatusByIndex
+typeset -A checkStatustextByIndex
+typeset -A checkInspectTextByIndex
+typeset -A checkMessageByIndex
+typeset -A checkRemediationByIndex
+typeset -A checkExecutedByIndex
+typeset -A checkIndexByTitle
+
+typeset -a reportHealthyChecks
+typeset -a reportWarningChecks
+typeset -a reportFailChecks
+typeset -a reportErrorChecks
+
+entraIDRegistrationStatus="unknown"
+entraIDRegistrationMethod=""
+entraIDRegistrationDetails=""
+entraIDRegistrationLastUser=""
+entraIDRegistrationLastUserHome=""
+
+case "${reportDebug:l}" in
+    "true" | "1" | "yes" | "y" )
+        splunkReportDebug="true"
+        splunkPrettyPrintJSON="true"
+        ;;
+    * )
+        splunkReportDebug="false"
+        ;;
+esac
+
+if [[ "${operationMode}" == "Debug" ]]; then
+    splunkReportDebug="true"
+    splunkPrettyPrintJSON="true"
+fi
+
+case "${inspectSummaryPreset:l}" in
+    "off" )
+        inspectSummaryPreset="off"
+        ;;
+    * )
+        inspectSummaryPreset="on"
+        ;;
+esac
 
 
 
@@ -268,9 +593,13 @@ osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
 osMinorVersion=$( echo "${osVersion}" | awk -F '.' '{print $2}' )
 if [[ -n $osVersionExtra ]] && [[ "${osMajorVersion}" -ge 13 ]]; then osVersion="${osVersion} ${osVersionExtra}"; fi
 serialNumber=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformSerialNumber/{print $4}' )
+hardwareUUID=$( ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}' )
 computerName=$( scutil --get ComputerName | sed 's/’//' )
 computerModel=$( sysctl -n hw.model )
 localHostName=$( scutil --get LocalHostName )
+hostName=$( scutil --get HostName 2>/dev/null )
+[[ -z "${hostName}" ]] && hostName="${localHostName}"
+[[ -z "${hostName}" ]] && hostName="$( hostname )"
 systemMemory="$(( $(sysctl -n hw.memsize) / $((1024**3)) )) GB"
 rawStorage=$(( $(/usr/sbin/diskutil info / | grep "Container Total Space" | awk '{print $6}' | sed 's/(//g') / $((1000**3)) ))
 if [[ $rawStorage -ge 1998 ]]; then
@@ -287,7 +616,7 @@ if [[ -z "${totalDiskBytes}" || "${totalDiskBytes}" == "0" ]]; then
     totalDiskBytes=$( echo "${rawStorage} * 1000000000" | bc 2>/dev/null || echo "0" )
 fi
 batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
-activationLockStatus=$( system_profiler SPHardwareDataType | awk '/Activation Lock Status/{print $NF}' )
+activationLockStatus=$( system_profiler SPHardwareDataType 2>/dev/null | awk '/Activation Lock Status/{print $NF}' )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
@@ -301,8 +630,10 @@ rosettaRequiredAppsRaw=$(
         <( mdfind 'kMDItemExecutableArchitectures == arm64' | sort )
 )
 if [[ -n "${rosettaRequiredAppsRaw}" ]]; then
-    rosettaRequiredApps=$( echo "${rosettaRequiredAppsRaw}" | awk 'NF {printf "%s%s", sep, $0; sep=", "}' )
+    rosettaRequiredAppCount=$( printf '%s\n' "${rosettaRequiredAppsRaw}" | sed '/^$/d' | wc -l | xargs )
+    rosettaRequiredApps="${rosettaRequiredAppCount} app(s)"
 else
+    rosettaRequiredAppCount="0"
     rosettaRequiredApps="None detected"
 fi
 
@@ -343,12 +674,33 @@ bootPoliciesSsvStatus=$(extractBootPoliciesStatus "Signed System Volume Status")
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 loggedInUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
-loggedInUserFullname=$( id -F "${loggedInUser}" )
-loggedInUserFirstname=$( echo "$loggedInUserFullname" | sed -E 's/^.*, // ; s/([^ ]*).*/\1/' | sed 's/\(.\{25\}\).*/\1…/' | awk '{print ( $0 == toupper($0) ? toupper(substr($0,1,1))substr(tolower($0),2) : toupper(substr($0,1,1))substr($0,2) )}' )
-loggedInUserID=$( id -u "${loggedInUser}" )
-loggedInUserGroupMembership=$( id -Gn "${loggedInUser}" )
+
+if [[ "${launchDaemonRun}" == "true" ]]; then
+    case "${loggedInUser}" in
+        ""|"loginwindow"|"_mbsetupuser")
+            lastUser=$( defaults read /Library/Preferences/com.apple.loginwindow.plist lastUserName 2>/dev/null )
+            if [[ -n "${lastUser}" ]] && id "${lastUser}" >/dev/null 2>&1; then
+                loggedInUser="${lastUser}"
+            fi
+            ;;
+    esac
+fi
+
+if [[ -n "${loggedInUser}" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    loggedInUserFullname=$( id -F "${loggedInUser}" )
+    loggedInUserFirstname=$( echo "$loggedInUserFullname" | sed -E 's/^.*, // ; s/([^ ]*).*/\1/' | sed 's/\(.\{25\}\).*/\1…/' | awk '{print ( $0 == toupper($0) ? toupper(substr($0,1,1))substr(tolower($0),2) : toupper(substr($0,1,1))substr($0,2) )}' )
+    loggedInUserID=$( id -u "${loggedInUser}" )
+    loggedInUserGroupMembership=$( id -Gn "${loggedInUser}" )
+    loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory 2>/dev/null | awk -F ' ' '{print $2}' )
+else
+    loggedInUserFullname="No logged-in user"
+    loggedInUserFirstname="User"
+    loggedInUserID=""
+    loggedInUserGroupMembership=""
+    loggedInUserHomeDirectory=""
+fi
+
 if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WARNING: '$loggedInUser' IS A MEMBER OF 'admin'; "; fi
-loggedInUserHomeDirectory=$( dscl . read "/Users/${loggedInUser}" NFSHomeDirectory | awk -F ' ' '{print $2}' )
 
 # Volume Owners
 volumeOwnerUUIDs=$( diskutil apfs listUsers / 2>/dev/null | awk '/\+-- [-0-9A-F]+$/ {print $2}' )
@@ -369,16 +721,22 @@ else
 fi
 
 # Secure Token Status
-secureTokenStatus=$( sysadminctl -secureTokenStatus ${loggedInUser} 2>&1 )
-case "${secureTokenStatus}" in
-    *"ENABLED"*)    secureToken="Enabled"   ;;
-    *"DISABLED"*)   secureToken="Disabled"  ;;
-    *)              secureToken="Unknown"   ;;
-esac
+if [[ -n "${loggedInUser}" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    secureTokenStatus=$( sysadminctl -secureTokenStatus "${loggedInUser}" 2>&1 )
+    case "${secureTokenStatus}" in
+        *"ENABLED"*)    secureToken="Enabled"   ;;
+        *"DISABLED"*)   secureToken="Disabled"  ;;
+        *)              secureToken="Unknown"   ;;
+    esac
+else
+    secureTokenStatus="No local user"
+    secureToken="Unknown"
+fi
 
 # Initialize Jamf Pro inventory endUsername variable (thanks, @tonyyo11!)
 inventoryEndUsername=""
 inventoryEndUsernameSource="None"
+inventorySubmissionTimeoutSeconds="90"
 kerberosSSOeResult="Not configured"
 
 # Kerberos Single Sign-on Extension
@@ -483,6 +841,34 @@ if [[ "${vpnClientVendor}" == "none" ]]; then
     vpnStatus="None"
 fi
 
+function globalProtectReadPlistValue() {
+
+    local plistPath="${1}"
+    local plistKey="${2}"
+
+    /usr/libexec/PlistBuddy -c "Print ${plistKey}" "${plistPath}" 2>/dev/null
+
+}
+
+function getGlobalProtectUserStatus() {
+
+    local globalProtectUserResult
+
+    if [[ -z "${loggedInUser}" ]]; then
+        echo "No console user"
+        return
+    fi
+
+    globalProtectUserResult=$( defaults read "/Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client" User 2>/dev/null )
+
+    if [[ -z "${globalProtectUserResult}" ]]; then
+        echo "${loggedInUser} NOT logged-in"
+    else
+        echo "\"${loggedInUser}\" logged-in"
+    fi
+
+}
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Palo Alto Networks GlobalProtect VPN Information
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -490,44 +876,27 @@ fi
 if [[ "${vpnClientVendor}" == "paloalto" ]]; then
     vpnAppName="GlobalProtect VPN Client"
     vpnAppPath="/Applications/GlobalProtect.app"
+    globalProtectSettingsPlist="/Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist"
     vpnStatus="GlobalProtect is NOT installed"
 
     if [[ -d "${vpnAppPath}" ]]; then
         vpnStatus="GlobalProtect is Idle"
 
-        # Safely read the plist key; suppress "Does Not Exist" noise
-        globalProtectTunnelStatus=$(
-            /usr/libexec/PlistBuddy -c \
-                "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" \
-                /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null
-        )
+        globalProtectTunnelStatus=$( globalProtectReadPlistValue "${globalProtectSettingsPlist}" ":'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" )
 
         case "${globalProtectTunnelStatus}" in
-            "connected"*|"internal"|"connected-non-pa")
-                # Extract the IPv4 tunnel address if available
-                globalProtectVpnIP=$(
-                    /usr/libexec/PlistBuddy -c \
-                        'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' \
-                        /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null \
-                    | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p'
-                )
+            "connected"*|"connected-non-pa")
+                globalProtectVpnIP=$( globalProtectReadPlistValue "${globalProtectSettingsPlist}" ':"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
                 vpnStatus="Connected ${globalProtectVpnIP:-<no-IP>}"
 
                 if [[ "${vpnClientDataType}" == "extended" ]]; then
-                    globalProtectUserResult=$(
-                        defaults read "/Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client" User 2>&1
-                    )
-
-                    case "${globalProtectUserResult}" in
-                        *"Does Not Exist"*|"")
-                            globalProtectUserResult="${loggedInUser} NOT logged-in"
-                            ;;
-                        *)
-                            globalProtectUserResult="\"${loggedInUser}\" logged-in"
-                            ;;
-                    esac
-
-                    vpnExtendedStatus="${globalProtectUserResult}"
+                    vpnExtendedStatus=$( getGlobalProtectUserStatus )
+                fi
+                ;;
+            "internal")
+                vpnStatus="Internal"
+                if [[ "${vpnClientDataType}" == "extended" ]]; then
+                    vpnExtendedStatus=$( getGlobalProtectUserStatus )
                 fi
                 ;;
             "disconnected")
@@ -656,9 +1025,6 @@ fi
 dialogAppBundle="/Library/Application Support/Dialog/Dialog.app"
 dialogBinary="/usr/local/bin/dialog"
 
-# Notification Icon URL (used by displayFailureNotification)
-notificationIconURL="https://raw.githubusercontent.com/dan-snelson/Mac-Health-Check/refs/heads/main/images/MHC_icon.png"
-
 # Enable debugging options for swiftDialog
 dialogBinaryDebugArgs=()
 [[ "${operationMode}" == "Debug" ]] && dialogBinaryDebugArgs=(--verbose --resizable --debug red)
@@ -674,7 +1040,7 @@ remainingChecks="0"
 completedCheckIndicesCsv=","
 
 # swiftDialog JSON File
-dialogJSONFile=$( mktemp -u /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
+dialogJSONFile=$( mktemp /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX )
 
 # swiftDialog Command File
 dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}.XXXX )
@@ -698,7 +1064,7 @@ fi
 progressSteps="40"
 
 # Set initial icon based on whether the Mac is a desktop or laptop
-if system_profiler SPPowerDataType | grep -q "Battery Power"; then
+if system_profiler SPPowerDataType 2>/dev/null | grep -q "Battery Power"; then
     icon="SF=laptopcomputer.and.arrow.down,${organizationColorScheme}"
 else
     icon="SF=desktopcomputer.and.arrow.down,${organizationColorScheme}"
@@ -767,6 +1133,63 @@ supportValue6=""
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# JSON Helpers
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function validateJson() {
+
+    local jsonPayload="${1}"
+
+    printf '%s' "${jsonPayload}" | jq . >/dev/null 2>&1
+
+}
+
+function compactJson() {
+
+    local jsonPayload="${1}"
+
+    printf '%s' "${jsonPayload}" | jq -c .
+
+}
+
+function prettyPrintJson() {
+
+    local jsonPayload="${1}"
+
+    printf '%s' "${jsonPayload}" | jq .
+
+}
+
+function jsonIsObject() {
+
+    local jsonPayload="${1}"
+
+    printf '%s' "${jsonPayload}" | jq -e 'type == "object"' >/dev/null 2>&1
+
+}
+
+function getDialogVersionDisplay() {
+
+    if [[ -x "${dialogBinary}" ]]; then
+        "${dialogBinary}" --version 2>/dev/null || echo "Not installed"
+    else
+        echo "Not installed"
+    fi
+
+}
+
+function mergeDialogAndListItems() {
+
+    local dialogJSON="${1}"
+    local listitemJSON="${2}"
+
+    jq -n --argjson dialog "${dialogJSON}" --argjson listitems "${listitemJSON}" '$dialog + { "listitem": $listitems }'
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Help Message Variables
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -826,7 +1249,7 @@ case "${infobuttonaction}" in
         ;;
 esac
 
-helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Volume Owners:** ${volumeOwnerList}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $(dialog -v)<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
+helpmessage="For assistance, please contact: **${supportTeamName}**<br>${supportLines}<br>**User Information:**<br>- **Full Name:** ${loggedInUserFullname}<br>- **User Name:** ${loggedInUser}<br>- **User ID:** ${loggedInUserID}<br>- **Volume Owners:** ${volumeOwnerList}<br>- **Secure Token:** ${secureToken}<br>- **Location Services:** ${locationServicesStatus}<br>- **Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}<br>- **Platform SSOe:** ${platformSSOeResult}<br><br>**Computer Information:**<br>- **macOS:** ${osVersion} (${osBuild})<br>- **Dialog:** $( getDialogVersionDisplay )<br>- **Script:** ${scriptVersion}<br>- **Computer Name:** ${computerName}<br>- **Serial Number:** ${serialNumber}<br>- **Wi-Fi:** ${ssid}<br>- ${activeIPAddress}<br>- **VPN IP:** ${vpnStatus}"
 
 case ${mdmVendor} in
 
@@ -874,7 +1297,7 @@ mainDialogJSON='
 '
 
 # Validate mainDialogJSON is valid JSON
-if ! echo "$mainDialogJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${mainDialogJSON}"; then
   echo "Error: mainDialogJSON is invalid JSON"
   echo "$mainDialogJSON"
   exit 1
@@ -916,13 +1339,14 @@ addigyMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 # Validate addigyMdmListitemJSON is valid JSON
-if ! echo "$addigyMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${addigyMdmListitemJSON}"; then
   echo "Error: addigyMdmListitemJSON is invalid JSON"
   echo "$addigyMdmListitemJSON"
   exit 1
@@ -963,13 +1387,14 @@ filewaveMdmListitemJSON='
     {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 # Validate filewaveMdmListitemJSON is valid JSON
-if ! echo "$filewaveMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${filewaveMdmListitemJSON}"; then
   echo "Error: filewaveMdmListitemJSON is invalid JSON"
   echo "$filewaveMdmListitemJSON"
   exit 1
@@ -1011,13 +1436,14 @@ fleetMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Fleet Desktop", "subtitle" : "Visibility into the security posture of your Mac.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 # Validate fleetMdmListitemJSON is valid JSON
-if ! echo "$fleetMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${fleetMdmListitemJSON}"; then
   echo "Error: fleetMdmListitemJSON is invalid JSON"
   echo "$fleetMdmListitemJSON"
   exit 1
@@ -1064,7 +1490,7 @@ kandjiMdmListitemJSON='
     {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}]
 '
 # Validate kandjiMdmListitemJSON is valid JSON
-if ! echo "$kandjiMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${kandjiMdmListitemJSON}"; then
   echo "Error: kandjiMdmListitemJSON is invalid JSON"
   echo "$kandjiMdmListitemJSON"
   exit 1
@@ -1096,31 +1522,33 @@ jamfProListitemJSON='
     {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=16.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=17.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=20.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=29.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=39.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=40.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
 # Validate jamfProListitemJSON is valid JSON
-if ! echo "$jamfProListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${jamfProListitemJSON}"; then
   echo "Error: jamfProListitemJSON is invalid JSON"
   echo "$jamfProListitemJSON"
   exit 1
@@ -1162,14 +1590,15 @@ jumpcloudMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
 # Validate jumpcloudMdmListitemJSON is valid JSON
-if ! echo "$jumpcloudMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${jumpcloudMdmListitemJSON}"; then
   echo "Error: jumpcloudMdmListitemJSON is invalid JSON"
   echo "$jumpcloudMdmListitemJSON"
   exit 1
@@ -1211,14 +1640,15 @@ microsoftMdmListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Microsoft Company Portal", "subtitle" : "Securely access and manage corporate apps, resources, and devices via Intune.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
 # Validate microsoftMdmListitemJSON is valid JSON
-if ! echo "$microsoftMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${microsoftMdmListitemJSON}"; then
   echo "Error: microsoftMdmListitemJSON is invalid JSON"
   echo "$microsoftMdmListitemJSON"
   exit 1
@@ -1261,14 +1691,15 @@ mosyleListitemJSON='
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "'${mdmVendor}' Self-Service", "subtitle" : "Your one-stop shop for all things '${mdmVendor}'.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
 # Validate mosyleListitemJSON is valid JSON
-if ! echo "$mosyleListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${mosyleListitemJSON}"; then
   echo "Error: mosyletitemJSON is invalid JSON"
   echo "$mosyleListitemJSON"
   exit 1
@@ -1306,14 +1737,15 @@ genericMdmListitemJSON='
     {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=22.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=23.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
     {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
 # Validate genericMdmListitemJSON is valid JSON
-if ! echo "$genericMdmListitemJSON" | jq . >/dev/null 2>&1; then
+if ! validateJson "${genericMdmListitemJSON}"; then
   echo "Error: genericMdmListitemJSON is invalid JSON"
   echo "$genericMdmListitemJSON"
   exit 1
@@ -1332,7 +1764,18 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function updateScriptLog() {
-    echo "${organizationScriptName} ($scriptVersion): $( date +%Y-%m-%d\ %H:%M:%S ) - ${1}" | tee -a "${scriptLog}"
+    local messageText="${1}"
+    local logEntry=""
+
+    messageText="${messageText//$'\r'/ }"
+    messageText="${messageText//$'\n'/; }"
+    logEntry="${organizationScriptName} ($scriptVersion): $( date +%Y-%m-%d\ %H:%M:%S ) - ${messageText}"
+
+    printf '%s\n' "${logEntry}" >> "${scriptLog}"
+
+    if [[ "${suppressNonSplunkConsoleLogging}" != "true" ]] || [[ "${messageText}" == *"Splunk Reporting:"* ]]; then
+        printf '%s\n' "${logEntry}"
+    fi
 }
 
 function preFlight()    { updateScriptLog "[PRE-FLIGHT]      ${1}"; }
@@ -1483,46 +1926,40 @@ function prepareDockNamedDialogApp() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function dialogUpdate(){
-    if [[ "${operationMode}" != "Silent" ]]; then
-        local dialogCommand="${1}"
-        local listItemIndexRaw=""
-        local listItemIndex=""
-        local listItemStatusRaw=""
-        local listItemStatus=""
+    local dialogCommand="${1}"
+    local listItemIndex=""
+    local listItemStatus=""
 
-        sleep 0.3
+    if [[ "${dialogCommand}" == listitem:* ]]; then
+        listItemIndex="$( getDialogListItemIndex "${dialogCommand}" )"
+        listItemStatus="$( getDialogListItemStatus "${dialogCommand}" )"
+
+        if [[ -n "${listItemIndex}" ]] && [[ -n "${listItemStatus}" ]] && [[ "${listItemStatus}" != "wait" ]] && [[ "${listItemStatus}" != "pending" ]]; then
+            recordHealthCheckResult "${listItemIndex}" "${dialogCommand}"
+        fi
+    fi
+
+    if [[ "${operationMode}" != "Silent" ]]; then
+        sleep 0.1
         echo "${dialogCommand}" >> "${dialogCommandFile}"
 
         # Track check completion from listitem status transitions and update dock badge.
-        if [[ "${dialogCommand}" == listitem:* ]]; then
-            listItemIndexRaw="${dialogCommand#*index: }"
-            listItemIndex="${listItemIndexRaw%%,*}"
-            listItemIndex="${listItemIndex//[^0-9]/}"
-
-            listItemStatusRaw="${dialogCommand#*status: }"
-            listItemStatus="${listItemStatusRaw%%,*}"
-            listItemStatus="${listItemStatus//[[:space:]]/}"
-            listItemStatus="${listItemStatus:l}"
-
+        if [[ -n "${listItemIndex}" ]] && [[ -n "${listItemStatus}" ]] && [[ "${listItemStatus}" != "wait" ]] && [[ "${listItemStatus}" != "pending" ]]; then
             if [[ "${remainingChecks}" != <-> ]]; then
                 remainingChecks="0"
             fi
 
-            if [[ -n "${listItemIndex}" ]] && [[ -n "${listItemStatus}" ]] && [[ "${listItemStatus}" != "wait" ]]; then
-                if [[ "${completedCheckIndicesCsv}" != *",${listItemIndex},"* ]]; then
-                    completedCheckIndicesCsv="${completedCheckIndicesCsv}${listItemIndex},"
-                    (( remainingChecks > 0 )) && (( remainingChecks-- ))
+            if [[ "${completedCheckIndicesCsv}" != *",${listItemIndex},"* ]]; then
+                completedCheckIndicesCsv="${completedCheckIndicesCsv}${listItemIndex},"
+                (( remainingChecks > 0 )) && (( remainingChecks-- ))
 
-                    if (( remainingChecks > 0 )); then
-                        writeDockBadge "${remainingChecks}"
-                    else
-                        writeDockBadge "remove"
-                    fi
+                if (( remainingChecks > 0 )); then
+                    writeDockBadge "${remainingChecks}"
+                else
+                    writeDockBadge "remove"
                 fi
             fi
         fi
-    else
-        # info "Operation Mode is 'Silent'; not updating dialog."
     fi
 }
 
@@ -1532,10 +1969,141 @@ function dialogUpdate(){
 # Run command as logged-in user (thanks, @scriptingosx!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+function formatCommandForLog() {
+
+    local -a commandArguments=( "$@" )
+    local -a quotedArguments
+
+    quotedArguments=( "${(@q)commandArguments}" )
+    printf '%s' "${(j: :)quotedArguments}"
+
+}
+
 function runAsUser() {
 
-    info "Run \"$@\" as \"$loggedInUserID\" … "
+    local commandPreview=""
+
+    commandPreview="$( formatCommandForLog "$@" )"
+    info "Run \"${commandPreview}\" as \"$loggedInUserID\" … " 1>&2
     launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" "$@"
+
+}
+
+function captureRunAsUserOutput() {
+
+    local commandPreview=""
+    local commandOutput=""
+    local commandExitCode=0
+
+    commandPreview="$( formatCommandForLog "$@" )"
+    info "Run \"${commandPreview}\" as \"$loggedInUserID\" … " 1>&2
+    commandOutput="$( launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" "$@" 2>&1 )"
+    commandExitCode=$?
+
+    printf '%s' "${commandOutput}"
+    return "${commandExitCode}"
+
+}
+
+function captureCommandOutputWithTimeout() {
+
+    local timeoutSeconds="${1}"
+    shift
+    local outputFile=""
+    local commandOutput=""
+    local commandExitCode=0
+    local commandPID=0
+    local commandStartSeconds=0
+    local timeoutGracePeriodSeconds=5
+    local timeoutTimedOut="false"
+
+    outputFile="$( mktemp -t mhc-command-output )" || return 1
+    commandStartSeconds="${SECONDS}"
+
+    ( "$@" ) > "${outputFile}" 2>&1 &
+    commandPID=$!
+
+    while kill -0 "${commandPID}" 2>/dev/null; do
+        if (( SECONDS - commandStartSeconds >= timeoutSeconds )); then
+            timeoutTimedOut="true"
+            kill -TERM "${commandPID}" 2>/dev/null
+
+            local timeoutGraceStartSeconds="${SECONDS}"
+            while kill -0 "${commandPID}" 2>/dev/null && (( SECONDS - timeoutGraceStartSeconds < timeoutGracePeriodSeconds )); do
+                sleep 1
+            done
+
+            if kill -0 "${commandPID}" 2>/dev/null; then
+                kill -KILL "${commandPID}" 2>/dev/null
+            fi
+
+            wait "${commandPID}" 2>/dev/null
+            commandExitCode=124
+            break
+        fi
+
+        sleep 1
+    done
+
+    if [[ "${timeoutTimedOut}" != "true" ]]; then
+        wait "${commandPID}"
+        commandExitCode=$?
+    fi
+
+    commandOutput="$( < "${outputFile}" )"
+    rm -f "${outputFile}"
+
+    printf '%s' "${commandOutput}"
+    return "${commandExitCode}"
+
+}
+
+function runHomebrewAsUser() {
+
+    local brewBinary="${1}"
+    shift
+    local homebrewPath="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    local commandPreview=""
+
+    commandPreview="$( formatCommandForLog "${brewBinary}" "$@" )"
+    info "Run Homebrew \"${commandPreview}\" as \"${loggedInUserID}\" … " 1>&2
+    launchctl asuser "${loggedInUserID}" sudo -H -u "${loggedInUser}" env \
+        HOME="${loggedInUserHomeDirectory}" \
+        USER="${loggedInUser}" \
+        LOGNAME="${loggedInUser}" \
+        PATH="${homebrewPath}" \
+        zsh -lc '
+            export HOME="$1"
+            export USER="$2"
+            export LOGNAME="$2"
+            export PATH="$3"
+            export HOMEBREW_NO_AUTO_UPDATE=1
+            shift 3
+            "$@"
+        ' zsh "${loggedInUserHomeDirectory}" "${loggedInUser}" "${homebrewPath}" "${brewBinary}" "$@"
+
+}
+
+function launchAsUserInBackground() {
+    local user="$1"
+    shift
+    local userID=""
+
+    if [[ -z "${user}" ]]; then
+        "$@" &
+        dialogPID=$!
+        return 0
+    fi
+
+    userID="$( id -u "${user}" 2>/dev/null )"
+    if [[ ! "${userID}" == <-> ]]; then
+        errorOut "Unable to resolve user ID for '${user}' while launching background process"
+        return 1
+    fi
+
+    launchctl asuser "${userID}" sudo -u "${user}" "$@" &
+    dialogPID=$!
+    return 0
 
 }
 
@@ -1549,6 +2117,2867 @@ function get_json_value() {
     JSON="$1" osascript -l 'JavaScript' \
         -e 'const env = $.NSProcessInfo.processInfo.environment.objectForKey("JSON").js' \
         -e "JSON.parse(env).$2"
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# --- New in `4.0.0` ------------------------------------------------------------------------------
+# Result-collection Helpers
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function sanitizeCheckKey() {
+
+    local rawValue="${1:l}"
+
+    rawValue="${rawValue//[^a-z0-9]/_}"
+    rawValue="${rawValue//__/_}"
+    rawValue="${rawValue##_}"
+    rawValue="${rawValue%%_}"
+    [[ -z "${rawValue}" ]] && rawValue="check"
+
+    echo "${rawValue}"
+
+}
+
+function getDialogListItemIndex() {
+
+    local dialogCommand="${1}"
+    local listItemIndexRaw=""
+    local listItemIndex=""
+
+    listItemIndexRaw="${dialogCommand#*index: }"
+    listItemIndex="${listItemIndexRaw%%,*}"
+    listItemIndex="${listItemIndex//[^0-9]/}"
+
+    echo "${listItemIndex}"
+
+}
+
+function getDialogListItemStatus() {
+
+    local dialogCommand="${1}"
+    local listItemStatusRaw=""
+    local listItemStatus=""
+
+    if [[ "${dialogCommand}" != *"status: "* ]]; then
+        echo ""
+        return
+    fi
+
+    listItemStatusRaw="${dialogCommand#*status: }"
+    listItemStatus="${listItemStatusRaw%%,*}"
+    listItemStatus="${listItemStatus//[[:space:]]/}"
+    listItemStatus="${listItemStatus:l}"
+
+    echo "${listItemStatus}"
+
+}
+
+function getDialogListItemStatustext() {
+
+    local dialogCommand="${1}"
+    local statustext=""
+
+    if [[ "${dialogCommand}" != *"statustext: "* ]]; then
+        echo ""
+        return
+    fi
+
+    statustext="${dialogCommand#*statustext: }"
+    echo "${statustext}"
+
+}
+
+function getDialogListItemSubtitle() {
+
+    local dialogCommand="${1}"
+    local subtitle=""
+
+    if [[ "${dialogCommand}" != *"subtitle: "* ]]; then
+        echo ""
+        return
+    fi
+
+    subtitle="${dialogCommand#*subtitle: }"
+    subtitle="${subtitle%%, status:*}"
+    echo "${subtitle}"
+
+}
+
+function normalizeCheckStatus() {
+
+    case "${1:l}" in
+        "success" )
+            echo "healthy"
+            ;;
+        "error" )
+            echo "warning"
+            ;;
+        "fail" )
+            echo "fail"
+            ;;
+        "warning" )
+            echo "warning"
+            ;;
+        "healthy" | "error_internal" )
+            echo "${1:l}"
+            ;;
+        * )
+            echo "error"
+            ;;
+    esac
+
+}
+
+function recordHealthCheckResult() {
+
+    local listItemIndex="${1}"
+    local dialogCommand="${2}"
+    local title="${checkTitleByIndex[${listItemIndex}]}"
+    local normalizedStatus=""
+    local statusText=""
+    local remediationText=""
+    local messageText=""
+
+    [[ -z "${title}" ]] && title="Check ${listItemIndex}"
+    [[ -z "${checkKeyByIndex[${listItemIndex}]}" ]] && checkKeyByIndex[${listItemIndex}]="$( sanitizeCheckKey "${title}" )"
+
+    normalizedStatus="$( normalizeCheckStatus "$( getDialogListItemStatus "${dialogCommand}" )" )"
+    statusText="$( getDialogListItemStatustext "${dialogCommand}" )"
+    remediationText="$( getDialogListItemSubtitle "${dialogCommand}" )"
+    messageText="${remediationText:-${statusText}}"
+
+    if [[ "${messageText}" == "${organizationBoilerplateComplianceMessage}" ]] && [[ -n "${statusText}" ]]; then
+        messageText="${statusText}"
+    fi
+
+    checkNormalizedStatusByIndex[${listItemIndex}]="${normalizedStatus}"
+    checkStatustextByIndex[${listItemIndex}]="${statusText}"
+    checkInspectTextByIndex[${listItemIndex}]="${statusText}"
+    checkRemediationByIndex[${listItemIndex}]="${remediationText}"
+    checkMessageByIndex[${listItemIndex}]="${messageText}"
+    checkExecutedByIndex[${listItemIndex}]="true"
+    checkIndexByTitle[${title}]="${listItemIndex}"
+
+}
+
+function initializeCheckMetadataFromCombinedJSON() {
+
+    local title=""
+
+    for (( i=0; i<listitemLength; i++ )); do
+        title="$( get_json_value "${combinedJSON}" "listitem[${i}].title" 2>/dev/null )"
+        [[ -z "${title}" ]] && title="Check ${i}"
+        checkTitleByIndex[${i}]="${title}"
+        checkKeyByIndex[${i}]="$( sanitizeCheckKey "${title}" )"
+        checkIndexByTitle[${title}]="${i}"
+    done
+
+}
+
+function rebuildResultBuckets() {
+
+    reportHealthyChecks=()
+    reportWarningChecks=()
+    reportFailChecks=()
+    reportErrorChecks=()
+
+    for (( i=0; i<listitemLength; i++ )); do
+        if [[ "${checkExecutedByIndex[${i}]}" == "true" ]]; then
+            case "${checkNormalizedStatusByIndex[${i}]}" in
+                "healthy" )
+                    reportHealthyChecks+=( "${checkTitleByIndex[${i}]}" )
+                    ;;
+                "warning" )
+                    reportWarningChecks+=( "${checkTitleByIndex[${i}]}" )
+                    ;;
+                "fail" )
+                    reportFailChecks+=( "${checkTitleByIndex[${i}]}" )
+                    ;;
+                * )
+                    reportErrorChecks+=( "${checkTitleByIndex[${i}]}" )
+                    ;;
+            esac
+        fi
+    done
+
+}
+
+function rebuildOverallHealthFromRecordedResults() {
+
+    overallHealth=""
+    rebuildResultBuckets
+
+    for (( i=0; i<listitemLength; i++ )); do
+        if [[ "${checkExecutedByIndex[${i}]}" == "true" ]] && [[ "${checkNormalizedStatusByIndex[${i}]}" != "healthy" ]]; then
+            overallHealth+="${checkTitleByIndex[${i}]}; "
+        fi
+    done
+
+}
+
+function addReportingError() {
+
+    local messageText="${1}"
+
+    (( reportingErrorCount++ ))
+    if [[ -n "${reportingErrors}" ]]; then
+        reportingErrors+="; ${messageText}"
+    else
+        reportingErrors="${messageText}"
+    fi
+
+    warning "Splunk Reporting: ${messageText}"
+
+}
+
+function calculateOverallReportStatus() {
+
+    rebuildResultBuckets
+
+    if (( reportingErrorCount > 0 )) || (( ${#reportErrorChecks[@]} > 0 )); then
+        reportOverallStatus="error"
+    elif (( ${#reportFailChecks[@]} > 0 )); then
+        reportOverallStatus="fail"
+    elif (( ${#reportWarningChecks[@]} > 0 )); then
+        reportOverallStatus="warning"
+    else
+        reportOverallStatus="healthy"
+    fi
+
+}
+
+function getCheckRawValueByTitle() {
+
+    local title="${1}"
+    local index="${checkIndexByTitle[${title}]}"
+
+    echo "${checkStatustextByIndex[${index}]}"
+
+}
+
+function getCheckMessageByTitle() {
+
+    local title="${1}"
+    local index="${checkIndexByTitle[${title}]}"
+
+    echo "${checkMessageByIndex[${index}]}"
+
+}
+
+function getCheckStatusByTitle() {
+
+    local title="${1}"
+    local index="${checkIndexByTitle[${title}]}"
+
+    echo "${checkNormalizedStatusByIndex[${index}]}"
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# --- New in `4.0.0` ------------------------------------------------------------------------------
+# Splunk Reporting Helpers
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function jsonEscape() {
+
+    local escapedValue="${1}"
+
+    escapedValue="${escapedValue//\\/\\\\}"
+    escapedValue="${escapedValue//\"/\\\"}"
+    escapedValue="${escapedValue//$'\n'/\\n}"
+    escapedValue="${escapedValue//$'\r'/\\r}"
+    escapedValue="${escapedValue//$'\t'/\\t}"
+    escapedValue="${escapedValue//$'\f'/\\f}"
+    escapedValue="${escapedValue//$'\b'/\\b}"
+
+    printf '%s' "${escapedValue}"
+
+}
+
+function jsonString() {
+    printf '"%s"' "$( jsonEscape "${1}" )"
+}
+
+function buildJSONStringArray() {
+
+    local values=( "$@" )
+    local arrayJSON="["
+    local separator=""
+
+    for value in "${values[@]}"; do
+        arrayJSON+="${separator}$( jsonString "${value}" )"
+        separator=","
+    done
+
+    arrayJSON+="]"
+    printf '%s' "${arrayJSON}"
+
+}
+
+function generateReportTimestamp() {
+
+    reportTimestampEpoch="$( date +%s )"
+    reportTimestamp="$( date '+%Y-%m-%dT%H:%M:%S%z' | sed -E 's/(..)$/:\1/' )"
+
+}
+
+function buildChecksJSONArray() {
+
+    local checksJSON="["
+    local separator=""
+    local title=""
+    local key=""
+    local normalizedStatus=""
+    local message=""
+    local rawValue=""
+    local remediation=""
+
+    for (( i=0; i<listitemLength; i++ )); do
+        if [[ "${checkExecutedByIndex[${i}]}" == "true" ]]; then
+            title="${checkTitleByIndex[${i}]}"
+            key="${checkKeyByIndex[${i}]}"
+            normalizedStatus="${checkNormalizedStatusByIndex[${i}]}"
+            message="${checkMessageByIndex[${i}]}"
+            rawValue="${checkStatustextByIndex[${i}]}"
+            remediation="${checkRemediationByIndex[${i}]}"
+
+            checksJSON+="${separator}{"
+            checksJSON+="\"index\":${i},"
+            checksJSON+="\"key\":$( jsonString "${key}" ),"
+            checksJSON+="\"name\":$( jsonString "${title}" ),"
+            checksJSON+="\"status\":$( jsonString "${normalizedStatus}" ),"
+            checksJSON+="\"message\":$( jsonString "${message}" ),"
+            checksJSON+="\"rawValue\":$( jsonString "${rawValue}" ),"
+            checksJSON+="\"remediation\":$( jsonString "${remediation}" )"
+            checksJSON+="}"
+            separator=","
+        fi
+    done
+
+    checksJSON+="]"
+    printf '%s' "${checksJSON}"
+
+}
+
+function buildMacHealthReportJSON() {
+
+    local mdmProfileTitle="${mdmVendor} MDM Profile"
+    local mdmCertificateTitle="${mdmVendor} MDM Certificate Expiration"
+    local mdmProfileStatus="not_run"
+    local mdmProfileResult=""
+    local mdmCertificateResult=""
+    local mdmLastCheckIn=""
+    local mdmLastInventory=""
+    local apnsResult=""
+    local lastRebootResult=""
+    local fileVaultResult=""
+    local diskSpaceResult=""
+    local sipResult=""
+    local ssvResult=""
+    local firewallResult=""
+    local checksJSON=""
+    local metadataJSON=""
+    local summaryJSON=""
+    local systemInfoJSON=""
+    local mdmJSON=""
+    local identityJSON=""
+    local -a reportingErrorItems
+
+    if [[ -n "${reportingErrors}" ]]; then
+        reportingErrorItems=( "${(@s/; /)reportingErrors}" )
+    else
+        reportingErrorItems=()
+    fi
+
+    if [[ "${mdmVendor}" != "None" ]]; then
+        mdmProfileStatus="$( getCheckStatusByTitle "${mdmProfileTitle}" )"
+        mdmProfileResult="$( getCheckRawValueByTitle "${mdmProfileTitle}" )"
+        mdmCertificateResult="$( getCheckRawValueByTitle "${mdmCertificateTitle}" )"
+    fi
+
+    apnsResult="$( getCheckRawValueByTitle "Apple Push Notification service" )"
+    lastRebootResult="$( getCheckRawValueByTitle "Last Reboot" )"
+    fileVaultResult="$( getCheckRawValueByTitle "FileVault Encryption" )"
+    diskSpaceResult="$( getCheckRawValueByTitle "Free Disk Space" )"
+    sipResult="$( getCheckRawValueByTitle "System Integrity Protection" )"
+    ssvResult="$( getCheckRawValueByTitle "Signed System Volume" )"
+    firewallResult="$( getCheckRawValueByTitle "Firewall" )"
+
+    case "${mdmVendor}" in
+        "Jamf Pro" )
+            mdmLastCheckIn="$( getCheckRawValueByTitle "Jamf Pro Check-In" )"
+            mdmLastInventory="$( getCheckRawValueByTitle "Jamf Pro Inventory" )"
+            ;;
+        "Mosyle" )
+            mdmLastCheckIn="$( getCheckRawValueByTitle "Mosyle Check-In" )"
+            ;;
+    esac
+
+    checksJSON="$( buildChecksJSONArray )"
+
+    metadataJSON="{"
+    metadataJSON+="\"scriptVersion\":$( jsonString "${scriptVersion}" ),"
+    metadataJSON+="\"timestamp\":$( jsonString "${reportTimestamp}" ),"
+    metadataJSON+="\"hostname\":$( jsonString "${hostName}" ),"
+    metadataJSON+="\"localHostName\":$( jsonString "${localHostName}" ),"
+    metadataJSON+="\"serialNumber\":$( jsonString "${serialNumber}" ),"
+    metadataJSON+="\"hardwareUUID\":$( jsonString "${hardwareUUID}" ),"
+    metadataJSON+="\"operationMode\":$( jsonString "${operationMode}" ),"
+    metadataJSON+="\"reportingMode\":$( jsonString "${splunkOperationMode}" ),"
+    metadataJSON+="\"jsonTool\":$( jsonString "${reportJSONTool}" )"
+    metadataJSON+="}"
+
+    summaryJSON="{"
+    summaryJSON+="\"overallStatus\":$( jsonString "${reportOverallStatus}" ),"
+    summaryJSON+="\"healthyCount\":${#reportHealthyChecks[@]},"
+    summaryJSON+="\"warningCount\":${#reportWarningChecks[@]},"
+    summaryJSON+="\"failCount\":${#reportFailChecks[@]},"
+    summaryJSON+="\"errorCount\":$(( ${#reportErrorChecks[@]} + reportingErrorCount )),"
+    summaryJSON+="\"elapsedSeconds\":${SECONDS},"
+    summaryJSON+="\"warningChecks\":$( buildJSONStringArray "${reportWarningChecks[@]}" ),"
+    summaryJSON+="\"failedChecks\":$( buildJSONStringArray "${reportFailChecks[@]}" ),"
+    summaryJSON+="\"reportingErrors\":$( buildJSONStringArray "${reportingErrorItems[@]}" )"
+    summaryJSON+="}"
+
+    systemInfoJSON="{"
+    systemInfoJSON+="\"computerName\":$( jsonString "${computerName}" ),"
+    systemInfoJSON+="\"computerModel\":$( jsonString "${computerModel}" ),"
+    systemInfoJSON+="\"macOSVersion\":$( jsonString "${osVersion}" ),"
+    systemInfoJSON+="\"macOSBuild\":$( jsonString "${osBuild}" ),"
+    systemInfoJSON+="\"systemMemory\":$( jsonString "${systemMemory}" ),"
+    systemInfoJSON+="\"systemStorage\":$( jsonString "${systemStorage}" ),"
+    systemInfoJSON+="\"totalDiskBytes\":${totalDiskBytes:-0},"
+    systemInfoJSON+="\"freeDiskSpace\":$( jsonString "${diskSpaceResult}" ),"
+    systemInfoJSON+="\"lastReboot\":$( jsonString "${lastRebootResult}" ),"
+    systemInfoJSON+="\"sipStatus\":$( jsonString "${sipResult:-${bootPoliciesSipStatus}}" ),"
+    systemInfoJSON+="\"signedSystemVolumeStatus\":$( jsonString "${ssvResult:-${bootPoliciesSsvStatus}}" ),"
+    systemInfoJSON+="\"firewallStatus\":$( jsonString "${firewallResult}" ),"
+    systemInfoJSON+="\"fileVaultStatus\":$( jsonString "${fileVaultResult}" ),"
+    systemInfoJSON+="\"ssid\":$( jsonString "${ssid}" ),"
+    systemInfoJSON+="\"activeIPAddress\":$( jsonString "${activeIPAddress//\*\*/}" ),"
+    systemInfoJSON+="\"vpnStatus\":$( jsonString "${vpnStatus} ${vpnExtendedStatus}" ),"
+    systemInfoJSON+="\"networkTimeServer\":$( jsonString "${networkTimeServer}" ),"
+    systemInfoJSON+="\"locationServicesStatus\":$( jsonString "${locationServicesStatus}" ),"
+    systemInfoJSON+="\"bootstrapTokenStatus\":$( jsonString "${bootstrapTokenStatus}" ),"
+    systemInfoJSON+="\"sshStatus\":$( jsonString "${sshStatus}" ),"
+    systemInfoJSON+="\"oneDriveSyncDate\":$( jsonString "${oneDriveSyncDate}" ),"
+    systemInfoJSON+="\"apnsStatus\":$( jsonString "${apnsResult}" )"
+    systemInfoJSON+="}"
+
+    mdmJSON="{"
+    mdmJSON+="\"vendor\":$( jsonString "${mdmVendor}" ),"
+    mdmJSON+="\"enrollmentStatus\":$( jsonString "${mdmProfileStatus:-unknown}" ),"
+    mdmJSON+="\"serverURL\":$( jsonString "${serverURL}" ),"
+    mdmJSON+="\"profileResult\":$( jsonString "${mdmProfileResult}" ),"
+    mdmJSON+="\"profileUUID\":$( jsonString "${mdmVendorUuid}" ),"
+    mdmJSON+="\"profileIdentifier\":$( jsonString "${mdmProfileIdentifier}" ),"
+    mdmJSON+="\"certificateExpiration\":$( jsonString "${mdmCertificateResult}" ),"
+    mdmJSON+="\"lastCheckIn\":$( jsonString "${mdmLastCheckIn}" ),"
+    mdmJSON+="\"lastInventory\":$( jsonString "${mdmLastInventory}" ),"
+    mdmJSON+="\"jamfProID\":$( jsonString "${jamfProID}" ),"
+    mdmJSON+="\"jamfProSiteName\":$( jsonString "${jamfProSiteName}" )"
+    mdmJSON+="}"
+
+    identityJSON="{"
+    identityJSON+="\"entraIDRegistration\":{"
+    identityJSON+="\"status\":$( jsonString "${entraIDRegistrationStatus}" ),"
+    identityJSON+="\"method\":$( jsonString "${entraIDRegistrationMethod}" ),"
+    identityJSON+="\"lastUser\":$( jsonString "${entraIDRegistrationLastUser:-${loggedInUser}}" ),"
+    identityJSON+="\"lastUserHome\":$( jsonString "${entraIDRegistrationLastUserHome:-${loggedInUserHomeDirectory}}" ),"
+    identityJSON+="\"details\":$( jsonString "${entraIDRegistrationDetails}" )"
+    identityJSON+="}"
+    identityJSON+="}"
+
+    printf '%s' "{"
+    printf '%s' "\"metadata\":${metadataJSON},"
+    printf '%s' "\"summary\":${summaryJSON},"
+    printf '%s' "\"systemInfo\":${systemInfoJSON},"
+    printf '%s' "\"mdm\":${mdmJSON},"
+    printf '%s' "\"identity\":${identityJSON},"
+    printf '%s' "\"checks\":${checksJSON}"
+    printf '%s' "}"
+
+}
+
+function buildFallbackReportJSON() {
+
+    local -a reportingErrorItems
+
+    if [[ -n "${reportingErrors}" ]]; then
+        reportingErrorItems=( "${(@s/; /)reportingErrors}" )
+    else
+        reportingErrorItems=()
+    fi
+
+    printf '%s' "{"
+    printf '%s' "\"metadata\":{"
+    printf '%s' "\"scriptVersion\":$( jsonString "${scriptVersion}" ),"
+    printf '%s' "\"timestamp\":$( jsonString "${reportTimestamp}" ),"
+    printf '%s' "\"hostname\":$( jsonString "${hostName}" ),"
+    printf '%s' "\"serialNumber\":$( jsonString "${serialNumber}" ),"
+    printf '%s' "\"hardwareUUID\":$( jsonString "${hardwareUUID}" ),"
+    printf '%s' "\"operationMode\":$( jsonString "${operationMode}" ),"
+    printf '%s' "\"reportingMode\":$( jsonString "${splunkOperationMode}" )"
+    printf '%s' "},"
+    printf '%s' "\"summary\":{"
+    printf '%s' "\"overallStatus\":\"error\","
+    printf '%s' "\"errorCount\":$(( reportingErrorCount > 0 ? reportingErrorCount : 1 )),"
+    printf '%s' "\"reportingErrors\":$( buildJSONStringArray "${reportingErrorItems[@]}" )"
+    printf '%s' "},"
+    printf '%s' "\"systemInfo\":{},"
+    printf '%s' "\"mdm\":{},"
+    printf '%s' "\"identity\":{\"entraIDRegistration\":{\"status\":$( jsonString "${entraIDRegistrationStatus}" ),\"method\":$( jsonString "${entraIDRegistrationMethod}" ),\"lastUser\":$( jsonString "${entraIDRegistrationLastUser:-${loggedInUser}}" ),\"lastUserHome\":$( jsonString "${entraIDRegistrationLastUserHome:-${loggedInUserHomeDirectory}}" ),\"details\":$( jsonString "${entraIDRegistrationDetails}" )}},"
+    printf '%s' "\"checks\":[]"
+    printf '%s' "}"
+
+}
+
+function writeSecureJSONFile() {
+
+    local targetPath="${1}"
+    local jsonPayload="${2}"
+    local previousUmask=""
+
+    previousUmask="$( umask )"
+    umask 077
+    printf '%s\n' "${jsonPayload}" > "${targetPath}"
+    umask "${previousUmask}"
+
+    chmod 600 "${targetPath}" 2>/dev/null
+    if [[ $(id -u) -eq 0 ]]; then
+        chown root:wheel "${targetPath}" 2>/dev/null
+    fi
+
+}
+
+function writeReadableTextFile() {
+
+    local targetPath="${1}"
+    local filePayload="${2}"
+    local previousUmask=""
+
+    previousUmask="$( umask )"
+    umask 022
+    printf '%s\n' "${filePayload}" > "${targetPath}"
+    umask "${previousUmask}"
+
+    chmod 644 "${targetPath}" 2>/dev/null
+    if [[ $(id -u) -eq 0 ]]; then
+        chown root:wheel "${targetPath}" 2>/dev/null
+    fi
+
+}
+
+function sanitizeSplunkURLForLog() {
+
+    local sanitizedURL="${1}"
+
+    sanitizedURL="${sanitizedURL%%\?*}"
+    sanitizedURL="${sanitizedURL%%#*}"
+
+    printf '%s' "${sanitizedURL}"
+
+}
+
+function buildSplunkHECPayload() {
+
+    local reportJSON="${1}"
+    local hecPayload="{"
+    local separator=""
+
+    if [[ -n "${splunkHECSourcetype}" ]]; then
+        hecPayload+="\"sourcetype\":$( jsonString "${splunkHECSourcetype}" )"
+        separator=","
+    fi
+
+    if [[ -n "${splunkHECIndex}" ]]; then
+        hecPayload+="${separator}\"index\":$( jsonString "${splunkHECIndex}" )"
+        separator=","
+    fi
+
+    hecPayload+="${separator}\"event\":${reportJSON}}"
+
+    printf '%s' "${hecPayload}"
+
+}
+
+function sendSplunkHECPayload() {
+
+    local hecPayload="${1}"
+    local payloadFile=""
+    local responseFile=""
+    local sanitizedURL=""
+    local httpCode=""
+    local curlExitCode=0
+    local retryDelay=1
+    local curlArgs=()
+
+    sanitizedURL="$( sanitizeSplunkURLForLog "${splunkHECURL}" )"
+    payloadFile="$( mktemp /var/tmp/mhc-splunk-payload.XXXXXX )"
+    responseFile="$( mktemp /var/tmp/mhc-splunk-response.XXXXXX )"
+
+    writeSecureJSONFile "${payloadFile}" "${hecPayload}"
+
+    if [[ "${splunkAllowInsecureTLS:l}" == "true" ]] && [[ "${splunkReportDebug}" == "true" ]]; then
+        curlArgs+=( --insecure )
+        warning "Splunk Reporting: TLS verification override enabled for debug reporting."
+    fi
+
+    for attempt in 1 2 3; do
+        reportTransmissionAttemptCount="${attempt}"
+        info "Splunk Reporting: POST attempt ${attempt} to ${sanitizedURL}"
+
+        httpCode="$(
+            curl --silent --fail-with-body --max-time 15 \
+                --header "Authorization: Splunk ${splunkHECToken}" \
+                --header "Content-Type: application/json" \
+                --data-binary "@${payloadFile}" \
+                --output "${responseFile}" \
+                --write-out "%{http_code}" \
+                "${curlArgs[@]}" \
+                "${splunkHECURL}" 2>/dev/null
+        )"
+        curlExitCode=$?
+        reportTransmissionHttpCode="${httpCode}"
+
+        if (( curlExitCode == 0 )) && [[ "${httpCode}" == 2* ]]; then
+            reportTransmissionStatus="success"
+            notice "Splunk Reporting: payload delivered successfully (HTTP ${httpCode})"
+            rm -f "${payloadFile}" "${responseFile}"
+            return 0
+        fi
+
+        if [[ "${httpCode}" == 5* ]] || [[ "${httpCode:-000}" == "000" ]]; then
+            warning "Splunk Reporting: attempt ${attempt} failed (HTTP ${httpCode:-000}, curl ${curlExitCode}); retrying in ${retryDelay}s."
+            if (( attempt < 3 )); then
+                sleep "${retryDelay}"
+                retryDelay=$(( retryDelay * 2 ))
+                continue
+            fi
+        else
+            warning "Splunk Reporting: request failed without retry (HTTP ${httpCode:-000}, curl ${curlExitCode})."
+            break
+        fi
+    done
+
+    reportTransmissionStatus="failed"
+    addReportingError "Splunk HEC delivery failed after ${reportTransmissionAttemptCount} attempt(s) (HTTP ${reportTransmissionHttpCode:-000}, curl ${curlExitCode})"
+
+    rm -f "${payloadFile}" "${responseFile}"
+    return 1
+
+}
+
+function generateAndSendSplunkReport() {
+
+    local reportJSON=""
+
+    notice "Generating Splunk JSON report …"
+
+    rebuildOverallHealthFromRecordedResults
+    calculateOverallReportStatus
+    generateReportTimestamp
+
+    reportJSON="$( buildMacHealthReportJSON )"
+
+    if ! validateJson "${reportJSON}"; then
+        addReportingError "Generated report JSON failed validation; writing fallback error report."
+        reportOverallStatus="error"
+        reportJSON="$( buildFallbackReportJSON )"
+    fi
+
+    if [[ "${splunkPrettyPrintJSON}" == "true" ]]; then
+        reportFilePayload="$( prettyPrintJson "${reportJSON}" )"
+    else
+        reportFilePayload="$( compactJson "${reportJSON}" )"
+    fi
+
+    reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${reportJSON}" )" )" )"
+
+    writeSecureJSONFile "${splunkJSONReportPath}" "${reportFilePayload}"
+    if [[ -f "${splunkJSONReportPath}" ]]; then
+        reportGenerated="true"
+        notice "Splunk Reporting: local report written to ${splunkJSONReportPath}"
+    else
+        addReportingError "Failed to write local JSON report to ${splunkJSONReportPath}"
+        warning "Splunk Reporting: failed to write local report to ${splunkJSONReportPath}"
+    fi
+
+    if [[ "${splunkOperationMode}" == "off" ]]; then
+        reportTransmissionStatus="disabled"
+        info "Splunk Reporting: splunkOperationMode is off; local report only."
+        return 0
+    fi
+
+    if [[ "${splunkOperationMode}" == "test" ]]; then
+        reportTransmissionStatus="skipped_test_mode"
+        notice "Splunk Reporting: test mode enabled; skipping Splunk HEC transmission."
+        return 0
+    fi
+
+    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+        reportTransmissionStatus="not_configured"
+        info "Splunk Reporting: HEC URL or token not configured; local report only."
+        return 0
+    fi
+
+    sendSplunkHECPayload "${reportHECPayload}"
+
+}
+
+function sendCachedSplunkReport() {
+
+    notice "Client-Side Cache: uploading cached Splunk JSON report from ${splunkJSONReportPath}"
+
+    if ! validateCachedSplunkReport "${splunkJSONReportPath}"; then
+        reportTransmissionStatus="failed"
+        case "${cachedReportValidationStatus}" in
+            "missing" )
+                warning "Client-Side Cache: cached report missing; unable to upload cached report."
+                ;;
+            "invalid_json" )
+                warning "Client-Side Cache: cached report failed JSON validation; unable to upload cached report."
+                ;;
+            "stale" )
+                warning "Client-Side Cache: cached report is stale (${cachedReportAgeSeconds}s old; maximum ${clientSideMaximumCacheAgeSeconds}s); unable to upload cached report."
+                ;;
+            * )
+                warning "Client-Side Cache: cached report could not be validated (${cachedReportValidationStatus}); unable to upload cached report."
+                ;;
+        esac
+        return 1
+    fi
+
+    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+        reportTransmissionStatus="not_configured"
+        warning "Client-Side Cache: HEC URL or token not configured; unable to upload cached report."
+        return 1
+    fi
+
+    reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${cachedReportJSON}" )" )" )"
+
+    sendSplunkHECPayload "${reportHECPayload}"
+
+}
+
+function installClientSideScript() {
+
+    local temporaryClientScript=""
+    local sanitizedClientScript=""
+    local temporaryLaunchDaemonPath=""
+    local launchctlOutput=""
+    local launchDaemonValidationOutput=""
+
+    notice "Client-Side Cache: installing client-side script at ${clientSideScriptPath}"
+
+    if [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
+        notice "Client-Side Cache: running from client-side script path; install skipped."
+        return 0
+    fi
+
+    if [[ ! -r "${currentScriptPath}" ]]; then
+        warning "Client-Side Cache: current script path is not readable (${currentScriptPath}); install skipped."
+        return 1
+    fi
+
+    mkdir -p "${organizationDirectory}" || {
+        warning "Client-Side Cache: unable to create ${organizationDirectory}"
+        return 1
+    }
+    chown root:wheel "${organizationDirectory}" 2>/dev/null
+    chmod 755 "${organizationDirectory}" 2>/dev/null
+
+    temporaryClientScript="$( mktemp "/var/tmp/${organizationScriptName}.client.XXXXXX" )"
+    sanitizedClientScript="$( mktemp "/var/tmp/${organizationScriptName}.sanitized.XXXXXX" )"
+    temporaryLaunchDaemonPath="$( mktemp "/var/tmp/${launchDaemonLabel}.XXXXXX" )"
+    cp "${currentScriptPath}" "${temporaryClientScript}" || {
+        warning "Client-Side Cache: unable to copy ${currentScriptPath} to temporary client script."
+        rm -f "${temporaryClientScript}" "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    }
+
+    sed -i '' 's|operationMode="${4:-"Self Service"}"|operationMode="${4:-"Silent"}"|' "${temporaryClientScript}"
+
+    awk '
+        /^# Update Computer Inventory$/ { skipInventoryFunction=1; next }
+        /^# Program$/ {
+            if (skipInventoryFunction == 1) {
+                skipInventoryFunction=0
+                print
+                next
+            }
+        }
+        skipInventoryFunction == 1 { next }
+        /"title" : "Computer Inventory"/ { next }
+        /updateComputerInventory/ { next }
+        /jamf[[:space:]]recon/ { next }
+        { print }
+    ' "${temporaryClientScript}" > "${sanitizedClientScript}" || {
+        warning "Client-Side Cache: unable to write sanitized client-side script."
+        rm -f "${temporaryClientScript}" "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    }
+
+    sed -i '' '/"title" : "Network Quality Test"/ s/},$/}/' "${sanitizedClientScript}"
+
+    rm -f "${temporaryClientScript}"
+
+    if grep -q "jamf"" recon" "${sanitizedClientScript}" 2>/dev/null; then
+        warning "Client-Side Cache: sanitized client-side script still contains Jamf inventory command text; install failed."
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    fi
+
+    cat > "${temporaryLaunchDaemonPath}" <<ENDOFLAUNCHDAEMON
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${launchDaemonLabel}</string>
+    <key>UserName</key>
+    <string>root</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>--no-rcs</string>
+        <string>${clientSideScriptPath}</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local:/usr/local/bin</string>
+        <key>launchDaemonRun</key>
+        <string>true</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>${clientSideLaunchDaemonHour}</integer>
+            <key>Minute</key>
+            <integer>${clientSideLaunchDaemonMinute}</integer>
+        </dict>
+    </array>
+    <key>StandardErrorPath</key>
+    <string>/dev/null</string>
+    <key>StandardOutPath</key>
+    <string>/dev/null</string>
+</dict>
+</plist>
+ENDOFLAUNCHDAEMON
+
+    if ! launchDaemonValidationOutput=$( plutil -lint "${temporaryLaunchDaemonPath}" 2>&1 ); then
+        warning "Client-Side Cache: generated LaunchDaemon plist failed validation at ${launchDaemonPath}: ${launchDaemonValidationOutput}"
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    else
+        info "Client-Side Cache: generated LaunchDaemon plist validated at ${launchDaemonPath}"
+    fi
+
+    if [[ -f "${clientSideScriptPath}" ]] && [[ -f "${launchDaemonPath}" ]] \
+        && cmp -s "${sanitizedClientScript}" "${clientSideScriptPath}" \
+        && cmp -s "${temporaryLaunchDaemonPath}" "${launchDaemonPath}"; then
+        chown root:wheel "${clientSideScriptPath}" "${launchDaemonPath}" 2>/dev/null
+        chmod 755 "${clientSideScriptPath}" 2>/dev/null
+        chmod 644 "${launchDaemonPath}" 2>/dev/null
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        notice "Client-Side Cache: client-side assets already current; install skipped."
+        return 0
+    fi
+
+    cp "${sanitizedClientScript}" "${clientSideScriptPath}" || {
+        warning "Client-Side Cache: unable to update ${clientSideScriptPath}"
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    }
+    cp "${temporaryLaunchDaemonPath}" "${launchDaemonPath}" || {
+        warning "Client-Side Cache: unable to update ${launchDaemonPath}"
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    }
+
+    rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+
+    chown root:wheel "${clientSideScriptPath}" 2>/dev/null
+    chmod 755 "${clientSideScriptPath}" 2>/dev/null
+    chown root:wheel "${launchDaemonPath}" 2>/dev/null
+    chmod 644 "${launchDaemonPath}" 2>/dev/null
+
+    if launchctl print "system/${launchDaemonLabel}" >/dev/null 2>&1; then
+        if ! launchctlOutput=$( launchctl bootout "system/${launchDaemonLabel}" 2>&1 ); then
+            info "Client-Side Cache: launchctl bootout returned non-zero for ${launchDaemonLabel}: ${launchctlOutput}"
+        fi
+    fi
+    if ! launchctlOutput=$( launchctl enable "system/${launchDaemonLabel}" 2>&1 ); then
+        info "Client-Side Cache: launchctl enable returned non-zero before bootstrap for ${launchDaemonLabel}: ${launchctlOutput}"
+    fi
+    if ! launchctlOutput=$( launchctl bootstrap system "${launchDaemonPath}" 2>&1 ); then
+        warning "Client-Side Cache: unable to bootstrap ${launchDaemonPath}: ${launchctlOutput}"
+        return 1
+    fi
+    if ! launchctlOutput=$( launchctl enable "system/${launchDaemonLabel}" 2>&1 ); then
+        info "Client-Side Cache: launchctl enable returned non-zero after bootstrap for ${launchDaemonLabel}: ${launchctlOutput}"
+    fi
+
+    notice "Client-Side Cache: installed client-side script and LaunchDaemon ${launchDaemonLabel}."
+    return 0
+
+}
+
+function xmlEscape() {
+
+    local escapedValue="${1}"
+
+    escapedValue="${escapedValue//&/&amp;}"
+    escapedValue="${escapedValue//</&lt;}"
+    escapedValue="${escapedValue//>/&gt;}"
+    escapedValue="${escapedValue//\"/&quot;}"
+    escapedValue="${escapedValue//\'/&apos;}"
+
+    printf '%s' "${escapedValue}"
+
+}
+
+function getInspectWindowTitle() {
+
+    echo "${humanReadableScriptName} (${scriptVersion})"
+
+}
+
+function getInspectOverallStatusLabel() {
+
+    case "${reportOverallStatus}" in
+        "healthy" )
+            echo "Healthy"
+            ;;
+        "warning" )
+            echo "Needs Attention"
+            ;;
+        "fail" )
+            echo "Unhealthy"
+            ;;
+        * )
+            echo "Check Incomplete"
+            ;;
+    esac
+
+}
+
+function getDisplayStatusLabelFromNormalizedStatus() {
+
+    local normalizedStatus="${1}"
+
+    case "${normalizedStatus}" in
+        "healthy" )
+            echo "Healthy"
+            ;;
+        "warning" )
+            echo "Warning"
+            ;;
+        "fail" )
+            echo "Failed"
+            ;;
+        * )
+            echo "Error"
+            ;;
+    esac
+
+}
+
+function getInspectSectionIcon() {
+
+    if [[ -n "${dockIcon}" && "${dockIcon}" != "default" ]]; then
+        echo "${dockIcon}"
+    elif [[ -n "${organizationOverlayiconURL}" ]]; then
+        echo "${organizationOverlayiconURL}"
+    else
+        echo "/System/Library/CoreServices/Apple Diagnostics.app"
+    fi
+
+}
+
+function getInspectSupportButtonIcon() {
+
+    local buttonAction="${1:-${supportButtonAction}}"
+
+    case "${buttonAction}" in
+        mailto:* )
+            echo "envelope.fill"
+            ;;
+        slack://*|msteams://*|teams://*|zoommtg://* )
+            echo "message.fill"
+            ;;
+        * )
+            echo "safari.fill"
+            ;;
+    esac
+
+}
+
+function getInspectSupportButtonURL() {
+
+    case "${supportTeamWebsite}" in
+        http://*|https://* )
+            echo "${supportTeamWebsite}"
+            ;;
+        * )
+            echo "${supportButtonAction}"
+            ;;
+    esac
+
+}
+
+function getInspectSupportButtonText() {
+
+    local buttonURL="${1:-$( getInspectSupportButtonURL )}"
+
+    if [[ -n "${supportTeamWebsite}" ]] && [[ "${buttonURL}" == "${supportTeamWebsite}" ]]; then
+        echo "Website"
+    else
+        echo "${supportButtonText:-${buttonURL}}"
+    fi
+
+}
+
+function normalizeInspectSupportValue() {
+
+    local supportValue="${1}"
+    local linkText=""
+    local linkURL=""
+
+    if [[ "${supportValue}" == \[*\]\(*\) ]]; then
+        linkText="${supportValue#\[}"
+        linkText="${linkText%%\]*}"
+        linkURL="${supportValue#*\(}"
+        linkURL="${linkURL%\)}"
+        supportValue="${linkText}: ${linkURL}"
+    fi
+
+    printf '%s' "${supportValue}"
+
+}
+
+function getInspectIntroductionText() {
+
+    case "${reportOverallStatus}" in
+        "healthy" )
+            echo "Your recent Mac Health Check results are ready to review. All executed checks completed with healthy results."
+            ;;
+        "warning" )
+            echo "Your recent Mac Health Check results are ready to review. Some executed checks need attention."
+            ;;
+        "fail" )
+            echo "Your recent Mac Health Check results are ready to review. One or more executed checks failed."
+            ;;
+        * )
+            echo "Your recent Mac Health Check results are ready to review. One or more executed checks could not be evaluated cleanly."
+            ;;
+    esac
+
+}
+
+function formatInspectTimestampForDisplay() {
+
+    local rawTimestamp="${1}"
+    local parsedTimestamp="${rawTimestamp}"
+    local formattedTimestamp=""
+
+    if [[ -z "${rawTimestamp}" ]]; then
+        return
+    fi
+
+    if [[ "${rawTimestamp}" == *[+-]??:?? ]]; then
+        parsedTimestamp="${rawTimestamp%:*}${rawTimestamp##*:}"
+        formattedTimestamp="$( date -j -f '%Y-%m-%dT%H:%M:%S%z' "${parsedTimestamp}" '+%A, %B %d at %I:%M %p %Z' 2>/dev/null )"
+    elif [[ "${rawTimestamp}" == *Z ]]; then
+        formattedTimestamp="$( date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "${rawTimestamp}" '+%A, %B %d at %I:%M %p %Z' 2>/dev/null )"
+    fi
+
+    if [[ -n "${formattedTimestamp}" ]]; then
+        echo "${formattedTimestamp}"
+    else
+        echo "${rawTimestamp}"
+    fi
+
+}
+
+function getInspectResultsTimestampText() {
+
+    local inspectDisplayTimestamp=""
+
+    if [[ -n "${reportTimestamp}" ]]; then
+        inspectDisplayTimestamp="$( formatInspectTimestampForDisplay "${reportTimestamp}" )"
+        echo "Results as of: ${inspectDisplayTimestamp}"
+    else
+        echo "Results as of: $( date '+%A, %B %d at %I:%M %p %Z' )"
+    fi
+
+}
+
+function getInspectTimestampAndReplayMessage() {
+
+    local inspectDisplayTimestamp=""
+    local replayMinutes=$(( inspectReplayMaximumAgeSeconds / 60 ))
+
+    if [[ -n "${reportTimestamp}" ]]; then
+        inspectDisplayTimestamp="$( formatInspectTimestampForDisplay "${reportTimestamp}" )"
+    else
+        inspectDisplayTimestamp="$( date '+%A, %B %d at %I:%M %p %Z' )"
+    fi
+
+    echo "Results as of: **${inspectDisplayTimestamp}**.
+
+These cached results may be reused for up to ${replayMinutes} minutes."
+
+}
+
+function getInspectUnhealthyCount() {
+
+    echo $(( ${#reportWarningChecks[@]} + ${#reportFailChecks[@]} + ${#reportErrorChecks[@]} ))
+
+}
+
+function buildInspectUnhealthyTitleArray() {
+
+    local unhealthyTitles=()
+
+    unhealthyTitles+=( "${reportErrorChecks[@]}" )
+    unhealthyTitles+=( "${reportFailChecks[@]}" )
+    unhealthyTitles+=( "${reportWarningChecks[@]}" )
+
+    printf '%s\n' "${unhealthyTitles[@]}"
+
+}
+
+function getInspectResultsSummaryText() {
+
+    local healthyCount="${#reportHealthyChecks[@]}"
+    local warningCount="${#reportWarningChecks[@]}"
+    local failCount="${#reportFailChecks[@]}"
+    local errorCountLocal="${#reportErrorChecks[@]}"
+    local executedCount=$(( healthyCount + warningCount + failCount + errorCountLocal ))
+
+    echo "${executedCount} checks executed. Healthy: ${healthyCount}. Warnings: ${warningCount}. Failures: ${failCount}. Errors: ${errorCountLocal}. Only healthy results count as compliant. Overall status: $( getInspectOverallStatusLabel )."
+
+}
+
+function getInspectUnhealthyResultsSummaryText() {
+
+    local warningCount="${#reportWarningChecks[@]}"
+    local failCount="${#reportFailChecks[@]}"
+    local errorCountLocal="${#reportErrorChecks[@]}"
+    local unhealthyCount=$(( warningCount + failCount + errorCountLocal ))
+
+    echo "${unhealthyCount} checks need attention. Warnings: ${warningCount}. Failures: ${failCount}. Errors: ${errorCountLocal}. Overall status: $( getInspectOverallStatusLabel )."
+
+}
+
+function getInspectHealthyResultsSummaryText() {
+
+    local healthyCount="${#reportHealthyChecks[@]}"
+
+    echo "${healthyCount} checks completed successfully and remain compliant."
+
+}
+
+function getInspectProblemTextByIndex() {
+
+    local index="${1}"
+    local message="${checkMessageByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local actualText="$( getInspectComparisonActualTextByIndex "${index}" )"
+    local rawValue="${checkStatustextByIndex[${index}]}"
+
+    if [[ -n "${message}" ]] && [[ "${message}" != "${organizationBoilerplateComplianceMessage}" ]]; then
+        echo "${message}"
+    elif [[ "${normalizedStatus}" != "healthy" ]] && [[ -n "${actualText}" ]]; then
+        echo "${actualText}"
+    elif [[ -n "${rawValue}" ]]; then
+        echo "${rawValue}"
+    else
+        echo "Result unavailable"
+    fi
+
+}
+
+function getInspectPreferredResultTextByIndex() {
+
+    local index="${1}"
+    local rawValue="${checkInspectTextByIndex[${index}]}"
+    local message="${checkMessageByIndex[${index}]}"
+
+    if [[ -n "${rawValue}" && "${rawValue}" != "Pending ..." && "${rawValue}" != "Pending …" ]]; then
+        echo "${rawValue}"
+    elif [[ -n "${message}" ]]; then
+        echo "${message}"
+    else
+        echo "Result unavailable"
+    fi
+
+}
+
+function getInspectExpectedComparisonTextByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local rawValue="${checkStatustextByIndex[${index}]}"
+    local message="${checkMessageByIndex[${index}]}"
+    local remediation="${checkRemediationByIndex[${index}]}"
+
+    case "${title}" in
+        "macOS Version" )
+            echo "Supported macOS release"
+            return
+            ;;
+        "Available Updates" )
+            echo "No updates pending"
+            return
+            ;;
+        "System Integrity Protection" | "Signed System Volume" | "Firewall" | "FileVault Encryption" | "Gatekeeper / XProtect" )
+            echo "Enabled"
+            return
+            ;;
+        "Touch ID" )
+            echo "Enrolled"
+            return
+            ;;
+        "VPN Client" )
+            echo "Connected when required"
+            return
+            ;;
+        "Last Reboot" )
+            echo "Restarted within policy"
+            return
+            ;;
+        "Free Disk Space" )
+            echo "At least ${allowedMinimumFreeDiskPercentage}% free"
+            return
+            ;;
+        "Desktop Size and Item Count" )
+            echo "At most ${allowedMaximumDirectoryPercentage}% of disk"
+            return
+            ;;
+        "Downloads Size and Item Count" )
+            echo "At most ${allowedMaximumDirectoryPercentage}% of disk"
+            return
+            ;;
+        "Trash Size and Item Count" )
+            echo "At most ${allowedMaximumDirectoryPercentage}% of disk"
+            return
+            ;;
+        "Password Hint" )
+            echo "Not set"
+            return
+            ;;
+        "AirDrop" )
+            echo "No One / Contacts Only"
+            return
+            ;;
+        "AirPlay Receiver" | "Bluetooth Sharing" )
+            echo "Disabled"
+            return
+            ;;
+        *"MDM Profile" )
+            echo "Installed"
+            return
+            ;;
+        "Entra ID Registration" )
+            echo "Registered or not applicable"
+            return
+            ;;
+        *"MDM Certificate Expiration" )
+            echo "Certificate not expired"
+            return
+            ;;
+        "Apple Push Notification service" )
+            echo "Recent APNS communication"
+            return
+            ;;
+        *"Check-In" )
+            echo "Checked in recently"
+            return
+            ;;
+        *"Inventory" )
+            echo "Inventory updated recently"
+            return
+            ;;
+        "Apple Push Notification Hosts" | "Apple Device Management" | "Apple Software and Carrier Updates" | "Apple Certificate Validation" | "Apple Identity and Content Services" )
+            echo "Reachable"
+            return
+            ;;
+        "Homebrew Status" )
+            echo "Current or not installed"
+            return
+            ;;
+        "Electron Corner Mask" )
+            echo "No susceptible Electron apps detected"
+            return
+            ;;
+        "Network Quality Test" )
+            echo "Network quality passed"
+            return
+            ;;
+        "Microsoft Teams" | "Fleet Desktop" )
+            echo "Installed"
+            return
+            ;;
+        "Wi-Fi Strength" )
+            printf '%s\n' "Excellent >= -55" "Good >= -65" "Fair >= -75, Poor < -75"
+            return
+            ;;
+    esac
+
+    if [[ -n "${remediation}" && "${remediation}" != "${organizationBoilerplateComplianceMessage}" && "${remediation}" != "${message}" && "${remediation}" != "${rawValue}" ]]; then
+        echo "${remediation}"
+    elif [[ "${normalizedStatus}" == "healthy" ]]; then
+        echo "$( getInspectPreferredResultTextByIndex "${index}" )"
+    else
+        echo "${organizationBoilerplateComplianceMessage}"
+    fi
+
+}
+
+function getInspectSupportFallbackText() {
+
+    if [[ -n "${supportButtonText}" ]] && [[ -n "${supportButtonAction}" ]]; then
+        echo "If issue persists, use ${supportButtonText} (${supportButtonAction})."
+    elif [[ -n "${supportTeamEmail}" ]]; then
+        echo "If issue persists, contact ${supportTeamName} at ${supportTeamEmail}."
+    elif [[ -n "${supportTeamPhone}" ]]; then
+        echo "If issue persists, contact ${supportTeamName} at ${supportTeamPhone}."
+    elif [[ -n "${supportTeamWebsite}" ]]; then
+        echo "If issue persists, review ${supportTeamWebsite}."
+    else
+        echo "If issue persists, contact ${supportTeamName}."
+    fi
+
+}
+
+function getInspectRemediationTextByIndex() {
+
+    local index="${1}"
+    local remediation="${checkRemediationByIndex[${index}]}"
+
+    if [[ -n "${remediation}" ]] && [[ "${remediation}" != "${organizationBoilerplateComplianceMessage}" ]]; then
+        echo "${remediation}"
+    else
+        echo "$( getInspectExpectedComparisonTextByIndex "${index}" ). $( getInspectSupportFallbackText )"
+    fi
+
+}
+
+function formatInspectMarkdownText() {
+
+    local text="${1//$'\r'/}"
+
+    text="${text//; /$'\n'}"
+    printf '%s' "${text}"
+
+}
+
+function getInspectDetailSeverityByIndex() {
+
+    case "${checkNormalizedStatusByIndex[${1}]}" in
+        "warning" )
+            echo "warning"
+            ;;
+        "fail" | "error" )
+            echo "failure"
+            ;;
+        "healthy" )
+            echo "healthy"
+            ;;
+        * )
+            echo ""
+            ;;
+    esac
+
+}
+
+function getInspectDetailExplanationByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local message="${checkMessageByIndex[${index}]}"
+    local rawValue="$( getInspectPreferredResultTextByIndex "${index}" )"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" )
+            if [[ "${message:l}" == *"can't connect"* ]] || [[ "${message:l}" == *"can’t connect"* ]]; then
+                printf '%b' "Mac Health Check could not confirm Apple Software Update status for this Mac.\n\n$( formatInspectMarkdownText "${message}" )"
+            else
+                printf '%s' "A macOS update is ready for this Mac. Installing current updates helps keep this Mac secure and aligned with Church standards."
+                if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+                    printf '\n\n%s' "**Detected update:** ${rawValue}"
+                fi
+            fi
+            return
+            ;;
+        "macos_version" )
+            printf '%s' "This Mac is not currently on a supported macOS release for current standards."
+            if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+                printf '\n\n%s' "**Current version:** ${rawValue}"
+            fi
+            return
+            ;;
+    esac
+
+    if [[ -n "${message}" ]] && [[ "${message}" != "${organizationBoilerplateComplianceMessage}" ]]; then
+        formatInspectMarkdownText "${message}"
+    elif [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+        formatInspectMarkdownText "${rawValue}"
+    fi
+
+}
+
+function getInspectDetailRemediationByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local message="${checkMessageByIndex[${index}]}"
+    local remediation="${checkRemediationByIndex[${index}]}"
+    local rawValue="$( getInspectPreferredResultTextByIndex "${index}" )"
+    local supportFallbackText="$( getInspectSupportFallbackText )"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" )
+            if [[ "${message:l}" == *"can't connect"* ]] || [[ "${message:l}" == *"can’t connect"* ]]; then
+                printf '%b' "1. Verify internet access on this Mac.\n2. Connect VPN if your role requires it.\n3. Open **System Settings > General > Software Update** and try again.\n4. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            else
+                if [[ -z "${rawValue}" ]] || [[ "${rawValue}" == "Result unavailable" ]]; then
+                    rawValue="available macOS update"
+                fi
+                printf '%b' "1. Open **System Settings**.\n2. Select **General > Software Update**.\n3. Install **${rawValue}**.\n4. Restart your Mac if prompted.\n5. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            fi
+            return
+            ;;
+        "macos_version" )
+            if [[ -z "${rawValue}" ]] || [[ "${rawValue}" == "Result unavailable" ]]; then
+                rawValue="your current macOS release"
+            fi
+            printf '%b' "1. Open **System Settings**.\n2. Select **General > Software Update**.\n3. Install supported updates for **${rawValue}**.\n4. Restart your Mac if prompted.\n5. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            return
+            ;;
+    esac
+
+    if [[ -n "${remediation}" ]] && [[ "${remediation}" != "${organizationBoilerplateComplianceMessage}" ]]; then
+        formatInspectMarkdownText "${remediation}"
+    else
+        printf '%s' "$( formatInspectMarkdownText "$( getInspectExpectedComparisonTextByIndex "${index}" )" ). ${supportFallbackText}"
+    fi
+
+}
+
+function getInspectDetailActionButtonTextByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" | "macos_version" )
+            echo "Open Software Update"
+            ;;
+    esac
+
+}
+
+function getInspectDetailActionURLByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        return
+    fi
+
+    case "${key}" in
+        "available_updates" | "macos_version" )
+            echo "x-apple.systempreferences:com.apple.Software-Update-Settings.extension"
+            ;;
+    esac
+
+}
+
+function getInspectComparisonActualTextByIndex() {
+
+    local index="${1}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+    local preferredValue="$( getInspectPreferredResultTextByIndex "${index}" )"
+
+    if [[ "${normalizedStatus}" == "healthy" ]]; then
+        echo "${preferredValue}"
+    else
+        echo "$( getDisplayStatusLabelFromNormalizedStatus "${normalizedStatus}" ): ${preferredValue}"
+    fi
+
+}
+
+function getInspectStatusColor() {
+
+    case "${1}" in
+        "healthy" )
+            echo "#65C466"
+            ;;
+        "warning" )
+            echo "#F5BE0A"
+            ;;
+        "fail" | "error" )
+            echo "#EB4C46"
+            ;;
+        * )
+            echo "#8E8E93"
+            ;;
+    esac
+
+}
+
+function getInspectBentoBackgroundColor() {
+
+    case "${1}" in
+        "healthy" )
+            echo "#1D2C22"
+            ;;
+        "warning" )
+            echo "#4A3510"
+            ;;
+        "fail" | "error" )
+            echo "#4A1F1F"
+            ;;
+        * )
+            echo "#30343A"
+            ;;
+    esac
+
+}
+
+function getInspectStatusIcon() {
+
+    case "${1}" in
+        "healthy" )
+            echo "checkmark.circle.fill"
+            ;;
+        "warning" )
+            echo "exclamationmark.triangle.fill"
+            ;;
+        "fail" )
+            echo "xmark.circle.fill"
+            ;;
+        * )
+            echo "exclamationmark.circle.fill"
+            ;;
+    esac
+
+}
+
+function getInspectFailureSymbolByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]:-}"
+
+    case "${title:l}" in
+        *entra*id*registration* )
+            echo "person.badge.key"
+            ;;
+        *gatekeeper*|*xprotect* )
+            echo "lock.trianglebadge.exclamationmark"
+            ;;
+        *push*notification*hosts*|*network*quality* )
+            echo "wifi.exclamationmark"
+            ;;
+        *device*management* )
+            echo "desktopcomputer.trianglebadge.exclamationmark"
+            ;;
+        * )
+            echo ""
+            ;;
+    esac
+
+}
+
+function getInspectCheckSymbolByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]:-}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]:-}"
+    local failureSymbol=""
+
+    if [[ "${normalizedStatus}" == "fail" ]] || [[ "${normalizedStatus}" == "error" ]]; then
+        failureSymbol="$( getInspectFailureSymbolByIndex "${index}" )"
+        if [[ -n "${failureSymbol}" ]]; then
+            echo "${failureSymbol}"
+        else
+            echo "xmark.circle.fill"
+        fi
+        return
+    fi
+
+    case "${title:l}" in
+        *macos*version* )
+            echo "apple.logo"
+            ;;
+        *available*update* )
+            echo "arrow.down.circle"
+            ;;
+        *system*integrity*protection* )
+            echo "shield.lefthalf.filled"
+            ;;
+        *signed*system*volume* )
+            echo "checkmark.seal"
+            ;;
+        *firewall* )
+            echo "firewall"
+            ;;
+        *filevault* )
+            echo "lock.shield"
+            ;;
+        *gatekeeper*|*xprotect* )
+            echo "lock.circle"
+            ;;
+        *touch*id* )
+            echo "touchid"
+            ;;
+        *vpn* )
+            echo "lock.circle"
+            ;;
+        *reboot* )
+            echo "power.circle"
+            ;;
+        *disk*space*|*storage* )
+            echo "internaldrive"
+            ;;
+        *desktop* )
+            echo "desktopcomputer"
+            ;;
+        *downloads* )
+            echo "folder.fill.badge.plus"
+            ;;
+        *trash* )
+            echo "trash"
+            ;;
+        *password*hint* )
+            echo "key"
+            ;;
+        *airdrop* )
+            echo "dot.radiowaves.left.and.right"
+            ;;
+        *airplay*receiver* )
+            echo "airplayaudio"
+            ;;
+        *bluetooth*sharing* )
+            echo "dot.radiowaves.right"
+            ;;
+        *entra*id*registration* )
+            echo "person.badge.key.fill"
+            ;;
+        *mdm*profile* )
+            echo "checkmark.shield"
+            ;;
+        *certificate*expiration*|*certificate*validation* )
+            echo "checkmark.seal"
+            ;;
+        *push*notification*service* )
+            echo "bell.badge"
+            ;;
+        *check-in*|*inventory* )
+            echo "arrow.triangle.2.circlepath"
+            ;;
+        *push*notification*hosts*|*network*quality* )
+            echo "wifi"
+            ;;
+        *device*management* )
+            echo "desktopcomputer.badge.shield.checkmark"
+            ;;
+        *software*and*carrier*updates* )
+            echo "square.and.arrow.down"
+            ;;
+        *identity*and*content*services* )
+            echo "person.text.rectangle"
+            ;;
+        *homebrew* )
+            echo "mug.fill"
+            ;;
+        *electron* )
+            echo "bolt.circle"
+            ;;
+        *teams* )
+            echo "app.translucent"
+            ;;
+        * )
+            echo "$( getInspectStatusIcon "${checkNormalizedStatusByIndex[${index}]}" )"
+            ;;
+    esac
+
+}
+
+function getInspectComplianceStatusByIndex() {
+
+    local index="${1}"
+
+    if [[ "${checkNormalizedStatusByIndex[${index}]}" == "healthy" ]]; then
+        echo "healthy"
+    else
+        echo "attention"
+    fi
+
+}
+
+function getInspectComplianceCategoryByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]:l}"
+
+    case "${title}" in
+        *system*integrity*protection*|*signed*system*volume*|*firewall*|*filevault*|*gatekeeper*|*xprotect*|*touch*id*|*password*hint*|*airdrop*|*airplay*receiver*|*bluetooth*sharing* )
+            echo "Security"
+            ;;
+        *push*notification*hosts*|*device*management*|*software*and*carrier*updates*|*certificate*validation*|*identity*and*content*services*|*network*quality*|*wi-fi*|*vpn* )
+            echo "Connectivity"
+            ;;
+        *entra*id*registration*|*mdm*|*check-in*|*inventory*|*push*notification*service* )
+            echo "MDM"
+            ;;
+        *teams*|*homebrew*|*electron* )
+            echo "Applications"
+            ;;
+        * )
+            echo "Maintenance"
+            ;;
+    esac
+
+}
+
+function getInspectComplianceCriticalityByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]:l}"
+
+    case "${title}" in
+        *system*integrity*protection*|*signed*system*volume*|*filevault*|*gatekeeper*|*xprotect*|*available*update*|*entra*id*registration*|*mdm*profile*|*mdm*certificate*|*check-in*|*inventory*|*device*management* )
+            echo "high"
+            ;;
+        *desktop*|*downloads*|*trash*|*airdrop*|*airplay*receiver*|*bluetooth*sharing*|*teams* )
+            echo "low"
+            ;;
+        * )
+            echo "medium"
+            ;;
+    esac
+
+}
+
+function printInspectOptionalPlistStringField() {
+
+    local key="${1}"
+    local value="${2}"
+
+    if [[ -n "${value}" ]]; then
+        printf '\t\t<key>%s</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${key}" )" "$( xmlEscape "${value}" )"
+    fi
+
+}
+
+function buildInspectCompliancePlistEntryByIndex() {
+
+    local index="${1}"
+    local key="${checkKeyByIndex[${index}]}"
+    local title="${checkTitleByIndex[${index}]}"
+    local complianceStatus="$( getInspectComplianceStatusByIndex "${index}" )"
+    local expected="$( getInspectExpectedComparisonTextByIndex "${index}" )"
+    local actual="$( getInspectPreferredResultTextByIndex "${index}" )"
+    local category="$( getInspectComplianceCategoryByIndex "${index}" )"
+    local criticality="$( getInspectComplianceCriticalityByIndex "${index}" )"
+    local message="${checkMessageByIndex[${index}]:-${actual}}"
+    local explanation="$( getInspectDetailExplanationByIndex "${index}" )"
+    local remediation="$( getInspectDetailRemediationByIndex "${index}" )"
+    local actionButtonText="$( getInspectDetailActionButtonTextByIndex "${index}" )"
+    local actionURL="$( getInspectDetailActionURLByIndex "${index}" )"
+
+    printf '\t<key>%s</key>\n' "$( xmlEscape "${key}" )"
+    printf '\t<dict>\n'
+    printf '\t\t<key>status</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${complianceStatus}" )"
+    printf '\t\t<key>category</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${category}" )"
+    printf '\t\t<key>displayName</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${title}" )"
+    printf '\t\t<key>expected</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${expected}" )"
+    printf '\t\t<key>actual</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${actual}" )"
+    printf '\t\t<key>criticality</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${criticality}" )"
+    printf '\t\t<key>message</key>\n\t\t<string>%s</string>\n' "$( xmlEscape "${message}" )"
+    printInspectOptionalPlistStringField "explanation" "${explanation}"
+    printInspectOptionalPlistStringField "remediation" "${remediation}"
+    printInspectOptionalPlistStringField "actionButtonText" "${actionButtonText}"
+    printInspectOptionalPlistStringField "actionURL" "${actionURL}"
+    printf '\t</dict>\n'
+
+}
+
+function buildInspectCompliancePlistXML() {
+
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+    printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+    printf '%s\n' '<plist version="1.0">'
+    printf '%s\n' '<dict>'
+    printf '\t<key>lastComplianceCheck</key>\n\t<string>%s</string>\n' "$( xmlEscape "${reportTimestamp:-$( date '+%Y-%m-%dT%H:%M:%S%z' )}" )"
+
+    for (( i=0; i<listitemLength; i++ )); do
+        if [[ "${checkExecutedByIndex[${i}]}" == "true" ]]; then
+            buildInspectCompliancePlistEntryByIndex "${i}"
+        fi
+    done
+
+    printf '%s\n' '</dict>'
+    printf '%s\n' '</plist>'
+
+}
+
+function buildInspectPlistSourceKeyMappingsJSON() {
+
+    local separator=""
+    local criticality=""
+    local severity=""
+    local explanation=""
+    local remediation=""
+    local actionButtonText=""
+    local actionURL=""
+
+    printf '%s' "["
+    for (( i=0; i<listitemLength; i++ )); do
+        if [[ "${checkExecutedByIndex[${i}]}" == "true" ]]; then
+            criticality="$( getInspectComplianceCriticalityByIndex "${i}" )"
+            severity="$( getInspectDetailSeverityByIndex "${i}" )"
+            explanation="$( getInspectDetailExplanationByIndex "${i}" )"
+            remediation="$( getInspectDetailRemediationByIndex "${i}" )"
+            actionButtonText="$( getInspectDetailActionButtonTextByIndex "${i}" )"
+            actionURL="$( getInspectDetailActionURLByIndex "${i}" )"
+            printf '%s' "${separator}{"
+            printf '%s' "\"key\":$( jsonString "${checkKeyByIndex[${i}]}" ),"
+            printf '%s' "\"displayName\":$( jsonString "${checkTitleByIndex[${i}]}" ),"
+            printf '%s' "\"category\":$( jsonString "$( getInspectComplianceCategoryByIndex "${i}" )" )"
+            if [[ "${criticality}" == "high" ]]; then
+                printf '%s' ",\"isCritical\":true"
+            fi
+            if [[ -n "${severity}" ]] && [[ "${severity}" != "healthy" ]]; then
+                printf '%s' ",\"severity\":$( jsonString "${severity}" )"
+            fi
+            if [[ -n "${explanation}" ]]; then
+                printf '%s' ",\"explanation\":$( jsonString "${explanation}" )"
+            fi
+            if [[ -n "${remediation}" ]]; then
+                printf '%s' ",\"remediation\":$( jsonString "${remediation}" )"
+            fi
+            if [[ -n "${actionButtonText}" ]]; then
+                printf '%s' ",\"actionButtonText\":$( jsonString "${actionButtonText}" )"
+            fi
+            if [[ -n "${actionURL}" ]]; then
+                printf '%s' ",\"actionURL\":$( jsonString "${actionURL}" )"
+            fi
+            printf '%s' "}"
+            separator=","
+        fi
+    done
+    printf '%s' "]"
+
+}
+
+function buildInspectPlistSourcesJSON() {
+
+    printf '%s' "["
+    printf '%s' "{"
+    printf '%s' "\"path\":$( jsonString "${inspectCompliancePlistPath}" ),"
+    printf '%s' "\"type\":\"compliance\","
+    printf '%s' "\"displayName\":\"Mac Health Check Compliance\","
+    printf '%s' "\"icon\":\"SF=shield.checkered\","
+    printf '%s' "\"healthyLabel\":\"Healthy\","
+    printf '%s' "\"attentionLabel\":\"Needs Attention\","
+    printf '%s' "\"successValues\":[\"healthy\"],"
+    printf '%s' "\"excludeKeys\":[\"lastComplianceCheck\"],"
+    printf '%s' "\"keyMappings\":$( buildInspectPlistSourceKeyMappingsJSON )"
+    printf '%s' "}"
+    printf '%s' "]"
+
+}
+
+function buildInspectBentoCellsJSONForCategory() {
+
+    local category="${1}"
+    local separator=""
+    local maxColumns=3
+    local searchRow=0
+    local column=0
+    local row=0
+    local columnSpan=1
+    local rowSpan=1
+    local slotAvailable="false"
+    local foundSlot="false"
+    local key=""
+    local normalizedStatus=""
+    local -a categoryIndices
+    local -A occupiedSlots
+
+    for (( i=0; i<listitemLength; i++ )); do
+        if [[ "${checkExecutedByIndex[${i}]}" == "true" ]] && [[ "$( getInspectComplianceCategoryByIndex "${i}" )" == "${category}" ]]; then
+            categoryIndices+=( "${i}" )
+        fi
+    done
+
+    for i in "${categoryIndices[@]}"; do
+        key="${checkKeyByIndex[${i}]}"
+        normalizedStatus="${checkNormalizedStatusByIndex[${i}]}"
+        columnSpan=1
+        rowSpan=1
+
+        if [[ "${key}" == "available_updates" ]] && [[ "${normalizedStatus}" != "healthy" ]]; then
+            columnSpan=2
+        fi
+
+        searchRow=0
+        foundSlot="false"
+        while [[ "${foundSlot}" != "true" ]]; do
+            for (( column=0; column<maxColumns; column++ )); do
+                if (( column + columnSpan > maxColumns )); then
+                    continue
+                fi
+                slotAvailable="true"
+                for (( row=searchRow; row<searchRow + rowSpan; row++ )); do
+                    for (( spanColumn=column; spanColumn<column + columnSpan; spanColumn++ )); do
+                        if [[ -n "${occupiedSlots[${row},${spanColumn}]:-}" ]]; then
+                            slotAvailable="false"
+                            break
+                        fi
+                    done
+                    if [[ "${slotAvailable}" != "true" ]]; then
+                        break
+                    fi
+                done
+                if [[ "${slotAvailable}" == "true" ]]; then
+                    row="${searchRow}"
+                    foundSlot="true"
+                    break
+                fi
+            done
+            if [[ "${foundSlot}" != "true" ]]; then
+                (( searchRow++ ))
+            fi
+        done
+
+        for (( occupiedRow=row; occupiedRow<row + rowSpan; occupiedRow++ )); do
+            for (( occupiedColumn=column; occupiedColumn<column + columnSpan; occupiedColumn++ )); do
+                occupiedSlots[${occupiedRow},${occupiedColumn}]="true"
+            done
+        done
+
+            printf '%s' "${separator}{"
+            printf '%s' "\"id\":$( jsonString "${key}" ),"
+            printf '%s' "\"column\":${column},"
+            printf '%s' "\"row\":${row},"
+            printf '%s' "\"title\":$( jsonString "${checkTitleByIndex[${i}]}" ),"
+            printf '%s' "\"sfSymbol\":$( jsonString "$( getInspectCheckSymbolByIndex "${i}" )" ),"
+            printf '%s' "\"contentType\":\"mixed\","
+            printf '%s' "\"iconSize\":36,"
+            printf '%s' "\"iconWeight\":\"semibold\","
+            printf '%s' "\"textSize\":\"small\","
+            printf '%s' "\"textColor\":\"#FFFFFF\","
+            printf '%s' "\"backgroundColor\":$( jsonString "$( getInspectBentoBackgroundColor "${checkNormalizedStatusByIndex[${i}]}" )" )"
+            if (( columnSpan > 1 )); then
+                printf '%s' ",\"columnSpan\":${columnSpan}"
+            fi
+            if (( rowSpan > 1 )); then
+                printf '%s' ",\"rowSpan\":${rowSpan}"
+            fi
+            printf '%s' "}"
+            separator=","
+    done
+
+}
+
+function buildInspectCategoryItemJSON() {
+
+    local category="${1}"
+    local displayName="${2}"
+    local icon="${3}"
+    local bentoCellsJSON=""
+
+    bentoCellsJSON="$( buildInspectBentoCellsJSONForCategory "${category}" )"
+    if [[ -z "${bentoCellsJSON}" ]]; then
+        return
+    fi
+
+    printf '%s' "{"
+    printf '%s' "\"displayName\":$( jsonString "${displayName}" ),"
+    printf '%s' "\"guidanceContent\":[{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoGap\":${inspectBentoGap},\"bentoRowHeight\":110,\"bentoCells\":[${bentoCellsJSON}]}],"
+    printf '%s' "\"guidanceTitle\":$( jsonString "${displayName} Status" ),"
+    printf '%s' "\"icon\":$( jsonString "${icon}" ),"
+    printf '%s' "\"id\":$( jsonString "$( sanitizeCheckKey "${displayName}" )" ),"
+    printf '%s' "\"stepType\":\"info\""
+    printf '%s' "}"
+
+}
+
+function buildInspectComparisonTableJSONByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]}"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+
+    printf '%s' "{"
+    printf '%s' "\"content\":$( jsonString "${title}" ),"
+    printf '%s' "\"comparisonStyle\":\"columns\","
+    printf '%s' "\"expectedLabel\":\"Expected\","
+    printf '%s' "\"expected\":$( jsonString "$( getInspectExpectedComparisonTextByIndex "${index}" )" ),"
+    printf '%s' "\"expectedColor\":\"#34C759\","
+    printf '%s' "\"expectedIcon\":\"checkmark.circle.fill\","
+    printf '%s' "\"actualLabel\":\"Actual\","
+    printf '%s' "\"actual\":$( jsonString "$( getInspectComparisonActualTextByIndex "${index}" )" ),"
+    printf '%s' "\"actualColor\":$( jsonString "$( getInspectStatusColor "${normalizedStatus}" )" ),"
+    printf '%s' "\"actualIcon\":$( jsonString "$( getInspectCheckSymbolByIndex "${index}" )" ),"
+    printf '%s' "\"type\":\"comparison-table\""
+    printf '%s' "}"
+
+}
+
+function buildInspectComparisonEntriesJSONFromTitles() {
+
+    local title=""
+    local index=""
+    local separator=""
+
+    for title in "$@"; do
+        index="${checkIndexByTitle[${title}]}"
+
+        if [[ "${index}" == <-> ]]; then
+            printf '%s' "${separator}$( buildInspectComparisonTableJSONByIndex "${index}" )"
+            separator=","
+        fi
+    done
+
+}
+
+function getInspectQuickActionTextByIndex() {
+
+    local index="${1}"
+    local title="${checkTitleByIndex[${index}]}"
+    local remediation="$( getInspectRemediationTextByIndex "${index}" )"
+    local normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+
+    case "${title}" in
+        "macOS Version" )
+            echo "Update macOS to supported release."
+            ;;
+        "Available Updates" )
+            echo "Install available software updates."
+            ;;
+        "AirDrop" )
+            echo "Change AirDrop to No One or Contacts Only."
+            ;;
+        "Downloads Size and Item Count" )
+            echo "Reduce Downloads folder usage."
+            ;;
+        "Desktop Size and Item Count" )
+            echo "Reduce Desktop folder usage."
+            ;;
+        "Trash Size and Item Count" )
+            echo "Empty Trash or remove unneeded files."
+            ;;
+        "App Auto-Patch" )
+            echo "Run App Auto-Patch and update installed apps."
+            ;;
+        * )
+            if [[ "${normalizedStatus}" == "warning" ]]; then
+                echo "${title}: ${remediation}"
+            else
+                echo "${title}: ${remediation}"
+            fi
+            ;;
+    esac
+
+}
+
+function buildInspectQuickActionsJSON() {
+
+    local unhealthyTitles=( "${(@f)$( buildInspectUnhealthyTitleArray )}" )
+    local quickActions=()
+    local title=""
+    local index=""
+
+    for title in "${unhealthyTitles[@]}"; do
+        index="${checkIndexByTitle[${title}]}"
+        if [[ "${index}" == <-> ]]; then
+            quickActions+=( "$( getInspectQuickActionTextByIndex "${index}" )" )
+        fi
+        (( ${#quickActions[@]} >= 5 )) && break
+    done
+
+    buildJSONStringArray "${quickActions[@]}"
+
+}
+
+function buildInspectSummaryComparisonTableJSON() {
+
+    local healthyCount="${#reportHealthyChecks[@]}"
+    local unhealthyCount="$( getInspectUnhealthyCount )"
+
+    printf '%s' "{"
+    printf '%s' "\"content\":$( jsonString "$( getInspectResultsTimestampText )" ),"
+    printf '%s' "\"comparisonStyle\":\"columns\","
+    printf '%s' "\"expectedLabel\":\"Healthy\","
+    printf '%s' "\"expected\":$( jsonString "${healthyCount} checks passed" ),"
+    printf '%s' "\"expectedColor\":\"#34C759\","
+    printf '%s' "\"expectedIcon\":\"checkmark.shield\","
+    printf '%s' "\"actualLabel\":\"Unhealthy\","
+    printf '%s' "\"actual\":$( jsonString "${unhealthyCount} checks need attention" ),"
+    printf '%s' "\"actualColor\":$( jsonString "$( getInspectStatusColor "${reportOverallStatus}" )" ),"
+    printf '%s' "\"actualIcon\":$( jsonString "$( getInspectStatusIcon "${reportOverallStatus}" )" ),"
+    printf '%s' "\"type\":\"comparison-table\""
+    printf '%s' "}"
+
+}
+
+function buildInspectOverviewGuidanceContentJSON() {
+
+    printf '%s' "["
+    # swiftDialog PR #684 renders Preset 6 highlights as centered onboarding copy without a chip.
+    printf '%s' "{\"content\":$( jsonString "$( getInspectIntroductionText )" ),\"type\":\"highlight\"},"
+    printf '%s' "{\"content\":$( jsonString "$( getInspectTimestampAndReplayMessage )" ),\"type\":\"info\"},"
+    printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Overall Compliance Status\"},"
+    printf '%s' "{\"type\":\"findings-list\"}"
+    printf '%s' "]"
+
+}
+
+function buildInspectSupportLineItemsJSON() {
+
+    local inspectSupportItems=()
+    local inspectButtonURL="$( getInspectSupportButtonURL )"
+    local supportLabelVar=""
+    local supportValueVar=""
+    local supportLabel=""
+    local supportValue=""
+
+    for supportIndex in {1..6}; do
+        supportLabelVar="supportLabel${supportIndex}"
+        supportValueVar="supportValue${supportIndex}"
+        supportLabel="${(P)supportLabelVar}"
+        supportValue="${(P)supportValueVar}"
+
+        if [[ -n "${supportLabel}" && -n "${supportValue}" ]]; then
+            if [[ -n "${inspectButtonURL}" ]] && [[ "${supportValue}" == "${inspectButtonURL}" || "${supportValue}" == *"(${inspectButtonURL})"* ]]; then
+                continue
+            fi
+
+            inspectSupportItems+=( "${supportLabel}: ${supportValue}" )
+        fi
+    done
+
+    if (( ${#inspectSupportItems[@]} == 0 )); then
+        [[ -n "${supportTeamPhone}" ]] && inspectSupportItems+=( "Telephone: ${supportTeamPhone}" )
+        [[ -n "${supportTeamEmail}" ]] && inspectSupportItems+=( "Email: ${supportTeamEmail}" )
+        if [[ -n "${supportTeamWebsite}" ]] && [[ "${supportTeamWebsite}" != "${inspectButtonURL}" ]]; then
+            inspectSupportItems+=( "Website: ${supportTeamWebsite}" )
+        fi
+        [[ -n "${supportKBURL}" ]] && inspectSupportItems+=( "Knowledge Base Article: ${supportKBURL}" )
+    fi
+
+    buildJSONStringArray "${inspectSupportItems[@]}"
+
+}
+
+function buildInspectUserInformationItemsJSON() {
+
+    local userInformationItems=(
+        "**Full Name:** ${loggedInUserFullname}"
+        "**User Name:** ${loggedInUser}"
+        "**User ID:** ${loggedInUserID}"
+        "**Volume Owners:** ${volumeOwnerList}"
+        "**Secure Token:** ${secureToken}"
+        "**Location Services:** ${locationServicesStatus}"
+        "**Microsoft OneDrive Sync Date:** ${oneDriveSyncDate}"
+        "**Platform SSOe:** ${platformSSOeResult}"
+    )
+
+    buildJSONStringArray "${userInformationItems[@]}"
+
+}
+
+function buildInspectComputerInformationItemsJSON() {
+
+    local computerInformationItems=(
+        "**macOS:** ${osVersion} (${osBuild})"
+        "**Dialog:** $( getDialogVersionDisplay )"
+        "**Script:** ${scriptVersion}"
+        "**Computer Name:** ${computerName}"
+        "**Serial Number:** ${serialNumber}"
+        "**Wi-Fi:** ${ssid}"
+        "${activeIPAddress}"
+        "**VPN IP:** ${vpnStatus}"
+    )
+
+    buildJSONStringArray "${computerInformationItems[@]}"
+
+}
+
+function getInspectReplayExpirationMessage() {
+
+    local replayMinutes=$(( inspectReplayMaximumAgeSeconds / 60 ))
+    local expirationEpoch=$(( $( date +%s ) + inspectReplayMaximumAgeSeconds ))
+    local expirationTimestamp=""
+
+    expirationTimestamp="$( date -r "${expirationEpoch}" '+%A, %B %d at %I:%M %p %Z' 2>/dev/null )"
+
+    if [[ -n "${expirationTimestamp}" ]]; then
+        echo "These cached results may be reused for up to ${replayMinutes} minutes and will no longer be used after approximately ${expirationTimestamp}."
+    else
+        echo "These cached results may be reused for up to ${replayMinutes} minutes before they are refreshed."
+    fi
+
+}
+
+function getInspectNextStepsText() {
+
+    echo "Click **Finish** to close this report.
+
+$( getInspectTimestampAndReplayMessage )"
+
+}
+
+function buildInspectIntroductionGuidanceContentJSON() {
+
+    buildInspectOverviewGuidanceContentJSON
+
+}
+
+function inspectSummaryIsEnabled() {
+
+    [[ "${inspectSummaryPreset}" == "on" ]]
+
+}
+
+function inspectUnhealthyResultsExist() {
+
+    (( ${#reportWarningChecks[@]} + ${#reportFailChecks[@]} + ${#reportErrorChecks[@]} > 0 ))
+
+}
+
+function inspectHealthyResultsExist() {
+
+    (( ${#reportHealthyChecks[@]} > 0 ))
+
+}
+
+function buildInspectUnhealthyResultsGuidanceContentJSON() {
+
+    local unhealthyResultTitles=()
+    local comparisonEntriesJSON=""
+
+    unhealthyResultTitles=( "${(@f)$( buildInspectUnhealthyTitleArray )}" )
+    comparisonEntriesJSON="$( buildInspectComparisonEntriesJSONFromTitles "${unhealthyResultTitles[@]}" )"
+
+    printf '%s' "["
+    printf '%s' "{\"content\":$( jsonString "$( getInspectUnhealthyResultsSummaryText )" ),\"type\":\"warning\"}"
+    if [[ -n "${comparisonEntriesJSON}" ]]; then
+        printf '%s' ",${comparisonEntriesJSON}"
+    fi
+    printf '%s' "]"
+
+}
+
+function buildInspectRemediationGuideGuidanceContentJSON() {
+
+    local unhealthyResultTitles=( "${(@f)$( buildInspectUnhealthyTitleArray )}" )
+    local title=""
+    local index=""
+    local normalizedStatus=""
+
+    printf '%s' "["
+    printf '%s' "{\"content\":$( jsonString "$( getInspectUnhealthyResultsSummaryText )" ),\"type\":\"warning\"}"
+    printf '%s' ",{\"content\":\"Address failures first, then warnings to restore full compliance.\",\"type\":\"info\"}"
+
+    for title in "${unhealthyResultTitles[@]}"; do
+        index="${checkIndexByTitle[${title}]}"
+        if [[ "${index}" == <-> ]]; then
+            normalizedStatus="${checkNormalizedStatusByIndex[${index}]}"
+            printf '%s' ",{"
+            printf '%s' "\"content\":$( jsonString "${title}" ),"
+            printf '%s' "\"comparisonStyle\":\"columns\","
+            printf '%s' "\"expectedLabel\":\"Problem\","
+            printf '%s' "\"expected\":$( jsonString "$( getInspectProblemTextByIndex "${index}" )" ),"
+            printf '%s' "\"expectedColor\":$( jsonString "$( getInspectStatusColor "${normalizedStatus}" )" ),"
+            printf '%s' "\"expectedIcon\":$( jsonString "$( getInspectStatusIcon "${normalizedStatus}" )" ),"
+            printf '%s' "\"actualLabel\":\"What to do\","
+            printf '%s' "\"actual\":$( jsonString "$( getInspectRemediationTextByIndex "${index}" )" ),"
+            printf '%s' "\"actualColor\":\"#34C759\","
+            printf '%s' "\"actualIcon\":$( jsonString "$( getInspectCheckSymbolByIndex "${index}" )" ),"
+            printf '%s' "\"type\":\"comparison-table\""
+            printf '%s' "}"
+        fi
+    done
+
+    printf '%s' "]"
+
+}
+
+function buildInspectHealthyResultsGuidanceContentJSON() {
+
+    local comparisonEntriesJSON="$( buildInspectComparisonEntriesJSONFromTitles "${reportHealthyChecks[@]}" )"
+
+    printf '%s' "["
+    printf '%s' "{\"content\":$( jsonString "$( getInspectHealthyResultsSummaryText )" ),\"type\":\"success\"}"
+    if [[ -n "${comparisonEntriesJSON}" ]]; then
+        printf '%s' ",${comparisonEntriesJSON}"
+    fi
+    printf '%s' "]"
+
+}
+
+function buildInspectFallbackResultsGuidanceContentJSON() {
+
+    printf '%s' "["
+    printf '%s' "{\"content\":$( jsonString "$( getInspectResultsSummaryText )" ),\"type\":\"text\"},"
+    printf '%s' "{\"content\":\"No executed checks were recorded for this run.\",\"type\":\"info\"}"
+    printf '%s' "]"
+
+}
+
+function buildInspectSupportText() {
+
+    local supportText="For assistance, please contact ${supportTeamName}."
+    local supportFieldsFound="false"
+    local supportLabelVar=""
+    local supportValueVar=""
+    local supportLabel=""
+    local supportValue=""
+
+    for supportIndex in {1..6}; do
+        supportLabelVar="supportLabel${supportIndex}"
+        supportValueVar="supportValue${supportIndex}"
+        supportLabel="${(P)supportLabelVar}"
+        supportValue="${(P)supportValueVar}"
+
+        if [[ -n "${supportLabel}" && -n "${supportValue}" ]]; then
+            supportFieldsFound="true"
+            supportText+=$'\n'
+            supportText+="${supportLabel}: $( normalizeInspectSupportValue "${supportValue}" )"
+        fi
+    done
+
+    if [[ "${supportFieldsFound}" == "false" ]]; then
+        [[ -n "${supportTeamPhone}" ]] && supportText+=$'\n'"Telephone: ${supportTeamPhone}"
+        [[ -n "${supportTeamEmail}" ]] && supportText+=$'\n'"Email: ${supportTeamEmail}"
+        [[ -n "${supportTeamWebsite}" ]] && supportText+=$'\n'"Website: ${supportTeamWebsite}"
+        [[ -n "${supportKB}" && -n "${infobuttonaction}" ]] && supportText+=$'\n'"Knowledge Base Article: ${supportKB} (${infobuttonaction})"
+    fi
+
+    printf '%s' "${supportText}"
+
+}
+
+function buildInspectHelpGuidanceContentJSON() {
+
+    local helpText="For assistance, please contact: **${supportTeamName}**"
+    local buttonURL="$( getInspectSupportButtonURL )"
+    local buttonText="$( getInspectSupportButtonText "${buttonURL}" )"
+    local supportItemsJSON="$( buildInspectSupportLineItemsJSON )"
+    local userInformationItemsJSON="$( buildInspectUserInformationItemsJSON )"
+    local computerInformationItemsJSON="$( buildInspectComputerInformationItemsJSON )"
+    local supportOverlayContentJSON=""
+
+    supportOverlayContentJSON='[{"type":"info","content":"Use these support options if you need help completing recommended steps."}'
+    if [[ "${supportItemsJSON}" != "[]" ]]; then
+        supportOverlayContentJSON+=",{\"items\":${supportItemsJSON},\"type\":\"bullets\"}"
+    fi
+    if [[ -n "${buttonURL}" ]]; then
+        supportOverlayContentJSON+=",{\"action\":\"url\",\"content\":$( jsonString "${buttonText}" ),\"icon\":$( jsonString "$( getInspectSupportButtonIcon "${buttonURL}" )" ),\"type\":\"button\",\"url\":$( jsonString "${buttonURL}" )}"
+    fi
+    supportOverlayContentJSON+="]"
+
+    printf '%s' "["
+    printf '%s' "{\"type\":\"bento-grid\",\"bentoColumns\":3,\"bentoGap\":${inspectBentoGap},\"bentoRowHeight\":110,\"bentoCells\":[{\"id\":\"support_resources\",\"column\":0,\"row\":0,\"columnSpan\":3,\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"sfSymbol\":\"person.crop.circle.badge.questionmark\",\"contentType\":\"mixed\",\"iconSize\":36,\"iconWeight\":\"semibold\",\"textSize\":\"small\",\"textColor\":\"#FFFFFF\",\"backgroundColor\":\"#143A52\",\"detailOverlay\":{\"title\":\"Help & Support\",\"subtitle\":\"Action Recommended\",\"icon\":\"SF=person.crop.circle.badge.questionmark\",\"content\":${supportOverlayContentJSON},\"showSystemInfo\":false,\"showProgressInfo\":false,\"closeButtonText\":\"Close\"}}]},"
+    printf '%s' "{\"content\":$( jsonString "${helpText}" ),\"type\":\"info\"}"
+
+    if [[ "${supportItemsJSON}" != "[]" ]]; then
+        printf '%s' ","
+        printf '%s' "{\"items\":${supportItemsJSON},\"type\":\"bullets\"}"
+    fi
+
+    if [[ -n "${buttonURL}" ]]; then
+        printf '%s' ","
+        printf '%s' "{\"action\":\"url\",\"content\":$( jsonString "${buttonText}" ),\"icon\":$( jsonString "$( getInspectSupportButtonIcon "${buttonURL}" )" ),\"type\":\"button\",\"url\":$( jsonString "${buttonURL}" )}"
+    fi
+
+    printf '%s' ","
+    printf '%s' "{\"content\":\"User Information:\",\"type\":\"info\"}"
+    printf '%s' ","
+    printf '%s' "{\"items\":${userInformationItemsJSON},\"type\":\"bullets\"}"
+    printf '%s' ","
+    printf '%s' "{\"content\":\"Computer Information:\",\"type\":\"info\"}"
+    printf '%s' ","
+    printf '%s' "{\"items\":${computerInformationItemsJSON},\"type\":\"bullets\"}"
+
+    printf '%s' "]"
+
+}
+
+function buildInspectNextStepsGuidanceContentJSON() {
+
+    printf '%s' "["
+    printf '%s' "{\"content\":\"Mac Health Check Flow\",\"phases\":[\"Checks Complete\",\"Report Written\",\"Summary Reviewed\",\"Cached Report Expires\"],\"currentPhase\":4,\"style\":\"stepper\",\"type\":\"phase-tracker\"},"
+    printf '%s' "{\"content\":$( jsonString "$( getInspectNextStepsText )" ),\"type\":\"info\"},"
+    printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Overall Compliance Status\"},"
+    printf '%s' "{\"type\":\"findings-list\"}"
+    printf '%s' "]"
+
+}
+
+function buildInspectItemsJSONArray() {
+
+    local sectionIcon="$( getInspectSectionIcon )"
+    local separator=""
+    local categoryItemJSON=""
+
+    printf '%s' "["
+    printf '%s' "{\"displayName\":\"Overview\",\"guidanceContent\":$( buildInspectIntroductionGuidanceContentJSON ),\"guidanceTitle\":\"Results Overview\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"overview\",\"stepType\":\"info\"}"
+    separator=","
+
+    if inspectUnhealthyResultsExist; then
+        printf '%s' "${separator}{\"displayName\":\"Remediation Guide\",\"guidanceContent\":$( buildInspectRemediationGuideGuidanceContentJSON ),\"guidanceTitle\":\"How to Fix Issues\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"remediation\",\"stepType\":\"info\"}"
+        separator=","
+    fi
+
+    categoryItemJSON="$( buildInspectCategoryItemJSON "Security" "Security" "${sectionIcon}" )"
+    if [[ -n "${categoryItemJSON}" ]]; then
+        printf '%s' "${separator}${categoryItemJSON}"
+        separator=","
+    fi
+
+    categoryItemJSON="$( buildInspectCategoryItemJSON "Maintenance" "Maintenance" "${sectionIcon}" )"
+    if [[ -n "${categoryItemJSON}" ]]; then
+        printf '%s' "${separator}${categoryItemJSON}"
+        separator=","
+    fi
+
+    categoryItemJSON="$( buildInspectCategoryItemJSON "MDM" "MDM & Inventory" "${sectionIcon}" )"
+    if [[ -n "${categoryItemJSON}" ]]; then
+        printf '%s' "${separator}${categoryItemJSON}"
+        separator=","
+    fi
+
+    categoryItemJSON="$( buildInspectCategoryItemJSON "Connectivity" "Connectivity" "${sectionIcon}" )"
+    if [[ -n "${categoryItemJSON}" ]]; then
+        printf '%s' "${separator}${categoryItemJSON}"
+        separator=","
+    fi
+
+    categoryItemJSON="$( buildInspectCategoryItemJSON "Applications" "Applications" "${sectionIcon}" )"
+    if [[ -n "${categoryItemJSON}" ]]; then
+        printf '%s' "${separator}${categoryItemJSON}"
+        separator=","
+    fi
+
+    if inspectUnhealthyResultsExist; then
+        printf '%s' "${separator}{\"displayName\":\"Unhealthy\",\"guidanceContent\":$( buildInspectUnhealthyResultsGuidanceContentJSON ),\"guidanceTitle\":\"Unhealthy Results\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"unhealthy\",\"stepType\":\"info\"}"
+        separator=","
+    fi
+
+    if inspectHealthyResultsExist; then
+        printf '%s' "${separator}{\"displayName\":\"Healthy\",\"guidanceContent\":$( buildInspectHealthyResultsGuidanceContentJSON ),\"guidanceTitle\":\"Healthy Results\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"healthy\",\"stepType\":\"info\"}"
+        separator=","
+    fi
+
+    if ! inspectUnhealthyResultsExist && ! inspectHealthyResultsExist; then
+        printf '%s' "${separator}{\"displayName\":\"Results\",\"guidanceContent\":$( buildInspectFallbackResultsGuidanceContentJSON ),\"guidanceTitle\":\"Results\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"results\",\"stepType\":\"info\"}"
+        separator=","
+    fi
+
+    printf '%s' "${separator}{\"displayName\":\"Help & Support\",\"guidanceContent\":$( buildInspectHelpGuidanceContentJSON ),\"guidanceTitle\":\"Help & Support\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"help\",\"stepType\":\"info\"}"
+    separator=","
+    printf '%s' "${separator}{\"displayName\":\"Next Steps\",\"guidanceContent\":$( buildInspectNextStepsGuidanceContentJSON ),\"guidanceTitle\":\"Next Steps\",\"icon\":$( jsonString "${sectionIcon}" ),\"id\":\"nextSteps\",\"stepType\":\"info\"}"
+    printf '%s' "]"
+
+}
+
+function buildInspectConfigJSON() {
+
+    local inspectHighlightColor="#F69325"
+    local inspectWindowHeight="750"
+    local inspectWindowWidth="975"
+
+    printf '%s' "{"
+    printf '%s' "\"preset\":\"6\","
+    printf '%s' "\"title\":$( jsonString "$( getInspectWindowTitle )" ),"
+    printf '%s' "\"highlightColor\":$( jsonString "${inspectHighlightColor}" ),"
+    printf '%s' "\"moveable\":true,"
+    printf '%s' "\"triggerFile\":$( jsonString "${inspectTriggerFilePath}" ),"
+    printf '%s' "\"readinessFile\":$( jsonString "${inspectReadinessFilePath}" ),"
+    printf '%s' "\"resultFile\":$( jsonString "${inspectResultFilePath}" ),"
+    printf '%s' "\"plistSources\":$( buildInspectPlistSourcesJSON ),"
+    printf '%s' "\"items\":$( buildInspectItemsJSONArray ),"
+    printf '%s' "\"height\":${inspectWindowHeight},"
+    printf '%s' "\"width\":${inspectWindowWidth}"
+    printf '%s' "}"
+
+}
+
+function validateInspectConfigFile() {
+
+    local inspectConfigToValidate="${1:-${inspectConfigPath}}"
+
+    jq -e \
+        '.preset == "6"
+        and (.title | type == "string")
+        and (.title | length > 0)
+        and (.highlightColor | type == "string")
+        and (.highlightColor | length > 0)
+        and (.triggerFile | type == "string")
+        and (.triggerFile | length > 0)
+        and (.readinessFile | type == "string")
+        and (.readinessFile | length > 0)
+        and (.resultFile | type == "string")
+        and (.resultFile | length > 0)
+        and (.plistSources | type == "array")
+        and (.plistSources | length > 0)
+        and all(.plistSources[];
+            (.path | type == "string")
+            and (.path | length > 0)
+            and (.type == "compliance")
+            and (.healthyLabel | type == "string")
+            and (.attentionLabel | type == "string")
+            and (.successValues | type == "array")
+            and (.successValues | index("healthy") != null)
+            and (.keyMappings | type == "array")
+            and all(.keyMappings[];
+                (.key | type == "string")
+                and (.key | length > 0)
+                and (.displayName | type == "string")
+                and (.displayName | length > 0)
+                and (.category | type == "string")
+                and (.category | length > 0)
+            )
+        )
+        and (.height == 750)
+        and (.width == 975)
+        and (.items | type == "array")
+        and (.items | length >= 3)
+        and all(.items[];
+            (.displayName | type == "string")
+            and (.displayName | length > 0)
+            and (.guidanceTitle | type == "string")
+            and (.guidanceTitle | length > 0)
+            and (.icon | type == "string")
+            and (.icon | length > 0)
+            and (.id | type == "string")
+            and (.id | length > 0)
+            and (.guidanceContent | type == "array")
+            and (.guidanceContent | length > 0)
+            and all(.guidanceContent[];
+                (.type | type == "string")
+                and (.type | length > 0)
+                and (if .type == "bullets" then
+                        (.items | type == "array") and (.items | length > 0)
+                    elif .type == "button" then
+                        (.action == "url")
+                        and (.content | type == "string") and (.content | length > 0)
+                        and (.url | type == "string") and (.url | length > 0)
+                    elif .type == "highlight" then
+                        (.content | type == "string") and (.content | length > 0)
+                    elif .type == "comparison-table" then
+                        (.content | type == "string") and (.content | length > 0)
+                        and (.expectedLabel | type == "string") and (.expectedLabel | length > 0)
+                        and (.expected | type == "string") and (.expected | length > 0)
+                        and (.actualLabel | type == "string") and (.actualLabel | length > 0)
+                        and (.actual | type == "string") and (.actual | length > 0)
+                    elif .type == "phase-tracker" then
+                        (.content | type == "string") and (.content | length > 0)
+                        and (.phases | type == "array") and (.phases | length > 0)
+                        and all(.phases[]; (type == "string") and (length > 0))
+                        and (.currentPhase | type == "number")
+                    elif .type == "compliance-summary" then
+                        ((.label? // "Overall Compliance Status") | type == "string")
+                    elif .type == "findings-list" then
+                        true
+                    elif .type == "bento-grid" then
+                        (.bentoColumns | type == "number")
+                        and (.bentoGap == 12)
+                        and (.bentoRowHeight | type == "number")
+                        and (.bentoCells | type == "array")
+                        and (.bentoCells | length > 0)
+                        and all(.bentoCells[];
+                            (.id | type == "string")
+                            and (.id | length > 0)
+                            and (.column | type == "number")
+                            and (.row | type == "number")
+                            and (.title | type == "string")
+                            and (.title | length > 0)
+                            and (.sfSymbol | type == "string")
+                            and (.sfSymbol | length > 0)
+                        )
+                    else
+                        (.content | type == "string") and (.content | length > 0)
+                    end)
+            )
+        )' \
+        "${inspectConfigToValidate}" >/dev/null 2>&1
+
+}
+
+function prepareInspectConfigForUser() {
+
+    local inspectConfigToPrepare="${1:-${inspectConfigPath}}"
+
+    if [[ ! -e "${inspectConfigToPrepare}" ]]; then
+        warning "Inspect Summary: config file is unavailable at ${inspectConfigToPrepare}."
+        return 1
+    fi
+
+    if [[ -z "${loggedInUser}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
+        if [[ "${operationMode}" == "Silent" ]]; then
+            if ! chmod 644 "${inspectConfigToPrepare}" 2>/dev/null; then
+                warning "Inspect Summary: failed to set readable permissions on ${inspectConfigToPrepare} for Silent mode."
+                return 1
+            fi
+            notice "Inspect Summary: no valid GUI user found; leaving ${inspectConfigToPrepare} root-owned and readable for Silent mode."
+            return 0
+        fi
+        warning "Inspect Summary: no valid logged-in user available for ${inspectConfigToPrepare}."
+        return 1
+    fi
+
+    if ! chown "${loggedInUser}" "${inspectConfigToPrepare}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set ownership on ${inspectConfigToPrepare} for ${loggedInUser}."
+        return 1
+    fi
+
+    if ! chmod 600 "${inspectConfigToPrepare}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set permissions on ${inspectConfigToPrepare} for ${loggedInUser}."
+        return 1
+    fi
+
+    return 0
+
+}
+
+function prepareInspectLaunchLogForUser() {
+
+    if ! : > "${inspectLaunchLogPath}" 2>/dev/null; then
+        warning "Inspect Summary: failed to create ${inspectLaunchLogPath}."
+        return 1
+    fi
+
+    if ! chown "${loggedInUser}" "${inspectLaunchLogPath}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set ownership on ${inspectLaunchLogPath} for ${loggedInUser}."
+        return 1
+    fi
+
+    if ! chmod 600 "${inspectLaunchLogPath}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set permissions on ${inspectLaunchLogPath} for ${loggedInUser}."
+        return 1
+    fi
+
+    return 0
+
+}
+
+function prepareInspectCompliancePlistForUser() {
+
+    if [[ ! -e "${inspectCompliancePlistPath}" ]]; then
+        warning "Inspect Summary: compliance plist is unavailable at ${inspectCompliancePlistPath}."
+        return 1
+    fi
+
+    if [[ -z "${loggedInUser}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
+        if [[ "${operationMode}" == "Silent" ]]; then
+            if ! chmod 644 "${inspectCompliancePlistPath}" 2>/dev/null; then
+                warning "Inspect Summary: failed to set readable permissions on ${inspectCompliancePlistPath} for Silent mode."
+                return 1
+            fi
+            notice "Inspect Summary: no valid GUI user found; leaving ${inspectCompliancePlistPath} root-owned and readable for Silent mode."
+            return 0
+        fi
+        warning "Inspect Summary: no valid logged-in user available for ${inspectCompliancePlistPath}."
+        return 1
+    fi
+
+    if ! chown "${loggedInUser}" "${inspectCompliancePlistPath}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set ownership on ${inspectCompliancePlistPath} for ${loggedInUser}."
+        return 1
+    fi
+
+    if ! chmod 600 "${inspectCompliancePlistPath}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set permissions on ${inspectCompliancePlistPath}."
+        return 1
+    fi
+
+    return 0
+
+}
+
+function generateInspectCompliancePlist() {
+
+    local inspectCompliancePlistXML=""
+
+    inspectCompliancePlistXML="$( buildInspectCompliancePlistXML )"
+    writeReadableTextFile "${inspectCompliancePlistPath}" "${inspectCompliancePlistXML}"
+
+    if ! /usr/bin/plutil -lint "${inspectCompliancePlistPath}" >/dev/null 2>&1; then
+        warning "Inspect Summary: generated compliance plist failed validation at ${inspectCompliancePlistPath}."
+        return 1
+    fi
+
+    if ! prepareInspectCompliancePlistForUser; then
+        return 1
+    fi
+
+    notice "Inspect Summary: wrote ${inspectCompliancePlistPath}."
+    return 0
+
+}
+
+function generateInspectSummaryAssets() {
+
+    local inspectConfigJSON=""
+
+    if ! inspectSummaryIsEnabled; then
+        return 1
+    fi
+
+    inspectConfigJSON="$( buildInspectConfigJSON )"
+
+    if ! generateInspectCompliancePlist; then
+        return 1
+    fi
+
+    if ! validateJson "${inspectConfigJSON}"; then
+        warning "Inspect Summary: generated inspect config JSON failed validation."
+        return 1
+    fi
+
+    writeReadableTextFile "${inspectConfigPath}" "${inspectConfigJSON}"
+    if ! validateInspectConfigFile "${inspectConfigPath}"; then
+        warning "Inspect Summary: failed to validate ${inspectConfigPath}."
+        return 1
+    fi
+
+    if ! prepareInspectConfigForUser "${inspectConfigPath}"; then
+        return 1
+    fi
+
+    notice "Inspect Summary: wrote ${inspectConfigPath}."
+    return 0
+
+}
+
+function launchInspectSummary() {
+
+    local inspectConfigToLaunch="${1:-${inspectConfigPath}}"
+    local inspectPID=""
+    local launchCommand=""
+
+    if ! inspectSummaryIsEnabled; then
+        return 1
+    fi
+
+    if [[ ! -r "${inspectConfigToLaunch}" ]]; then
+        warning "Inspect Summary: config file is not readable at ${inspectConfigToLaunch}."
+        return 1
+    fi
+
+    if ! prepareInspectConfigForUser "${inspectConfigToLaunch}"; then
+        return 1
+    fi
+
+    if [[ ! -r "${inspectCompliancePlistPath}" ]]; then
+        warning "Inspect Summary: compliance plist is not readable at ${inspectCompliancePlistPath}."
+        return 1
+    fi
+
+    if ! prepareInspectCompliancePlistForUser; then
+        return 1
+    fi
+
+    if ! prepareInspectLaunchLogForUser; then
+        return 1
+    fi
+
+    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} DIALOG_DEBUG=1 ${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
+    inspectPID="$( runAsUser /bin/zsh -lc "${launchCommand}" 2>/dev/null | tr -d '[:space:]' )"
+
+    if [[ ! "${inspectPID}" == <-> ]]; then
+        warning "Inspect Summary: detached launch did not return a valid PID. Review ${inspectLaunchLogPath}."
+        return 1
+    fi
+
+    notice "Inspect Summary: launched detached Preset 6 summary (PID ${inspectPID}; log ${inspectLaunchLogPath})."
+    return 0
+
+}
+
+function replayCachedInspectSummaryIfEligible() {
+
+    local configJSON=""
+    local configFileEpoch=""
+    local configFileAgeSeconds="0"
+
+    if ! inspectSummaryIsEnabled; then
+        return 1
+    fi
+
+    if [[ "${operationMode}" != "Self Service" ]]; then
+        return 1
+    fi
+
+    if [[ ! -r "${inspectConfigPath}" ]]; then
+        return 1
+    fi
+
+    configFileEpoch="$( stat -f "%m" "${inspectConfigPath}" 2>/dev/null )"
+    if [[ ! "${configFileEpoch}" == <-> ]]; then
+        warning "Inspect Summary Replay: unable to determine config age; running full health check."
+        return 1
+    fi
+
+    configFileAgeSeconds=$(( $( date +%s ) - configFileEpoch ))
+    if (( configFileAgeSeconds < 0 || configFileAgeSeconds >= inspectReplayMaximumAgeSeconds )); then
+        info "Inspect Summary Replay: cached config is older than ${inspectReplayMaximumAgeSeconds} seconds; running full health check."
+        return 1
+    fi
+
+    configJSON="$(<"${inspectConfigPath}")"
+    if ! validateJson "${configJSON}"; then
+        warning "Inspect Summary Replay: cached config JSON is invalid for Preset 6; running full health check."
+        return 1
+    fi
+
+    if ! validateInspectConfigFile "${inspectConfigPath}"; then
+        warning "Inspect Summary Replay: cached config structure is invalid for Preset 6; running full health check."
+        return 1
+    fi
+
+    notice "Inspect Summary Replay: launching cached Preset 6 summary from the last ${inspectReplayMaximumAgeSeconds} seconds."
+    if launchInspectSummary "${inspectConfigPath}"; then
+        return 0
+    fi
+
+    warning "Inspect Summary Replay: detached launch failed for Preset 6; running full health check."
+    return 1
+
 }
 
 
@@ -1597,7 +5026,7 @@ function webHookMessage() {
                         { "type": "mrkdwn", "text": "*Timestamp:*\n${timestamp}" },
                         { "type": "mrkdwn", "text": "*User:*\n${loggedInUser}" },
                         { "type": "mrkdwn", "text": "*OS Version:*\n${osVersion} (${osBuild})" },
-                        { "type": "mrkdwn", "text": "*Health Failures:*\n${overallHealth%%; }" }
+                        { "type": "mrkdwn", "text": "*Health Issues:*\n${overallHealth%%; }" }
                     ]
                 },
                 {
@@ -1689,7 +5118,7 @@ EOF
                                     { "title": "Timestamp", "value": "${timestamp}" },
                                     { "title": "User", "value": "${loggedInUser}" },
                                     { "title": "Operating System", "value": "${osVersion} (${osBuild})" },
-                                    { "title": "Health Failures", "value": "${overallHealth%%; }" }
+                                    { "title": "Health Issues", "value": "${overallHealth%%; }" }
                                 ]
                             }
                         ],
@@ -1724,48 +5153,29 @@ EOF
 
 }
 
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Display Failure Notification (Requires swiftDialog 3.1.0.4970+)
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-function displayFailureNotification() {
-
-    notice "Displaying failure notification …"
-
-    local failureList=""
-    local -a failedItems
-    failedItems=( "${(s/; /)overallHealth}" )
-    for item in "${failedItems[@]}"; do
-        [[ -n "${item}" ]] && failureList+="\n• ${item}"
-    done
-
-    local notificationMessage="Items failed during this health check. Please [contact support](${supportTeamWebsite}) for assistance.${failureList}"
-
-    "${dialogBinary}" \
-        --notification \
-        --style pseudo-alert \
-        --icon "${notificationIconURL}" \
-        --title "${humanReadableScriptName} Failures" \
-        --message "${notificationMessage}" \
-        --button1text "Close" \
-        --button2text "Contact Support" \
-        --button2action "${supportTeamWebsite}" &
-
-}
-
-
-
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Quit Script (thanks, @bartreadon!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function quitScript() {
 
+    local problemCheckCount=0
+    local warningCheckCount=0
+    local failureCheckCount=0
+    local inspectSummaryLaunched="false"
+    local timeMachineSummary="${tmStatus}"
+
+    [[ -n "${tmLastBackup}" ]] && timeMachineSummary+=" ${tmLastBackup}"
+
+    rebuildOverallHealthFromRecordedResults
+    calculateOverallReportStatus
+    warningCheckCount="${#reportWarningChecks[@]}"
+    failureCheckCount=$(( ${#reportFailChecks[@]} + ${#reportErrorChecks[@]} ))
+    problemCheckCount=$(( warningCheckCount + failureCheckCount ))
+
     quitOut "Exiting …"
 
-    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}] ${loggedInUserGroupMembership}; Security Mode: ${bootPoliciesSecurityMode}; DEP-allowed MDM Control: ${bootPoliciesDepAllowedMdmControl}; Activation Lock: ${activationLockStatus}; ${bootstrapTokenStatus}; sudo Check: ${sudoStatus}; sudoers: ${sudoAllLines}; Kerberos SSOe: ${kerberosSSOeResult}; Platform SSOe: ${platformSSOeResult}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${tmStatus} ${tmLastBackup}; Battery Cycle Count: ${batteryCycleCount}; Rosetta-required apps: ${rosettaRequiredApps}; Wi-Fi: ${ssid}; ${activeIPAddress//\*\*/}; VPN IP: ${vpnStatus} ${vpnExtendedStatus}; ${networkTimeServer}"
+    notice "${localAdminWarning}User: ${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}]; Security Mode: ${bootPoliciesSecurityMode}; DEP-allowed MDM Control: ${bootPoliciesDepAllowedMdmControl}; Activation Lock: ${activationLockStatus}; ${bootstrapTokenStatus}; Location Services: ${locationServicesStatus}; SSH: ${sshStatus}; Microsoft OneDrive Sync Date: ${oneDriveSyncDate}; Time Machine Backup Date: ${timeMachineSummary}; Battery Cycle Count: ${batteryCycleCount}; Rosetta-required apps: ${rosettaRequiredApps}; Wi-Fi: ${ssid}; VPN: ${vpnStatus}; ${networkTimeServer}"
 
     case ${mdmVendor} in
 
@@ -1775,24 +5185,75 @@ function quitScript() {
 
     esac
 
-    if [[ -n "${overallHealth}" ]]; then
-        if [[ "${operationMode}" != "Silent" ]]; then
-            dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
-            dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
-            displayFailureNotification
+    case "${reportOverallStatus}" in
+
+        "warning" )
+            if [[ "${operationMode}" != "Silent" ]]; then
+                dialogUpdate "icon: SF=exclamationmark.triangle.fill, weight=bold, colour1=${statusColorError}, colour2=${statusColorError}"
+                dialogUpdate "title: Computer Needs Attention <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
+            fi
+            if [[ -n "${webhookURL}" ]]; then
+                info "Sending webhook message"
+                webhookStatus="Warnings Detected (${problemCheckCount} issues)"
+                webHookMessage
+            fi
+            warning "${overallHealth%%; }"
+            exitCode="0"
+            ;;
+
+        "fail" | "error" )
+            if [[ "${operationMode}" != "Silent" ]]; then
+                dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
+                dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
+            fi
+            if [[ -n "${webhookURL}" ]]; then
+                info "Sending webhook message"
+                webhookStatus="Failures Detected (${problemCheckCount} issues)"
+                webHookMessage
+            fi
+            errorOut "${overallHealth%%; }"
+            exitCode="1"
+            ;;
+
+        * )
+            if [[ "${operationMode}" != "Silent" ]]; then
+                dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
+                dialogUpdate "title: Computer Healthy <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
+            fi
+            exitCode="0"
+            ;;
+
+    esac
+
+    generateAndSendSplunkReport
+
+    if [[ "${suppressNonSplunkConsoleLogging}" == "true" ]]; then
+        if (( reportingErrorCount > 0 )); then
+            exitCode="1"
+        elif [[ "${reportGenerated}" == "true" ]] && [[ "${reportTransmissionStatus}" == "success" ]]; then
+            exitCode="0"
+        else
+            exitCode="1"
         fi
-        if [[ -n "${webhookURL}" ]]; then
-            info "Sending webhook message"
-            webhookStatus="Failures Detected (${#errorMessages[@]} errors)"
-            webHookMessage
-        fi
-        errorOut "${overallHealth%%; }"
-        exitCode="1"
-    else
-        if [[ "${operationMode}" != "Silent" ]]; then
-            dialogUpdate "icon: SF=checkmark.circle, weight=bold, colour1=#00ff44, colour2=#075c1e"
-            dialogUpdate "title: Computer Healthy <br>as of $( date '+%d-%b-%Y %H:%M:%S' )"
-        fi
+    fi
+
+    if inspectSummaryIsEnabled; then
+        case "${operationMode}" in
+            "Self Service" )
+                if generateInspectSummaryAssets && launchInspectSummary; then
+                    inspectSummaryLaunched="true"
+                else
+                    info "Inspect Summary: continuing with the standard completion countdown."
+                fi
+                ;;
+            "Silent" )
+                if generateInspectSummaryAssets; then
+                    notice "Inspect Summary: Silent mode wrote inspect config assets without launching swiftDialog."
+                else
+                    warning "Inspect Summary: Silent mode failed to write inspect config assets; continuing without UI."
+                fi
+                ;;
+        esac
     fi
 
     if [[ "${operationMode}" != "Silent" ]]; then
@@ -1800,6 +5261,10 @@ function quitScript() {
         dialogUpdate "progresstext: Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
         dialogUpdate "button1text: Close"
         dialogUpdate "button1: enable"
+
+        if [[ "${inspectSummaryLaunched}" == "true" ]]; then
+            notice "Inspect Summary: detached Preset 6 summary launched; retaining the existing completion countdown on the main dialog."
+        fi
         
         sleep "${anticipationDuration}"
 
@@ -1839,7 +5304,7 @@ function quitScript() {
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
-    quitOut "Goodbye!"
+    quitOut "Good manners don’t cost nothing, do they, eh?"
 
     exit "${exitCode}"
 
@@ -1891,10 +5356,41 @@ fi
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pre-flight Check: Client-Side Cache Jitter
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${launchDaemonRun}" == "true" ]] && [[ "${clientSideJitterEnabled:l}" == "true" ]]; then
+
+    jitterOffset=$( calculateClientSideJitterOffset )
+    if [[ "${jitterOffset}" != -<-> && "${jitterOffset}" != <-> ]]; then
+        jitterOffset="0"
+    fi
+
+    jitterSleepSeconds=$(( jitterOffset + clientSideMaxJitterSeconds ))
+    (( jitterSleepSeconds < 0 )) && jitterSleepSeconds="0"
+    (( jitterSleepSeconds > ( clientSideMaxJitterSeconds * 2 ) )) && jitterSleepSeconds=$(( clientSideMaxJitterSeconds * 2 ))
+
+    notice "Client-Side Cache: Jitter offset = ${jitterOffset} seconds; sleeping ${jitterSleepSeconds} seconds."
+
+    if (( jitterSleepSeconds > 0 )); then
+        sleep "${jitterSleepSeconds}"
+    fi
+
+fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Pre-flight Check: Logging Preamble
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-preFlight "\n\n###\n# $humanReadableScriptName (${scriptVersion})\n# https://snelson.us/mhc\n#\n# Operation Mode: ${operationMode}\n####\n\n"
+preFlight "###"
+preFlight "# ${humanReadableScriptName} (${scriptVersion})"
+preFlight "# https://snelson.us/mhc"
+preFlight "#"
+preFlight "# Operation Mode: ${operationMode}"
+preFlight "###"
+preFlight ""
 preFlight "Initiating …"
 
 
@@ -1919,11 +5415,37 @@ fi
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Pre-flight Check: Confirm jq is installed
+# Pre-flight Check: Confirm JSON tooling availability
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-if ! command -v jq &> /dev/null; then
-    fatal "jq is not installed; exiting."
+if command -v jq &> /dev/null; then
+    preFlight "jq found; using jq for JSON validation and formatting."
+    reportJSONTool="jq"
+else
+    fatal "jq is required for JSON validation and formatting; install jq before running Mac Health Check on Macs that do not bundle it by default."
+fi
+
+if [[ "${forceFreshRunDetected}" == "true" ]]; then
+    preFlight "Client-Side Cache: Force Fresh Run requested via ${forceFreshRunSource}; bypassing cached-upload shortcut."
+fi
+
+if [[ "${clientSideSkipChecks}" == "true" ]]; then
+
+    notice "Client-Side Cache: cache is current; skipping health checks and uploading cached report only."
+    if sendCachedSplunkReport; then
+        quitOut "Client-Side Cache: cached Splunk report upload complete."
+        exit 0
+    else
+        errorOut "Client-Side Cache: cached Splunk report upload failed."
+        exit 1
+    fi
+
+fi
+
+if [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; then
+    if ! installClientSideScript; then
+        warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
+    fi
 fi
 
 
@@ -1932,11 +5454,41 @@ fi
 # Pre-flight Check: Validate / install swiftDialog (Thanks big bunches, @acodega!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-function dialogInstall() {
-    # Get the URL of the latest PKG From the Dialog GitHub repo
-    dialogURL=$(curl -L --silent --fail --connect-timeout 10 --max-time 30 \
+function getLatestSwiftDialogPkgURL() {
+
+    curl -L --silent --fail --connect-timeout 10 --max-time 30 \
         "https://api.github.com/repos/swiftDialog/swiftDialog/releases/latest" \
-        | awk -F '"' "/browser_download_url/ && /pkg\"/ { print \$4; exit }")
+        | awk -F '"' '/browser_download_url/ && /pkg"/ { print $4; exit }'
+
+}
+
+function getSwiftDialogVersionFromPkgURL() {
+
+    local dialogPackageURL="${1}"
+    local dialogPackageName="${dialogPackageURL##*/}"
+    local dialogPackageVersion="${dialogPackageName#dialog-}"
+
+    dialogPackageVersion="${dialogPackageVersion%.pkg}"
+    dialogPackageVersion="${dialogPackageVersion//-/.}"
+
+    printf '%s' "${dialogPackageVersion}"
+
+}
+
+function dialogInstall() {
+
+    local dialogURL="${1:-}"
+    local dialogPackageVersion=""
+    local expectedDialogTeamID="PWA5E9TQ59"
+    local workDirectory=""
+    local tempDirectory=""
+    local teamID=""
+
+    if [[ -z "${dialogURL}" ]]; then
+        dialogURL="$( getLatestSwiftDialogPkgURL )"
+    fi
+
+    dialogPackageVersion="$( getSwiftDialogVersionFromPkgURL "${dialogURL}" )"
     
     # Validate URL was retrieved
     if [[ -z "${dialogURL}" ]]; then
@@ -1948,10 +5500,11 @@ function dialogInstall() {
         fatal "Invalid swiftDialog URL format: ${dialogURL}"
     fi
 
-    # Expected Team ID of the downloaded PKG
-    expectedDialogTeamID="PWA5E9TQ59"
-
-    preFlight "Installing swiftDialog from ${dialogURL}..."
+    if [[ -n "${dialogPackageVersion}" ]]; then
+        preFlight "Installing swiftDialog ${dialogPackageVersion} from ${dialogURL}..."
+    else
+        preFlight "Installing swiftDialog from ${dialogURL}..."
+    fi
 
     # Create temporary working directory
     workDirectory=$( basename "$0" )
@@ -1992,6 +5545,9 @@ function dialogInstall() {
 
 function dialogCheck() {
 
+    local latestProductionDialogURL=""
+    local latestProductionDialogVersion=""
+
     # Check for Dialog and install if not found
     if [[ ! -d "${dialogAppBundle}" ]]; then
 
@@ -2005,9 +5561,22 @@ function dialogCheck() {
 
         dialogVersion=$("${dialogBinary}" --version)
         if ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
+
+            latestProductionDialogURL="$( getLatestSwiftDialogPkgURL )"
+            latestProductionDialogVersion="$( getSwiftDialogVersionFromPkgURL "${latestProductionDialogURL}" )"
+
+            if [[ -n "${latestProductionDialogVersion}" ]] && is-at-least "${latestProductionDialogVersion}" "${dialogVersion}"; then
+                preFlight "swiftDialog version ${dialogVersion} found. Latest production release is ${latestProductionDialogVersion}; skipping automatic download because configured minimum ${swiftDialogMinimumRequiredVersion} targets a newer non-production build."
+                return 0
+            fi
             
-            preFlight "swiftDialog version ${dialogVersion} found but swiftDialog ${swiftDialogMinimumRequiredVersion} or newer is required; updating …"
-            dialogInstall
+            if [[ -n "${latestProductionDialogVersion}" ]]; then
+                preFlight "swiftDialog version ${dialogVersion} found but swiftDialog ${swiftDialogMinimumRequiredVersion} or newer is required; updating to latest production ${latestProductionDialogVersion} …"
+            else
+                preFlight "swiftDialog version ${dialogVersion} found but swiftDialog ${swiftDialogMinimumRequiredVersion} or newer is required; updating …"
+            fi
+
+            dialogInstall "${latestProductionDialogURL}"
             if [[ ! -x "${dialogBinary}" ]]; then
                 fatal "Unable to update swiftDialog; are downloads from GitHub blocked on this Mac?"
             fi
@@ -2045,6 +5614,11 @@ fi
 
 preFlight "Complete"
 
+if replayCachedInspectSummaryIfEligible; then
+    quitOut "Replayed cached inspect summary."
+    exit 0
+fi
+
 
 
 ####################################################################################################
@@ -2060,9 +5634,10 @@ preFlight "Complete"
 function checkOS() {
 
     local humanReadableCheckName="macOS Version"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=pencil.and.list.clipboard,${organizationColorScheme}"
+    dialogUpdate "icon: SF=desktopcomputer.and.macbook,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Comparing installed OS version with compliant version …"
@@ -2078,7 +5653,8 @@ function checkOS() {
 
         logComment "OS Build, ${osBuild}, ends with a letter and ProductVersionExtra is empty; treating as beta"
         osResult="Beta macOS ${osVersion} (${osBuild})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Beta builds of macOS are purposely marked as unsupported, status: error, statustext: ${osResult}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Beta builds of macOS are purposely marked as unsupported, status: error, statustext: ${osResult}"
+        footerStatusColor="${statusColorError}"
         warning "${osResult}"
     
     else
@@ -2164,7 +5740,8 @@ function checkOS() {
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
             result "$osResult"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${osResult}"
+            footerStatusColor="${statusColorError}"
             # return 1
         fi
 
@@ -2214,16 +5791,21 @@ function checkOS() {
 
         if [[ "$latest_version_match" == true ]] || [[ "$security_update_within_30_days" == true ]] || [[ "$n_rule" == true ]]; then
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${osResult}"
+            footerStatusColor="${statusColorSuccess}"
             info "${osResult}"
         else
             osResult="macOS ${osVersion} (${osBuild})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please update to a supported macOS version via System Settings > General > Software Update, status: fail, statustext: ${osResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please update to a supported macOS version via System Settings > General > Software Update, status: fail, statustext: ${osResult}"
+            footerStatusColor="${statusColorFail}"
             errorOut "${osResult}"
             overallHealth+="${humanReadableCheckName}; "
         fi
 
     fi
+
+    dialogUpdate "icon: SF=desktopcomputer.and.macbook,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2605,9 +6187,10 @@ function resolvePaddedEnforcementDateForCandidate() {
 function checkAvailableSoftwareUpdates() {
 
     local humanReadableCheckName="Available Software Updates"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=arrow.trianglehead.2.clockwise,${organizationColorScheme}"
+    dialogUpdate "icon: SF=arrow.down.circle.dotted,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
@@ -2654,33 +6237,38 @@ function checkAvailableSoftwareUpdates() {
         case "${SUListRaw}" in
             *"Can’t connect"* )
                 availableSoftwareUpdates="Can’t connect to the Software Update server"
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Software Update, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > Software Update, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
+                footerStatusColor="${statusColorFail}"
                 ;;
             *"The operation couldn’t be completed."* )
                 availableSoftwareUpdates="The operation couldn’t be completed."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Software Update, status: fail, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > Software Update, status: fail, statustext: ${availableSoftwareUpdates}"
                 errorOut "${humanReadableCheckName}: ${availableSoftwareUpdates}"
                 overallHealth+="${humanReadableCheckName}; "
+                footerStatusColor="${statusColorFail}"
                 ;;
             *"Deferred: YES"* )
                 availableSoftwareUpdates="Deferred software available."
                 checkStagedUpdate
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+                footerStatusColor="${statusColorError}"
                 ;;
             *"No new software available."* )
                 availableSoftwareUpdates="No new software available."
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
                 info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+                footerStatusColor="${statusColorSuccess}"
                 ;;
             * )
                 SUList=$( echo "${SUListRaw}" | grep "*" | sed "s/\* Label: //g" | sed "s/,*$//g" )
                 availableSoftwareUpdates="${SUList}"
                 checkStagedUpdate
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
                 warning "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+                footerStatusColor="${statusColorError}"
                 ;;
         esac
 
@@ -2689,24 +6277,31 @@ function checkAvailableSoftwareUpdates() {
         # Treat a DDM-enforced OS Updates which contains the current OS as if there are no updates
         if [[ -z "$ddmEnforcedInstallDate" ]]; then
             availableSoftwareUpdates="None"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+            footerStatusColor="${statusColorSuccess}"
         elif [[ -n "${ddmBuildVersionString}" && "${ddmBuildVersionString}" != "(null)" && "${osBuild}" == "${ddmBuildVersionString}" ]]; then
             availableSoftwareUpdates="Up-to-date"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates} (build match)"
+            footerStatusColor="${statusColorSuccess}"
         elif is-at-least "${ddmVersionString}" "${osVersion}"; then
             availableSoftwareUpdates="Up-to-date"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Thanks for keeping your Mac up-to-date, status: success, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+            footerStatusColor="${statusColorSuccess}"
         else
             availableSoftwareUpdates="macOS ${ddmVersionString} (${ddmEnforcedInstallDateHumanReadable})"
             checkStagedUpdate
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > Software Update; ${stagingMessage}, status: error, statustext: ${availableSoftwareUpdates}"
             info "${humanReadableCheckName}: ${availableSoftwareUpdates}"
+            footerStatusColor="${statusColorError}"
         fi
 
     fi
+
+    dialogUpdate "icon: SF=arrow.down.circle.dotted,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2719,6 +6314,7 @@ function checkAvailableSoftwareUpdates() {
 function checkAppAutoPatch() {
 
     local humanReadableCheckName="App Auto-Patch last run"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=arrow.triangle.2.circlepath.circle,${organizationColorScheme}"
@@ -2727,80 +6323,95 @@ function checkAppAutoPatch() {
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
 
     sleep "${anticipationDuration}"
-    
+
     # Thresholds in days
     local aap_warning_threshold=7
     local aap_critical_threshold=30
 
     # Path to App Auto-Patch log
     local aap_log_path="/Library/Management/AppAutoPatch/logs/aap.log"
+    local canEvaluateLastRun="true"
 
     # Check if log file exists
     if [[ ! -f "${aap_log_path}" ]]; then
         errorOut "${humanReadableCheckName}: Log file not found"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Log not found"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Log not found"
         overallHealth+="${humanReadableCheckName}; "
-        return
+        footerStatusColor="${statusColorFail}"
+        canEvaluateLastRun="false"
     fi
 
     # Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
     local aap_ts_line aap_ts last_run_epoch now_epoch seconds_since_last_run days_since_last_run
 
-    aap_ts_line=$(grep -E "Current time stamp:" "${aap_log_path}" | tail -1)
+    if [[ "${canEvaluateLastRun}" == "true" ]]; then
+        aap_ts_line=$(grep -E "Current time stamp:" "${aap_log_path}" | tail -1)
+    fi
 
-    if [[ -z "${aap_ts_line}" ]]; then
+    if [[ "${canEvaluateLastRun}" == "true" && -z "${aap_ts_line}" ]]; then
         # Fallback: use log mtime if the timestamp line is missing
         last_run_epoch=$(stat -f %m "${aap_log_path}" 2>/dev/null)
-    else
+    elif [[ "${canEvaluateLastRun}" == "true" ]]; then
         aap_ts=$(echo "${aap_ts_line}" | awk '{print $NF}')
 
         # Validate expected format (14 digits)
         if [[ ! "${aap_ts}" =~ ^[0-9]{14}$ ]]; then
             errorOut "${humanReadableCheckName}: Unable to parse AAP timestamp"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Invalid timestamp format"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Invalid timestamp format"
             overallHealth+="${humanReadableCheckName}; "
-            return
+            footerStatusColor="${statusColorFail}"
+            canEvaluateLastRun="false"
+        else
+
+            # Convert YYYYMMDDHHMMSS -> epoch seconds (macOS date)
+            last_run_epoch=$(date -j -f "%Y%m%d%H%M%S" "${aap_ts}" "+%s" 2>/dev/null)
+        fi
+    fi
+
+    if [[ "${canEvaluateLastRun}" == "true" && ( -z "${last_run_epoch}" || ! "${last_run_epoch}" =~ ^[0-9]+$ ) ]]; then
+        errorOut "${humanReadableCheckName}: Unable to determine last run time"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Unable to determine last run"
+        overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
+        canEvaluateLastRun="false"
+    fi
+
+    if [[ "${canEvaluateLastRun}" == "true" ]]; then
+        now_epoch=$(date "+%s")
+        seconds_since_last_run=$(( now_epoch - last_run_epoch ))
+
+        # Guard against clock issues
+        if (( seconds_since_last_run < 0 )); then seconds_since_last_run=0; fi
+
+        days_since_last_run=$(( seconds_since_last_run / 86400 ))
+
+        # Display string (avoid "0 day(s) ago")
+        local days_since_last_run_display
+        if (( days_since_last_run == 0 )); then
+            days_since_last_run_display="Today"
+        else
+            days_since_last_run_display="${days_since_last_run} day(s) ago"
         fi
 
-        # Convert YYYYMMDDHHMMSS -> epoch seconds (macOS date)
-        last_run_epoch=$(date -j -f "%Y%m%d%H%M%S" "${aap_ts}" "+%s" 2>/dev/null)
+        # Set status based on days since last run
+        if (( days_since_last_run >= aap_critical_threshold )); then
+            errorOut "${humanReadableCheckName}: ${days_since_last_run_display} (exceeds critical threshold of ${aap_critical_threshold} days)"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: ${days_since_last_run_display}"
+            overallHealth+="${humanReadableCheckName}; "
+            footerStatusColor="${statusColorFail}"
+        elif (( days_since_last_run >= aap_warning_threshold )); then
+            warning "${humanReadableCheckName}: ${days_since_last_run_display} (exceeds warning threshold of ${aap_warning_threshold} days)"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: error, statustext: ${days_since_last_run_display}"
+            footerStatusColor="${statusColorError}"
+        else
+            info "${humanReadableCheckName}: ${days_since_last_run_display}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: You can run App Auto-Patch at any time from the ${organizationSelfServiceMarketingName}, status: success, statustext: ${days_since_last_run_display}"
+            footerStatusColor="${statusColorSuccess}"
+        fi
     fi
 
-    if [[ -z "${last_run_epoch}" || ! "${last_run_epoch}" =~ ^[0-9]+$ ]]; then
-        errorOut "${humanReadableCheckName}: Unable to determine last run time"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Unable to determine last run"
-        overallHealth+="${humanReadableCheckName}; "
-        return
-    fi
-
-    now_epoch=$(date "+%s")
-    seconds_since_last_run=$(( now_epoch - last_run_epoch ))
-
-    # Guard against clock issues
-    if (( seconds_since_last_run < 0 )); then seconds_since_last_run=0; fi
-
-    days_since_last_run=$(( seconds_since_last_run / 86400 ))
-
-    # Display string (avoid "0 day(s) ago")
-    local days_since_last_run_display
-    if (( days_since_last_run == 0 )); then
-        days_since_last_run_display="Today"
-    else
-        days_since_last_run_display="${days_since_last_run} day(s) ago"
-    fi
-
-    # Set status based on days since last run
-    if (( days_since_last_run >= aap_critical_threshold )); then
-        errorOut "${humanReadableCheckName}: ${days_since_last_run_display} (exceeds critical threshold of ${aap_critical_threshold} days)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: ${days_since_last_run_display}"
-        overallHealth+="${humanReadableCheckName}; "
-    elif (( days_since_last_run >= aap_warning_threshold )); then
-        warning "${humanReadableCheckName}: ${days_since_last_run_display} (exceeds warning threshold of ${aap_warning_threshold} days)"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: error, statustext: ${days_since_last_run_display}"
-    else
-        info "${humanReadableCheckName}: ${days_since_last_run_display}"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: You can run App Auto-Patch at any time from the ${organizationSelfServiceMarketingName}, status: success, statustext: ${days_since_last_run_display}"
-    fi
+    dialogUpdate "icon: SF=arrow.triangle.2.circlepath.circle,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2813,6 +6424,7 @@ function checkAppAutoPatch() {
 function checkSIP() {
 
     local humanReadableCheckName="System Integrity Protection"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=checkmark.shield.fill,${organizationColorScheme}"
@@ -2827,17 +6439,22 @@ function checkSIP() {
     case ${bootPoliciesSipStatus} in
 
         "Enabled" ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            footerStatusColor="${statusColorSuccess}"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            footerStatusColor="${statusColorFail}"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
 
     esac
+
+    dialogUpdate "icon: SF=checkmark.shield.fill,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2850,6 +6467,7 @@ function checkSIP() {
 function checkSSV() {
 
     local humanReadableCheckName="Signed System Volume"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=lock.shield,${organizationColorScheme}"
@@ -2864,17 +6482,22 @@ function checkSSV() {
     case ${bootPoliciesSsvStatus} in
 
         "Enabled" ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            footerStatusColor="${statusColorSuccess}"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            footerStatusColor="${statusColorFail}"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
 
     esac
+
+    dialogUpdate "icon: SF=lock.shield,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2887,6 +6510,7 @@ function checkSSV() {
 function checkGatekeeperXProtect() {
 
     local humanReadableCheckName="Gatekeeper / XProtect"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=bolt.shield.fill,${organizationColorScheme}"
@@ -2901,17 +6525,22 @@ function checkGatekeeperXProtect() {
     case ${gatekeeperXProtectCheck} in
 
         *"enabled"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            footerStatusColor="${statusColorSuccess}"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            footerStatusColor="${statusColorFail}"
             errorOut "${humanReadableCheckName} (${1})"
             overallHealth+="${humanReadableCheckName}; "
             ;;
 
     esac
+
+    dialogUpdate "icon: SF=bolt.shield.fill,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2924,6 +6553,7 @@ function checkGatekeeperXProtect() {
 function checkFirewall() {
 
     local humanReadableCheckName="Firewall"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=firewall.fill,${organizationColorScheme}"
@@ -2942,17 +6572,22 @@ function checkFirewall() {
     case ${firewallCheck} in
 
         *"enabled"* | *"Enabled"* | *"is blocking"* ) 
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+            footerStatusColor="${statusColorSuccess}"
             info "${humanReadableCheckName}: Enabled"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            footerStatusColor="${statusColorFail}"
             errorOut "${humanReadableCheckName}: Failed"
             overallHealth+="${humanReadableCheckName}; "
             ;;
 
     esac
+
+    dialogUpdate "icon: SF=firewall.fill,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -2965,6 +6600,7 @@ function checkFirewall() {
 function checkUptime() {
 
     local humanReadableCheckName="Uptime"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=stopwatch,${organizationColorScheme}"
@@ -3000,12 +6636,14 @@ function checkUptime() {
         case ${excessiveUptimeAlertStyle} in
 
             "warning" ) 
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please restart your Mac regularly, status: error, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please restart your Mac regularly, status: error, statustext: ${uptimeHumanReadable}"
+                footerStatusColor="${statusColorError}"
                 warning "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 ;;
 
             "error" | * )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please restart your Mac regularly, status: fail, statustext: ${uptimeHumanReadable}"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please restart your Mac regularly, status: fail, statustext: ${uptimeHumanReadable}"
+                footerStatusColor="${statusColorFail}"
                 errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -3014,10 +6652,14 @@ function checkUptime() {
     
     else
     
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Thanks for restarting your Mac regularly, status: success, statustext: ${uptimeHumanReadable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Thanks for restarting your Mac regularly, status: success, statustext: ${uptimeHumanReadable}"
+        footerStatusColor="${statusColorSuccess}"
         info "${humanReadableCheckName}: ${uptimeHumanReadable}"
     
     fi
+
+    dialogUpdate "icon: SF=stopwatch,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3030,6 +6672,7 @@ function checkUptime() {
 function checkFreeDiskSpace() {
 
     local humanReadableCheckName="Free Disk Space"
+    local footerStatusColor="${statusColorSuccess}"
     local diskRawValues=""
     local diskutilInfo=""
     local freeSpace=""
@@ -3037,6 +6680,7 @@ function checkFreeDiskSpace() {
     local freeBytes=""
     local freePercentage=""
     local diskSpace=""
+    local canEvaluateDiskSpace="true"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=externaldrive.fill.badge.checkmark,${organizationColorScheme}"
@@ -3070,28 +6714,36 @@ function checkFreeDiskSpace() {
         else
 
             warning "Invalid disk space data: diskBytes=${diskBytes}, freeBytes=${freeBytes}"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: error, statustext: Unable to determine"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: error, statustext: Unable to determine"
             warning "${humanReadableCheckName}: Unable to determine"
-            return
+            footerStatusColor="${statusColorError}"
+            canEvaluateDiskSpace="false"
 
         fi
 
     fi
 
-    diskSpace="${freeSpace} free (${freePercentage}% available)"
+    if [[ "${canEvaluateDiskSpace}" == "true" ]]; then
+        diskSpace="${freeSpace} free (${freePercentage}% available)"
 
-    if (( $( echo "${freePercentage} < ${allowedMinimumFreeDiskPercentage}" | bc -l ) )); then
+        if (( $( echo "${freePercentage} < ${allowedMinimumFreeDiskPercentage}" | bc -l ) )); then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: See KB0080685 Disk Usage to help identify the 50 largest directories, status: fail, statustext: ${diskSpace}"
-        errorOut "${humanReadableCheckName}: ${diskSpace}"
-        overallHealth+="${humanReadableCheckName}; "
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: See KB0080685 Disk Usage to help identify the 50 largest directories, status: fail, statustext: ${diskSpace}"
+            footerStatusColor="${statusColorFail}"
+            errorOut "${humanReadableCheckName}: ${diskSpace}"
+            overallHealth+="${humanReadableCheckName}; "
 
-    else
+        else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${diskSpace}"
-        info "${humanReadableCheckName}: ${diskSpace}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${diskSpace}"
+            footerStatusColor="${statusColorSuccess}"
+            info "${humanReadableCheckName}: ${diskSpace}"
 
+        fi
     fi
+
+    dialogUpdate "icon: SF=externaldrive.fill.badge.checkmark,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3105,6 +6757,7 @@ function checkUserDirectorySizeItems() {
 
     local targetDirectory="${loggedInUserHomeDirectory}/${2}"
     local humanReadableCheckName="${4}"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} directory size and item count …"
 
     dialogUpdate "icon: SF=${3},${organizationColorScheme}"
@@ -3119,7 +6772,8 @@ function checkUserDirectorySizeItems() {
 
     if [[ "${userDirectoryItems}" == "0" ]]; then
         userDirectoryResult="Empty"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
+        footerStatusColor="${statusColorSuccess}"
         info "${humanReadableCheckName}: ${userDirectoryResult}"
     else
         dirBlocks=$( du -s "${targetDirectory}" 2>/dev/null | awk '{print $1}' )
@@ -3127,14 +6781,19 @@ function checkUserDirectorySizeItems() {
         percentage=$( echo "scale=2; if (${totalDiskBytes} > 0) ${dirBytes} * 100 / ${totalDiskBytes} else 0" | bc -l 2>/dev/null || echo "0" )
         userDirectoryResult="${userDirectorySize} (${userDirectoryItems} items) — ${percentage}% of disk"
         if (( $( echo ${percentage}'>'${allowedMaximumDirectoryPercentage} | bc -l 2>/dev/null ) )); then
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: Please contact ${supportTeamName} if you need assistance, status: error, statustext: ${userDirectoryResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName} if you need assistance, status: error, statustext: ${userDirectoryResult}"
+            footerStatusColor="${statusColorError}"
             warning "${humanReadableCheckName}: ${userDirectoryResult}"
             # overallHealth+="${humanReadableCheckName}; " # Uncomment to treat as an error
         else
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
+            footerStatusColor="${statusColorSuccess}"
             info "${humanReadableCheckName}: ${userDirectoryResult}"
         fi
     fi
+
+    dialogUpdate "icon: SF=${3},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3146,6 +6805,7 @@ function checkUserDirectorySizeItems() {
 
 function checkMdmProfile() {
     local humanReadableCheckName="${mdmVendor} MDM Profile"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
     dialogUpdate "icon: SF=gear.badge,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
@@ -3165,15 +6825,262 @@ function checkMdmProfile() {
     fi
     
     if [[ -n "${mdmProfileTest}" ]]; then
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
+        footerStatusColor="${statusColorSuccess}"
         info "${humanReadableCheckName}: Installed"
     else
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: NOT Installed"
+        footerStatusColor="${statusColorFail}"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
         errorOut "Execute the following command to determine the profileIdentifier of the MDM Profile:"
         errorOut "sudo profiles show enrollment | grep 'profileIdentifier:'"
     fi
+
+    dialogUpdate "icon: SF=gear.badge,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Entra ID Registration
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function getEntraJamfAADPlistPath() {
+
+    if [[ -z "${loggedInUserHomeDirectory}" ]]; then
+        echo ""
+    else
+        echo "${loggedInUserHomeDirectory}/Library/Preferences/com.jamf.management.jamfAAD.plist"
+    fi
+
+}
+
+function readEntraJamfAADHaveAzureID() {
+
+    local plistPath="${1}"
+    local rawValue=""
+
+    if [[ ! -f "${plistPath}" ]]; then
+        echo ""
+        return
+    fi
+
+    rawValue="$( defaults read "${plistPath}" have_an_Azure_id 2>/dev/null )"
+
+    if [[ -z "${rawValue}" ]]; then
+        rawValue="$( /usr/libexec/PlistBuddy -c "Print :have_an_Azure_id" "${plistPath}" 2>/dev/null )"
+    fi
+
+    case "${rawValue:l}" in
+        "1"|"true"|"yes" )
+            echo "1"
+            ;;
+        "0"|"false"|"no" )
+            echo "0"
+            ;;
+        * )
+            printf '%s' "${rawValue}"
+            ;;
+    esac
+
+}
+
+function getEntraPSSOBinaryPath() {
+    echo "/Library/Application Support/JAMF/Jamf.app/Contents/MacOS/Jamf Conditional Access.app/Contents/MacOS/Jamf Conditional Access"
+}
+
+function getEntraPSSOStatusRaw() {
+
+    local pssoBinary="$( getEntraPSSOBinaryPath )"
+
+    if [[ -z "${loggedInUserID}" ]] || [[ ! -x "${pssoBinary}" ]]; then
+        echo ""
+        return
+    fi
+
+    launchctl asuser "${loggedInUserID}" "${pssoBinary}" getPSSOStatus 2>/dev/null
+
+}
+
+function getEntraPSSODeviceID() {
+
+    local pssoStatusRaw="${1}"
+
+    printf '%s' "${pssoStatusRaw}" | \
+        sed -E 's/AnyHashable\(|\)//g' | \
+        tr ',' '\n' | \
+        awk -F'=' '/primary_registration_metadata_device_id/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}'
+
+}
+
+function getEntraLegacyCertificateOutput() {
+
+    if [[ -z "${loggedInUserID}" ]]; then
+        echo ""
+        return
+    fi
+
+    launchctl asuser "${loggedInUserID}" /usr/bin/security find-certificate -a -c "MS-ORGANIZATION-ACCESS" 2>/dev/null
+
+}
+
+function checkEntraIDRegistration() {
+
+    local humanReadableCheckName="Entra ID Registration"
+    local footerCheckIcon="SF=person.badge.key"
+    local footerStatusColor="${statusColorSuccess}"
+    local jamfAADPlistPath="$( getEntraJamfAADPlistPath )"
+    local pssoBinary="$( getEntraPSSOBinaryPath )"
+    local pssoStatusRaw=""
+    local pssoDeviceID=""
+    local legacyCertificateAlias=""
+    local haveAzureID=""
+    local resultStatus="not_applicable"
+    local resultMethod="none"
+    local resultValue="Not Applicable"
+    local resultSubtitle="${organizationBoilerplateComplianceMessage}"
+    local resultDetails="No Microsoft Entra registration artifacts found"
+    local listItemStyle=""
+    local artifactDetected="false"
+
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: ${footerCheckIcon},${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
+
+    sleep "${anticipationDuration}"
+
+    entraIDRegistrationLastUser="${loggedInUser}"
+    entraIDRegistrationLastUserHome="${loggedInUserHomeDirectory}"
+
+    if [[ -x "${pssoBinary}" ]] || [[ -f "${jamfAADPlistPath}" ]]; then
+        artifactDetected="true"
+    fi
+
+    if [[ -z "${loggedInUserID}" ]] || [[ -z "${loggedInUser}" ]] || [[ -z "${loggedInUserHomeDirectory}" ]]; then
+        if [[ "${artifactDetected}" == "true" ]]; then
+            resultStatus="detection_error"
+            resultValue="Detection Error"
+            resultSubtitle="No target user context available. Contact ${supportTeamName}."
+            resultDetails="Entra-related artifacts exist, but no user context is available for inspection"
+        fi
+    else
+        if [[ -x "${pssoBinary}" ]]; then
+            pssoStatusRaw="$(
+                captureRunAsUserOutput env HOME="${loggedInUserHomeDirectory}" USER="${loggedInUser}" LOGNAME="${loggedInUser}" "${pssoBinary}" getPSSOStatus 2>/dev/null | \
+                    sed -E '/^0$/d; s/AnyHashable\(|\)//g' | \
+                    tr '\n' ' ' | \
+                    sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
+            )"
+        fi
+
+        if [[ -n "${pssoStatusRaw}" ]] && [[ "${pssoStatusRaw}" == *"primary_registration_metadata_device_id"* ]]; then
+            artifactDetected="true"
+            resultMethod="psso"
+            pssoDeviceID="$( getEntraPSSODeviceID "${pssoStatusRaw}" )"
+
+            if [[ -f "${jamfAADPlistPath}" ]]; then
+                haveAzureID="$( readEntraJamfAADHaveAzureID "${jamfAADPlistPath}" )"
+                case "${haveAzureID}" in
+                    "1" )
+                        resultStatus="registered"
+                        resultValue="Registered"
+                        resultSubtitle="${organizationBoilerplateComplianceMessage}"
+                        if [[ -n "${pssoDeviceID}" ]]; then
+                            resultDetails="PSSO device ID detected for ${loggedInUserHomeDirectory}: ${pssoDeviceID}"
+                        else
+                            resultDetails="PSSO registration metadata detected for ${loggedInUserHomeDirectory}"
+                        fi
+                        ;;
+                    * )
+                        resultStatus="partial"
+                        resultValue="Partial"
+                        resultSubtitle="WPJ key is present, but AAD ID was not acquired for current user. Run Entra registration or contact ${supportTeamName}."
+                        resultDetails="PSSO registration metadata detected, but have_an_Azure_id is not 1"
+                        ;;
+                esac
+            else
+                resultStatus="partial"
+                resultValue="Partial"
+                resultSubtitle="WPJ key is present, but JamfAAD status is missing. Run Entra registration or contact ${supportTeamName}."
+                resultDetails="PSSO registration metadata detected, but JamfAAD plist is missing"
+            fi
+        fi
+
+        if [[ "${resultStatus}" == "not_applicable" ]]; then
+            legacyCertificateAlias="$(
+                captureRunAsUserOutput env HOME="${loggedInUserHomeDirectory}" USER="${loggedInUser}" LOGNAME="${loggedInUser}" /bin/sh -c '/usr/bin/security find-certificate -a -Z 2>/dev/null | /usr/bin/grep -B 9 "MS-ORGANIZATION-ACCESS" | /usr/bin/awk '\''/"alis"<blob>="/ {print $NF}'\'' | /usr/bin/sed '\''s/"alis"<blob>="//;s/.$//'\'''
+            )"
+
+            if [[ -n "${legacyCertificateAlias}" ]]; then
+                artifactDetected="true"
+                resultMethod="legacy"
+
+                if [[ -f "${jamfAADPlistPath}" ]]; then
+                    haveAzureID="$( readEntraJamfAADHaveAzureID "${jamfAADPlistPath}" )"
+                    case "${haveAzureID}" in
+                        "1" )
+                            resultStatus="registered"
+                            resultValue="Registered"
+                            resultSubtitle="${organizationBoilerplateComplianceMessage}"
+                            resultDetails="Legacy MS-ORGANIZATION-ACCESS certificate detected for ${loggedInUserHomeDirectory}"
+                            ;;
+                        * )
+                            resultStatus="partial"
+                            resultValue="Partial"
+                            resultSubtitle="WPJ key is present, but AAD ID was not acquired for current user. Run Entra registration or contact ${supportTeamName}."
+                            resultDetails="Legacy MS-ORGANIZATION-ACCESS certificate detected, but have_an_Azure_id is not 1"
+                            ;;
+                    esac
+                else
+                    resultStatus="partial"
+                    resultValue="Partial"
+                    resultSubtitle="WPJ key is present, but JamfAAD status is missing. Run Entra registration or contact ${supportTeamName}."
+                    resultDetails="Legacy MS-ORGANIZATION-ACCESS certificate detected, but JamfAAD plist is missing"
+                fi
+            fi
+        fi
+
+        if [[ "${resultStatus}" == "not_applicable" ]] && [[ "${artifactDetected}" == "true" ]]; then
+            resultStatus="not_registered"
+            resultValue="Not Registered"
+            resultSubtitle="No valid Entra registration found. Run Entra registration or contact ${supportTeamName}."
+            resultDetails="Entra-related artifacts exist, but no valid PSSO metadata or legacy registration certificate was found"
+        fi
+    fi
+
+    case "${resultStatus}" in
+        "registered" | "not_applicable" )
+            listItemStyle="weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${resultSubtitle}, status: success, statustext: ${resultValue}"
+            footerStatusColor="${statusColorSuccess}"
+            info "${humanReadableCheckName}: ${resultValue}${resultDetails:+ (${resultDetails})}"
+            ;;
+        "partial" | "detection_error" )
+            listItemStyle="weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${resultSubtitle}, status: error, statustext: ${resultValue}"
+            footerStatusColor="${statusColorError}"
+            warning "${humanReadableCheckName}: ${resultValue}${resultDetails:+ (${resultDetails})}"
+            overallHealth+="${humanReadableCheckName}; "
+            ;;
+        * )
+            listItemStyle="weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${resultSubtitle}, status: fail, statustext: ${resultValue}"
+            footerStatusColor="${statusColorFail}"
+            errorOut "${humanReadableCheckName}: ${resultValue}${resultDetails:+ (${resultDetails})}"
+            overallHealth+="${humanReadableCheckName}; "
+            ;;
+    esac
+
+    entraIDRegistrationStatus="${resultStatus}"
+    entraIDRegistrationMethod="${resultMethod}"
+    entraIDRegistrationDetails="${resultDetails}"
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill ${listItemStyle}"
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+
 }
 
 
@@ -3185,6 +7092,7 @@ function checkMdmProfile() {
 function checkAPNs() {
 
     local humanReadableCheckName="Apple Push Notification service"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=wave.3.up.circle,${organizationColorScheme}"
@@ -3198,7 +7106,8 @@ function checkAPNs() {
 
     if [[ "${apnsCheck}" == *"Timestamp"* ]] || [[ -z "${apnsCheck}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+        footerStatusColor="${statusColorFail}"
         errorOut "${humanReadableCheckName} (${1}): ${apnsCheck}"
         overallHealth+="${humanReadableCheckName}; "
 
@@ -3212,10 +7121,14 @@ function checkAPNs() {
         else
             apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
         fi
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${apnsStatus}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${apnsStatus}"
+        footerStatusColor="${statusColorSuccess}"
         info "${humanReadableCheckName}: ${apnsCheck}"
 
     fi
+
+    dialogUpdate "icon: SF=wave.3.up.circle,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3370,6 +7283,7 @@ function checkNetworkHosts() {
     local name="$2"
     shift 2
     local hosts=("$@")
+    local footerStatusColor="${statusColorSuccess}"
 
     notice "Check ${name} …"
     dialogUpdate "icon: SF=network,${organizationColorScheme}"
@@ -3421,13 +7335,18 @@ function checkNetworkHosts() {
     done
 
     if [[ "${allOK}" == true ]]; then
-        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Passed"
+        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Passed"
+        footerStatusColor="${statusColorSuccess}"
         info "${name}: ${results%;; }"
     else
-        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: Failed"
+        footerStatusColor="${statusColorFail}"
         errorOut "${name}: ${results%;; }"
         overallHealth+="${name}; "
     fi
+
+    dialogUpdate "icon: SF=network,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3438,6 +7357,9 @@ function checkNetworkHosts() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkMdmCertificateExpiration() {
+
+    local certificateName=""
+    local footerStatusColor="${statusColorSuccess}"
 
     case "${mdmVendor}" in
         "Addigy" )
@@ -3465,7 +7387,6 @@ function checkMdmCertificateExpiration() {
             certificateName="MOSYLE CORPORATION"
             ;;
         * )
-            return
             ;;
     esac
 
@@ -3479,29 +7400,36 @@ function checkMdmCertificateExpiration() {
 
     sleep "${anticipationDuration}"
 
-    expiry=$(security find-certificate -c "${certificateName}" -p /Library/Keychains/System.keychain 2>/dev/null | \
-             openssl x509 -noout -enddate | cut -d= -f2)
+    if [[ -n "${certificateName}" ]]; then
+        expiry=$(security find-certificate -c "${certificateName}" -p /Library/Keychains/System.keychain 2>/dev/null | \
+                 openssl x509 -noout -enddate | cut -d= -f2)
 
-    if [[ -z "$expiry" ]]; then
-        expirationDateFormatted="NOT Installed"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
-        errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
-        overallHealth+="${humanReadableCheckName}; "
-        return
+        if [[ -z "$expiry" ]]; then
+            expirationDateFormatted="NOT Installed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
+            footerStatusColor="${statusColorFail}"
+            errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
+            overallHealth+="${humanReadableCheckName}; "
+        else
+            now_seconds=$(date +%s)
+            date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
+            expirationDateFormatted=$(date -j -f "%b %d %H:%M:%S %Y GMT" "$expiry" "+%d-%b-%Y")
+
+            if (( date_seconds > now_seconds )); then
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${expirationDateFormatted}"
+                footerStatusColor="${statusColorSuccess}"
+                info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
+            else
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
+                footerStatusColor="${statusColorFail}"
+                errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
+                overallHealth+="${humanReadableCheckName}; "
+            fi
+        fi
     fi
 
-    now_seconds=$(date +%s)
-    date_seconds=$(date -j -f "%b %d %T %Y %Z" "$expiry" +%s)
-    expirationDateFormatted=$(date -j -f "%b %d %H:%M:%S %Y GMT" "$expiry" "+%d-%b-%Y")
-
-    if (( date_seconds > now_seconds )); then
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${expirationDateFormatted}"
-        info "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
-    else
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${expirationDateFormatted}"
-        errorOut "${humanReadableCheckName} Expiration: ${expirationDateFormatted}"
-        overallHealth+="${humanReadableCheckName}; "
-    fi
+    dialogUpdate "icon: SF=mail.and.text.magnifyingglass,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 }
 
 
@@ -3513,9 +7441,11 @@ function checkMdmCertificateExpiration() {
 function checkJamfProCheckIn() {
 
     local humanReadableCheckName="Last Jamf Pro check-in"
+    local footerCheckIcon="SF=arrow.left.arrow.right.circle"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
+    dialogUpdate "icon: SF=arrow.left.arrow.right.circle,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
@@ -3547,19 +7477,24 @@ function checkJamfProCheckIn() {
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
         errorOut "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
         warning "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorError}"
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_check_in_time_human_readable}"
         info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3572,6 +7507,8 @@ function checkJamfProCheckIn() {
 function checkJamfProInventory() {
 
     local humanReadableCheckName="Last Jamf Pro inventory update"
+    local footerCheckIcon="SF=checklist"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=checklist,${organizationColorScheme}"
@@ -3607,19 +7544,24 @@ function checkJamfProInventory() {
     #set status indicator for last inventory
     if [ ${time_since_inventory_epoch} -ge ${inventory_time_old} ]; then
         # inventory_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: ${last_inventory_time_human_readable}"
         errorOut "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
     elif [ ${time_since_inventory_epoch} -ge ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${last_inventory_time_human_readable}"
         warning "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorError}"
     elif [ ${time_since_inventory_epoch} -lt ${inventory_time_aging} ]; then
         # inventory_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_inventory_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_inventory_time_human_readable}"
         info "${humanReadableCheckName}: ${last_inventory_time_human_readable}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3632,9 +7574,11 @@ function checkJamfProInventory() {
 function checkMosyleCheckIn() {
 
     local humanReadableCheckName="Last Mosyle check-in"
+    local footerCheckIcon="SF=arrow.left.arrow.right.circle"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
+    dialogUpdate "icon: SF=arrow.left.arrow.right.circle,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
@@ -3664,19 +7608,24 @@ function checkMosyleCheckIn() {
     # Set status indicator for last check-in
     if [ ${time_since_check_in_epoch} -ge ${check_in_time_old} ]; then
         # check_in_status_indicator="🔴"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: ${last_check_in_time_human_readable}"
         errorOut "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
     elif [ ${time_since_check_in_epoch} -ge ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟠"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${last_check_in_time_human_readable}"
         warning "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorError}"
     elif [ ${time_since_check_in_epoch} -lt ${check_in_time_aging} ]; then
         # check_in_status_indicator="🟢"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_check_in_time_human_readable}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${last_check_in_time_human_readable}"
         info "${humanReadableCheckName}: ${last_check_in_time_human_readable}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3689,6 +7638,8 @@ function checkMosyleCheckIn() {
 function checkFileVault() {
 
     local humanReadableCheckName="FileVault"
+    local footerCheckIcon="SF=lock.laptopcomputer"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=lock.laptopcomputer,${organizationColorScheme}"
@@ -3707,30 +7658,35 @@ function checkFileVault() {
         case ${fileVaultStatus} in
 
             *"FileVault is On."* ) 
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
                 info "${humanReadableCheckName}: Enabled"
                 ;;
 
             *"Deferred enablement appears to be active for user"* )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled (next login)"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled (next login)"
                 warning "${humanReadableCheckName}: Enabled (next login)"
                 ;;
 
             *  )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: Failed"
                 errorOut "${humanReadableCheckName} (${1})"
                 overallHealth+="${humanReadableCheckName}; "
+                footerStatusColor="${statusColorFail}"
                 ;;
 
         esac
 
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, status: fail, statustext: Failed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: Failed"
         errorOut "${humanReadableCheckName} (${1})"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
 
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3745,6 +7701,8 @@ function checkInternal() {
     checkInternalTargetFile="${2}"
     checkInternalTargetFileIcon="${3}"
     checkInternalTargetFileDisplayName="${4}"
+    local footerCheckIcon="${checkInternalTargetFileIcon}"
+    local footerStatusColor="${statusColorSuccess}"
 
     notice "Internal Check: ${checkInternalTargetFile} …"
 
@@ -3757,18 +7715,24 @@ function checkInternal() {
 
     if [[ -e "${checkInternalTargetFile}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Installed"
         info "${checkInternalTargetFileDisplayName} installed"
+        footerCheckIcon="SF=checkmark.circle"
         
     else
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#EB5545, iconalpha: 1, subtitle: Visit the ${organizationSelfServiceMarketingName} to install ${checkInternalTargetFileDisplayName}, status: fail, statustext: NOT Installed"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorFail}, iconalpha: 1, subtitle: Visit the ${organizationSelfServiceMarketingName} to install ${checkInternalTargetFileDisplayName}, status: fail, statustext: NOT Installed"
         errorOut "${checkInternalTargetFileDisplayName} NOT Installed"
         overallHealth+="${checkInternalTargetFileDisplayName}; "
+        footerCheckIcon="SF=xmark.circle"
+        footerStatusColor="${statusColorFail}"
 
     fi
 
     sleep "${anticipationDuration}"
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3781,6 +7745,8 @@ function checkInternal() {
 function checkTouchID() {
 
     local humanReadableCheckName="Touch ID"
+    local footerCheckIcon="SF=touchid"
+    local footerStatusColor="${statusColorSuccess}"
     local bioOutput=""
     local iokitDiagnosticsOutput=""
     local iokitBiometricSensorCount="0"
@@ -3816,8 +7782,9 @@ function checkTouchID() {
 
     if [[ "${hw}" == "Absent" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: ${hw}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${hw}"
         info "Touch ID hardware ${hw:l}"
+        footerStatusColor="${statusColorError}"
 
     else
 
@@ -3852,16 +7819,21 @@ function checkTouchID() {
         fi
 
         if [[ "${enrolled}" == "true" ]]; then
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enrolled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enrolled"
             info "Touch ID: Enabled & Enrolled (${bioCount} template(s))"
         else
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Not enrolled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: Not enrolled"
             warning "Touch ID: Hardware present, not enrolled"
+            footerStatusColor="${statusColorError}"
         fi
 
     fi
 
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+
 }
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Wi-Fi Strength (thanks, @kgolden-code!)
@@ -3870,6 +7842,7 @@ function checkTouchID() {
 function checkWiFiStrength() {
 
     local humanReadableCheckName="Wi-Fi Signal"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=wifi,${organizationColorScheme}"
@@ -3898,32 +7871,37 @@ function checkWiFiStrength() {
     fi
 
     if [[ -z "${rssi}" || "${rssi}" == "0" ]]; then
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Wi-Fi not active or Ethernet is primary, status: success, statustext: N/A (Ethernet)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${footerStatusColor}, iconalpha: 0.6, subtitle: Wi-Fi not active or Ethernet is primary, status: success, statustext: N/A (Ethernet)"
         info "${humanReadableCheckName}: Skipped — Ethernet primary or no Wi-Fi signal detected"
+        dialogUpdate "icon: SF=wifi,weight=semibold,colour=${footerStatusColor}"
+        sleep $((anticipationDuration / 2))
         return
     fi
 
     local quality="Unknown"
-    local statusColor="#63CA56"
-    local statusType="success"
 
     if (( rssi >= -55 )); then
         quality="Excellent"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${footerStatusColor}, iconalpha: 0.8, subtitle: RSSI ${rssi} dBm, status: success, statustext: ${quality}"
     elif (( rssi >= -65 )); then
         quality="Good"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${footerStatusColor}, iconalpha: 0.8, subtitle: RSSI ${rssi} dBm, status: success, statustext: ${quality}"
     elif (( rssi >= -75 )); then
         quality="Fair"
-        statusColor="#F8D84A"
-        statusType="error"
+        footerStatusColor="${statusColorError}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorError}, iconalpha: 0.8, subtitle: RSSI ${rssi} dBm, status: error, statustext: ${quality}"
     else
         quality="Poor"
-        statusColor="#EB5545"
-        statusType="fail"
+        footerStatusColor="${statusColorFail}"
         overallHealth+="${humanReadableCheckName}; "
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorFail}, iconalpha: 0.8, subtitle: RSSI ${rssi} dBm, status: fail, statustext: ${quality}"
     fi
 
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColor}, iconalpha: 0.8, subtitle: RSSI ${rssi} dBm, status: ${statusType}, statustext: ${quality}"
+    checkInspectTextByIndex[${1}]="${quality} (${rssi} dBm)"
+    dialogUpdate "icon: SF=wifi,weight=semibold,colour=${footerStatusColor}"
     info "${humanReadableCheckName}: ${quality} (${rssi} dBm)"
+
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3934,6 +7912,9 @@ function checkWiFiStrength() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkVPN() {
+
+    local footerCheckIcon="${vpnAppPath}"
+    local footerStatusColor="${statusColorSuccess}"
 
     notice "Check ${vpnAppName} …"
 
@@ -3947,37 +7928,57 @@ function checkVPN() {
     case ${vpnStatus} in
 
         *"NOT installed"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
             errorOut "${vpnAppName} Failed"
             overallHealth+="${vpnAppName}; "
+            footerCheckIcon="SF=xmark.circle"
+            footerStatusColor="${statusColorFail}"
             ;;
 
         *"Idle"* )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Idle"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: Idle"
             info "${vpnAppName} idle"
+            footerCheckIcon="SF=exclamationmark.triangle.fill"
+            footerStatusColor="${statusColorError}"
             ;;
 
         "Connected"* | "${ciscoVPNIP}" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Connected"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Connected"
             info "${vpnAppName} Connected"
+            footerCheckIcon="SF=checkmark.circle"
             ;;
 
-        "Disconnected" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Disconnected"
-            info "${vpnAppName} Disconnected"
+        "Internal" )
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: On-campus / Internal network, status: success, statustext: Internal"
+            info "${vpnAppName} Internal"
+            footerCheckIcon="SF=checkmark.circle"
+            ;;
+
+        "Warning: Disconnected" | "Disconnected" )
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: Disconnected"
+            warning "${vpnAppName} Disconnected"
+            footerCheckIcon="SF=exclamationmark.triangle.fill"
+            footerStatusColor="${statusColorError}"
             ;;
 
         "None" )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: No VPN"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: No VPN"
             info "No VPN"
+            footerCheckIcon="SF=xmark.circle"
+            footerStatusColor="${statusColorError}"
             ;;
 
         * )
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Unknown"
-            info "${vpnAppName} Unknown"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: Unknown"
+            warning "${vpnAppName} Unknown"
+            footerCheckIcon="SF=exclamationmark.triangle.fill"
+            footerStatusColor="${statusColorError}"
             ;;
 
     esac
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -3989,9 +7990,20 @@ function checkVPN() {
 
 function checkExternalJamfPro() {
 
-    trigger="${2}"
-    appPath="${3}"
-    appDisplayName=$(basename "${appPath}" .app)
+    local trigger="${2}"
+    local appPath="${3}"
+    local appDisplayName="${${appPath:t}%.app}"
+    local footerCheckIcon="${appPath}"
+    local footerStatusColor="${statusColorSuccess}"
+    local externalCheckResult=""
+    local warningStatus=""
+    local externalValidation=""
+    local externalPolicyOutput=""
+    local externalPolicyExitCode=0
+    local checkStatus=""
+    local checkType=""
+    local checkExtended=""
+    local fallbackErrorDetail="Error"
 
     if [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
         defaults delete "${organizationDefaultsDomain}"
@@ -4006,7 +8018,23 @@ function checkExternalJamfPro() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
-    externalValidation=$( jamf policy -event $trigger | grep "Script result:" )
+    externalPolicyOutput=$( jamf policy -event "${trigger}" 2>&1 )
+    externalPolicyExitCode=$?
+    if (( externalPolicyExitCode != 0 )); then
+        info "External Check: Jamf policy trigger '${trigger}' exited ${externalPolicyExitCode}; evaluating available result output."
+    fi
+    externalValidation=$( printf '%s\n' "${externalPolicyOutput}" | sed -n 's/.*Script result:[[:space:]]*//p' | tail -1 )
+    if [[ -z "${externalValidation}" ]]; then
+        externalValidation=$( printf '%s\n' "${externalPolicyOutput}" | sed -n 's#.*<result>\(.*\)</result>.*#\1#p' | tail -1 )
+    fi
+    externalCheckResult="${externalValidation#<result>}"
+    externalCheckResult="${externalCheckResult%</result>}"
+    externalCheckResult="${externalCheckResult//$'\r'/}"
+    externalCheckResult="${externalCheckResult//$'\n'/; }"
+    externalCheckResult="${externalCheckResult#"${externalCheckResult%%[![:space:]]*}"}"
+    externalCheckResult="${externalCheckResult%"${externalCheckResult##*[![:space:]]}"}"
+    (( externalPolicyExitCode != 0 )) && fallbackErrorDetail="Policy exit ${externalPolicyExitCode}"
+    [[ -n "${externalCheckResult}" ]] && fallbackErrorDetail="${externalCheckResult}"
     
     # Leverage the organization defaults domain
     if [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
@@ -4018,20 +8046,38 @@ function checkExternalJamfPro() {
         case ${checkType} in
 
             "fail" )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, status: fail, statustext: $checkStatus"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: $checkStatus"
                 errorOut "${appDisplayName} Failed"
                 overallHealth+="${appDisplayName}; "
+                footerCheckIcon="SF=xmark.circle"
+                footerStatusColor="${statusColorFail}"
                 ;;
 
             "success" )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: $checkStatus"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: $checkStatus"
                 info "${appDisplayName} $checkStatus"
+                footerCheckIcon="SF=checkmark.circle"
+                ;;
+
+            "warning" )
+                warningStatus="${checkStatus}"
+                if [[ "${warningStatus:l}" == warning:* ]]; then
+                    warningStatus="${warningStatus#*: }"
+                elif [[ "${checkStatus:l}" == "warning" ]] && [[ -n "${checkExtended}" ]]; then
+                    warningStatus="${checkExtended}"
+                fi
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $warningStatus"
+                warning "${appDisplayName} Warning:$warningStatus"
+                footerCheckIcon="SF=exclamationmark.triangle.fill"
+                footerStatusColor="${statusColorError}"
                 ;;
 
             "error" | * )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: $checkStatus:$checkExtended"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $checkStatus:$checkExtended"
                 errorOut "${appDisplayName} Error:$checkExtended"
                 overallHealth+="${appDisplayName}; "
+                footerCheckIcon="SF=exclamationmark.triangle.fill"
+                footerStatusColor="${statusColorError}"
                 ;;
 
         esac
@@ -4039,28 +8085,48 @@ function checkExternalJamfPro() {
     # Ignore the organization defaults domain
     else
 
-        case ${externalValidation:l} in
+        case ${externalCheckResult:l} in
 
             *"failed"* )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
                 errorOut "${appDisplayName} Failed"
                 overallHealth+="${appDisplayName}; "
+                footerCheckIcon="SF=xmark.circle"
+                footerStatusColor="${statusColorFail}"
                 ;;
 
             *"running"* )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Running"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Running"
                 info "${appDisplayName} running"
+                footerCheckIcon="SF=checkmark.circle"
+                ;;
+
+            *"warning"* )
+                warningStatus="${externalCheckResult}"
+                if [[ "${warningStatus:l}" == warning:* ]]; then
+                    warningStatus="${warningStatus#*: }"
+                fi
+                [[ -z "${warningStatus}" ]] && warningStatus="Warning"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $warningStatus"
+                warning "${appDisplayName} Warning:$warningStatus"
+                footerCheckIcon="SF=exclamationmark.triangle.fill"
+                footerStatusColor="${statusColorError}"
                 ;;
 
             *"error"* | * )
-                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Error"
-                errorOut "${appDisplayName} Error"
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: Error"
+                errorOut "${appDisplayName} ${fallbackErrorDetail}"
                 overallHealth+="${appDisplayName}; "
+                footerCheckIcon="SF=exclamationmark.triangle.fill"
+                footerStatusColor="${statusColorError}"
                 ;;
 
         esac
 
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4073,6 +8139,8 @@ function checkExternalJamfPro() {
 function checkNetworkQuality() {
 
     local humanReadableCheckName="Network Quality"
+    local footerCheckIcon="SF=gauge.with.dots.needle.67percent"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"    
 
     dialogUpdate "icon: SF=gauge.with.dots.needle.67percent,${organizationColorScheme}"
@@ -4130,10 +8198,101 @@ function checkNetworkQuality() {
     esac
 
     mbps=$( echo "scale=2; ( $dlThroughput / 1000000 )" | bc )
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, status: success, statustext: ${mbps} Mbps ${testStatus}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, status: success, statustext: ${mbps} Mbps ${testStatus}"
     info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsiveness}; "
 
     dialogUpdate "icon: ${icon}"
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Homebrew Status
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkHomebrewStatus() {
+
+    local humanReadableCheckName="Homebrew Status"
+    local footerCheckIcon="SF=mug.fill"
+    local footerStatusColor="${statusColorSuccess}"
+    local brewBinary=""
+    local installedHomebrewVersion=""
+    local latestHomebrewVersion=""
+    local latestHomebrewResponse=""
+    local homebrewOutdatedJSON=""
+    local outdatedFormulaeCount=""
+    local outdatedCasksCount=""
+    notice "Check ${humanReadableCheckName} …"
+
+    dialogUpdate "icon: SF=mug.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
+
+    sleep "${anticipationDuration}"
+
+    brewBinary=$( runAsUser env PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" zsh -lc 'command -v brew 2>/dev/null' 2>/dev/null | grep '^/' | tail -1 | xargs )
+    [[ -z "${brewBinary}" && -x "/opt/homebrew/bin/brew" ]] && brewBinary="/opt/homebrew/bin/brew"
+    [[ -z "${brewBinary}" && -x "/usr/local/bin/brew" ]] && brewBinary="/usr/local/bin/brew"
+
+    if [[ -z "${brewBinary}" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Optional tool not detected on this Mac, status: success, statustext: Not installed"
+        info "${humanReadableCheckName}: Not installed"
+    else
+        installedHomebrewVersion=$( runHomebrewAsUser "${brewBinary}" --version 2>/dev/null | awk '/^Homebrew / { print $2; exit }' )
+        latestHomebrewResponse=$( curl -fsL --connect-timeout 5 --max-time 10 "https://api.github.com/repos/Homebrew/brew/releases/latest" 2>/dev/null )
+
+        if [[ -n "${latestHomebrewResponse}" ]]; then
+            latestHomebrewVersion=$( get_json_value "${latestHomebrewResponse}" "tag_name" 2>/dev/null | tr -d '\r' | sed 's/^v//' )
+            [[ "${latestHomebrewVersion}" == "undefined" ]] && latestHomebrewVersion=""
+        fi
+
+        homebrewOutdatedJSON=$( runHomebrewAsUser "${brewBinary}" outdated --json=v2 2>/dev/null )
+
+        if [[ -n "${homebrewOutdatedJSON}" ]] && validateJson "${homebrewOutdatedJSON}" && jsonIsObject "${homebrewOutdatedJSON}"; then
+            outdatedFormulaeCount=$( printf '%s' "${homebrewOutdatedJSON}" | jq -r '(.formulae // []) | length' 2>/dev/null )
+            outdatedCasksCount=$( printf '%s' "${homebrewOutdatedJSON}" | jq -r '(.casks // []) | length' 2>/dev/null )
+        else
+            outdatedFormulaeCount=$( runHomebrewAsUser "${brewBinary}" outdated --formula --quiet 2>/dev/null | sed '/^$/d' | wc -l | tr -d ' ' )
+            outdatedCasksCount=$( runHomebrewAsUser "${brewBinary}" outdated --cask --quiet 2>/dev/null | sed '/^$/d' | wc -l | tr -d ' ' )
+        fi
+
+        if [[ -z "${installedHomebrewVersion}" ]] || [[ -z "${latestHomebrewVersion}" ]] || [[ "${outdatedFormulaeCount}" != <-> ]] || [[ "${outdatedCasksCount}" != <-> ]]; then
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Homebrew was found but could not be fully evaluated, status: error, statustext: Unable to determine"
+            errorOut "${humanReadableCheckName}: Unable to determine; installed=${installedHomebrewVersion:-unknown}; latest=${latestHomebrewVersion:-unknown}; formulae=${outdatedFormulaeCount:-unknown}; casks=${outdatedCasksCount:-unknown}"
+            overallHealth+="${humanReadableCheckName}; "
+            footerStatusColor="${statusColorError}"
+        else
+
+            local totalOutdatedCount=$(( outdatedFormulaeCount + outdatedCasksCount ))
+
+            if [[ "${installedHomebrewVersion}" == "${latestHomebrewVersion}" ]] && (( totalOutdatedCount == 0 )); then
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${installedHomebrewVersion} current"
+                info "${humanReadableCheckName}: Installed ${installedHomebrewVersion}; latest ${latestHomebrewVersion}; outdated formulae ${outdatedFormulaeCount}; outdated casks ${outdatedCasksCount}"
+            else
+                local statusSummary=""
+
+                if [[ "${installedHomebrewVersion}" != "${latestHomebrewVersion}" ]] && (( totalOutdatedCount > 0 )); then
+                    statusSummary="${installedHomebrewVersion} vs ${latestHomebrewVersion}; ${totalOutdatedCount} outdated"
+                elif [[ "${installedHomebrewVersion}" != "${latestHomebrewVersion}" ]]; then
+                    statusSummary="${installedHomebrewVersion} vs ${latestHomebrewVersion}"
+                else
+                    statusSummary="${totalOutdatedCount} outdated"
+                fi
+
+                dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Open Terminal and update Homebrew packages if you manage them on this Mac, status: error, statustext: ${statusSummary}"
+                errorOut "${humanReadableCheckName}: Installed ${installedHomebrewVersion}; latest ${latestHomebrewVersion}; outdated formulae ${outdatedFormulaeCount}; outdated casks ${outdatedCasksCount}"
+                overallHealth+="${humanReadableCheckName}; "
+                footerStatusColor="${statusColorError}"
+            fi
+        fi
+    fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4146,114 +8305,144 @@ function checkNetworkQuality() {
 function checkElectronCornerMask() {
 
     local humanReadableCheckName="Electron Corner Mask"
+    local footerCheckIcon="SF=cpu.fill"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=cpu.fill,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Scanning for Electron apps …"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill ${organizationColorScheme//,/ }, iconalpha: 1, status: wait, statustext: Scanning for Electron apps …"
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Checking installed Electron apps …"
 
     sleep "${anticipationDuration}"
 
-    osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
+    local osMajorVersion="${osVersion%%.*}"
     if [[ "${osMajorVersion}" -lt 26 ]]; then
         info "${humanReadableCheckName}: macOS ${osVersion} — not affected."
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Not affected (macOS ${osVersion})"
-        return 0
-    fi
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Not affected (macOS ${osVersion})"
+    else
+        # Electron versions where the bug is fixed
+        local fixedVersions=( "36.9.2" "37.6.0" "38.2.0" "39.0.0-alpha.7" )
 
-    # Electron versions where the bug is fixed
-    local fixedVersions=( "36.9.2" "37.6.0" "38.2.0" "39.0.0-alpha.7" )
+        # Known-safe Electron apps and their verified runtime versions
+        declare -A knownSafeElectronApps=(
+            ["Visual Studio Code.app"]="37.6.0"
+            ["Slack.app"]="38.2.0"
+        )
 
-    # Known-safe Electron apps and their verified runtime versions
-    declare -A knownSafeElectronApps=(
-        ["Visual Studio Code.app"]="37.6.0"
-        ["Slack.app"]="38.2.0"
-    )
+        local foundElectronApps=0
+        local vulnerableApps=()
+        local safeApps=()
+        local -A processedElectronApps=()
 
-    local foundElectronApps=0
-    local vulnerableApps=()
-    local safeApps=()
+        setopt null_glob
 
-    setopt null_glob
+        local appSearchRoots=(
+            /Applications
+            /Applications/Utilities
+            /Users/"${loggedInUser}"/Applications
+        )
+        local frameworkPaths=(
+            /Applications/*.app/Contents/Frameworks/Electron\ Framework.framework
+            /Applications/Utilities/*.app/Contents/Frameworks/Electron\ Framework.framework
+            /Users/"${loggedInUser}"/Applications/*.app/Contents/Frameworks/Electron\ Framework.framework
+        )
+        local knownSafeElectronAppNames=(
+            "Visual Studio Code.app"
+            "Slack.app"
+        )
+        local app=""
+        local appName=""
+        local appSearchRoot=""
+        local appVersion=""
+        local frameworkPath=""
+        local versionFile=""
+        local frameworkPlist=""
+        local frameworkResourcesPath=""
+        local frameworkFallbackResourcesPath=""
+        local pkgJson=""
+        local asarPkgJson=""
+        local productJson=""
+        local versionTxt=""
+        local appInfoPlist=""
+        local fixed=""
+        local vulnerable=""
 
-    local appPaths=(
-        /Applications/*.app
-        /Applications/Utilities/*.app
-        /Users/"${loggedInUser}"/Applications/*.app
-    )
-
-    for app in "${appPaths[@]}"; do
-        [[ ! -d "${app}" ]] && continue
-        local appName=$(basename "${app}")
-
-        # If app is pre-known to be fixed, skip file scans
-        if [[ -n "${knownSafeElectronApps[$appName]}" ]]; then
-            local appVersion="${knownSafeElectronApps[$appName]}"
-            ((foundElectronApps++))
-            safeApps+=("${appName} (${appVersion}) [known fixed]")
-            continue
-        fi
-
-        # Detect Electron Framework
-        if grep -Rqs "Electron Framework" "${app}/Contents/Frameworks" 2>/dev/null; then
-            ((foundElectronApps++))
-            local appVersion="Unknown"
-
-            local versionFile="${app}/Contents/Frameworks/Electron Framework.framework/Versions/Current/Resources/version"
-            local frameworkPlist="${app}/Contents/Frameworks/Electron Framework.framework/Versions/Current/Resources/Info.plist"
-            # Fallback to A if Current doesn't work (common in some bundles)
-            if [[ ! -f "${frameworkPlist}" ]]; then
-                frameworkPlist="${app}/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources/Info.plist"
-            fi
-            local pkgJson="${app}/Contents/Resources/app/package.json"
-            local asarPkgJson="${app}/Contents/Resources/app.asar.unpacked/package.json"
-            local productJson="${app}/Contents/Resources/app/product.json"
-            local versionTxt="${app}/Contents/Resources/app/version.txt"
-
-            # 1. Canonical Electron version file
-            if [[ -f "${versionFile}" ]]; then
-                appVersion=$(tr -d '[:space:]' < "${versionFile}")
-
-            # 1a. Framework Info.plist (reliable for runtime version) – prioritize CFBundleVersion (common in Electron frameworks)
-            elif [[ -f "${frameworkPlist}" ]]; then
-                appVersion=$(defaults read "${frameworkPlist}" CFBundleVersion 2>/dev/null)
-                if [[ -z "${appVersion}" ]]; then
-                    appVersion=$(defaults read "${frameworkPlist}" CFBundleShortVersionString 2>/dev/null)
+        for appName in "${knownSafeElectronAppNames[@]}"; do
+            appVersion="${knownSafeElectronApps[$appName]}"
+            for appSearchRoot in "${appSearchRoots[@]}"; do
+                app="${appSearchRoot}/${appName}"
+                if [[ -d "${app}" ]]; then
+                    ((foundElectronApps++))
+                    processedElectronApps["${app}"]=1
+                    safeApps+=("${appName} (${appVersion}) [known fixed]")
                 fi
-                # Debug: Uncomment for troubleshooting
-                # if [[ -n "${appVersion}" ]]; then
-                #     info "${humanReadableCheckName}: Detected Electron version ${appVersion} from framework plist for ${appName}"
-                # else
-                #     warning "${humanReadableCheckName}: Framework plist found but no version keys for ${appName}"
-                # fi
+            done
+        done
 
-            # 2. package.json electronVersion
+        for frameworkPath in "${frameworkPaths[@]}"; do
+            app="${frameworkPath:h:h:h}"
+            [[ ! -d "${app}" ]] && continue
+            if [[ -n "${processedElectronApps[$app]}" ]]; then
+                continue
+            fi
+            processedElectronApps["${app}"]=1
+
+            ((foundElectronApps++))
+            appName="${app:t}"
+            appVersion="Unknown"
+
+            frameworkResourcesPath="${frameworkPath}/Versions/Current/Resources"
+            frameworkFallbackResourcesPath="${frameworkPath}/Versions/A/Resources"
+            versionFile="${frameworkResourcesPath}/version"
+            frameworkPlist="${frameworkResourcesPath}/Info.plist"
+            if [[ ! -f "${versionFile}" ]]; then
+                versionFile="${frameworkFallbackResourcesPath}/version"
+            fi
+            if [[ ! -f "${frameworkPlist}" ]]; then
+                frameworkPlist="${frameworkFallbackResourcesPath}/Info.plist"
+            fi
+            pkgJson="${app}/Contents/Resources/app/package.json"
+            asarPkgJson="${app}/Contents/Resources/app.asar.unpacked/package.json"
+            productJson="${app}/Contents/Resources/app/product.json"
+            versionTxt="${app}/Contents/Resources/app/version.txt"
+            appInfoPlist="${app}/Contents/Info.plist"
+
+            if [[ -f "${versionFile}" ]]; then
+                appVersion="${$(<"${versionFile}")//$'\n'/}"
+                appVersion="${appVersion//$'\r'/}"
+                appVersion="${appVersion//$'\t'/}"
+            elif [[ -f "${frameworkPlist}" ]]; then
+                appVersion=$(/usr/bin/plutil -extract CFBundleVersion raw -expect string "${frameworkPlist}" 2>/dev/null)
+                if [[ -z "${appVersion}" ]]; then
+                    appVersion=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -expect string "${frameworkPlist}" 2>/dev/null)
+                fi
             elif [[ -f "${pkgJson}" ]]; then
                 appVersion=$(grep -Eo '"electronVersion"[^,]*' "${pkgJson}" | awk -F'"' '{print $4}')
-
-            # 3. asar-unpacked package.json
             elif [[ -f "${asarPkgJson}" ]]; then
                 appVersion=$(grep -Eo '"electronVersion"[^,]*' "${asarPkgJson}" | awk -F'"' '{print $4}')
-
-            # 4. product.json (VS Code, Figma, Discord, etc.)
             elif [[ -f "${productJson}" ]]; then
                 appVersion=$(grep -Eo '"version"[^,]*' "${productJson}" | awk -F'"' '{print $4}')
                 if [[ ! "${appVersion}" =~ ^[0-9]+\.[0-9]+ ]]; then
                     local commit=$(grep -Eo '"commit"[^,]*' "${productJson}" | awk -F'"' '{print $4}')
                     [[ -n "${commit}" ]] && appVersion="custom-${commit:0:7}"
                 fi
-
-            # 5. version.txt fallback (Asana, Notion)
             elif [[ -f "${versionTxt}" ]]; then
-                appVersion=$(tr -d '[:space:]' < "${versionTxt}")
+                appVersion="${$(<"${versionTxt}")//$'\n'/}"
+                appVersion="${appVersion//$'\r'/}"
+                appVersion="${appVersion//$'\t'/}"
             fi
 
-            appVersion=$(echo "${appVersion}" | tr -cd '[:print:]' | xargs)
+            appVersion="${appVersion#"${appVersion%%[![:space:]]*}"}"
+            appVersion="${appVersion%"${appVersion##*[![:space:]]}"}"
 
-            # 6. If still unknown, fall back to CFBundleShortVersionString (app version, mark Electron as unknown)
             if [[ -z "${appVersion}" || "${appVersion}" == "Unknown" ]]; then
-                appVersion=$(defaults read "${app}/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null)
+                if [[ -f "${appInfoPlist}" ]]; then
+                    appVersion=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -expect string "${appInfoPlist}" 2>/dev/null)
+                    appVersion="${appVersion#"${appVersion%%[![:space:]]*}"}"
+                    appVersion="${appVersion%"${appVersion##*[![:space:]]}"}"
+                fi
+
                 if [[ -z "${appVersion}" ]]; then
                     warning "${humanReadableCheckName}: ${appName} version unknown"
                     vulnerableApps+=("${appName} (version unknown)")
@@ -4264,8 +8453,7 @@ function checkElectronCornerMask() {
                 continue
             fi
 
-            # Compare Electron version to fixed thresholds
-            local vulnerable=true
+            vulnerable=true
             for fixed in "${fixedVersions[@]}"; do
                 if is-at-least "${fixed}" "${appVersion}"; then
                     vulnerable=false
@@ -4278,31 +8466,31 @@ function checkElectronCornerMask() {
             else
                 safeApps+=("${appName} (${appVersion})")
             fi
+        done
+
+        unsetopt null_glob
+
+        if [[ ${foundElectronApps} -eq 0 ]]; then
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: No Electron apps found"
+            info "${humanReadableCheckName}: No Electron-based apps detected."
+        elif [[ ${#vulnerableApps[@]} -gt 0 ]]; then
+            local vulnerableList=$(printf '%s; ' "${vulnerableApps[@]}")
+            vulnerableList="${vulnerableList%; }"
+            info "vulnerableList: ${vulnerableList}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${vulnerableList}, status: error, statustext: Susceptible apps found"
+            warning "${humanReadableCheckName}: Susceptible Electron apps detected — ${vulnerableList}"
+            errorOut "${humanReadableCheckName}: ${vulnerableList}"
+            overallHealth+="${humanReadableCheckName}; "
+            footerStatusColor="${statusColorError}"
+        else
+            local safeList=$(printf '%s; ' "${safeApps[@]}")
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: All Electron apps patched"
+            info "${humanReadableCheckName}: All Electron apps are running patched versions — ${safeList}"
         fi
-    done
-
-    unsetopt null_glob
-
-    # Reporting
-    if [[ ${foundElectronApps} -eq 0 ]]; then
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: No Electron apps found"
-        info "${humanReadableCheckName}: No Electron-based apps detected."
-        return 0
     fi
 
-    if [[ ${#vulnerableApps[@]} -gt 0 ]]; then
-        local vulnerableList=$(printf '%s; ' "${vulnerableApps[@]}")
-        vulnerableList="${vulnerableList%; }"
-        info "vulnerableList: ${vulnerableList}"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: ${vulnerableList}, status: error, statustext: Susceptible apps found"
-        warning "${humanReadableCheckName}: Susceptible Electron apps detected — ${vulnerableList}"
-        errorOut "${humanReadableCheckName}: ${vulnerableList}"
-        overallHealth+="${humanReadableCheckName}; "
-    else
-        local safeList=$(printf '%s; ' "${safeApps[@]}")
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: All Electron apps patched"
-        info "${humanReadableCheckName}: All Electron apps are running patched versions — ${safeList}"
-    fi
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4315,6 +8503,8 @@ function checkElectronCornerMask() {
 function checkBluetoothSharing() {
 
     local humanReadableCheckName="Bluetooth Sharing"
+    local footerCheckIcon="SF=dot.radiowaves.left.and.right"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} status …"
 
     dialogUpdate "icon: SF=dot.radiowaves.left.and.right,${organizationColorScheme}"
@@ -4325,17 +8515,21 @@ function checkBluetoothSharing() {
     sleep "${anticipationDuration}"
     
     # Check Bluetooth sharing settings using -currentHost as per macOS Security Compliance Project
-    local result=$(runAsUser defaults -currentHost read com.apple.Bluetooth PrefKeyServicesEnabled 2>&1 | grep -v "Run" | tail -1)
+    local result=$( captureRunAsUserOutput defaults -currentHost read com.apple.Bluetooth PrefKeyServicesEnabled )
     
     # If the key doesn't exist or is 0, Bluetooth sharing is disabled (compliant)
     if [[ "${result}" == "0" ]] || [[ "${result}" =~ "does not exist" ]]; then
         info "${humanReadableCheckName}: Disabled"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
     else
         errorOut "${humanReadableCheckName}: Enabled (value: ${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable, status: fail, statustext: Enabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable, status: fail, statustext: Enabled"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4348,6 +8542,8 @@ function checkBluetoothSharing() {
 function checkPasswordHint() {
 
     local humanReadableCheckName="Password Hint"
+    local footerCheckIcon="SF=key.horizontal.fill"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=key.horizontal.fill,${organizationColorScheme}"
@@ -4363,11 +8559,15 @@ function checkPasswordHint() {
     # If hint is empty, no password hint is set (compliant)
     if [[ -z "${hint}" ]]; then
         info "${humanReadableCheckName}: No hint set"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
     else
         warning "${humanReadableCheckName}: Hint found"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, status: error, statustext: Found (Non-compliant)"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: Found (Non-compliant)"
+        footerStatusColor="${statusColorError}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4380,6 +8580,8 @@ function checkPasswordHint() {
 function checkAirPlayReceiver() {
 
     local humanReadableCheckName="AirPlay Receiver"
+    local footerCheckIcon="SF=airplayvideo.circle.fill"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} status …"
 
     dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
@@ -4399,17 +8601,17 @@ function checkAirPlayReceiver() {
     local keyFound=""
     
     # Try the new correctly-spelled key first (macOS 26.1+)
-    result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverEnabled 2>&1 | grep -v "Run" | tail -1)
+    result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverEnabled )
     if [[ ! "${result}" =~ "does not exist" ]]; then
         keyFound="AirplayReceiverEnabled"
     else
         # Try the misspelled key (older versions)
-        result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayRecieverEnabled 2>&1 | grep -v "Run" | tail -1)
+        result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayRecieverEnabled )
         if [[ ! "${result}" =~ "does not exist" ]]; then
             keyFound="AirplayRecieverEnabled"
         else
             # Try the advertising key (macOS 26.0)
-            result=$(runAsUser /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverAdvertising 2>&1 | grep -v "Run" | tail -1)
+            result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverAdvertising )
             if [[ ! "${result}" =~ "does not exist" ]]; then
                 keyFound="AirplayReceiverAdvertising"
             fi
@@ -4425,35 +8627,41 @@ function checkAirPlayReceiver() {
         if [[ "${osMajorVersion}" -eq 15 && "${osMinorVersion}" -ge 7 ]]; then
             # 15.7.x: assume Enabled when key is missing
             errorOut "${humanReadableCheckName}: Enabled (no ${keyFound:-AirplayReceiverEnabled} key; default behavior on macOS ${osMajorVersion}.${osMinorVersion})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
             overallHealth+="${humanReadableCheckName}; "
+            footerStatusColor="${statusColorFail}"
         else
             # 15.6.1 and earlier, and 26.x+: missing key treated as Disabled/compliant
             info "${humanReadableCheckName}: Disabled (key not found on macOS ${osMajorVersion}.${osMinorVersion})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
         fi
 
     elif [[ "${result}" == "0" ]]; then
         # Value is 0, disabled (compliant)
         info "${humanReadableCheckName}: Disabled (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
 
     elif [[ "${result}" == "1" ]]; then
         # Value is 1, enabled (non-compliant)
         errorOut "${humanReadableCheckName}: Enabled (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
 
     elif [[ "${result}" == "2" ]]; then
         # Value is 2 (Contacts Only mode in some versions)
         info "${humanReadableCheckName}: Contacts Only (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Contacts Only"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Contacts Only"
 
     else
         # Unexpected value
         warning "${humanReadableCheckName}: Unexpected value (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#F8D84A, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: error, statustext: Status Unknown"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: error, statustext: Status Unknown"
+        footerStatusColor="${statusColorError}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4466,6 +8674,8 @@ function checkAirPlayReceiver() {
 function checkAirDropSettings() {
 
     local humanReadableCheckName="AirDrop Settings"
+    local footerCheckIcon="SF=airplayaudio.circle.fill"
+    local footerStatusColor="${statusColorSuccess}"
     notice "Checking ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=airplayaudio.circle.fill,${organizationColorScheme}"
@@ -4476,16 +8686,20 @@ function checkAirDropSettings() {
     sleep "${anticipationDuration}"
     
     # Check AirDrop settings
-    local result=$(runAsUser defaults read /Users/"${loggedInUser}"/Library/Preferences/com.apple.sharingd.plist DiscoverableMode 2>&1 | grep -v "Run" | tail -1)
+    local result=$( captureRunAsUserOutput defaults read /Users/"${loggedInUser}"/Library/Preferences/com.apple.sharingd.plist DiscoverableMode )
     
     if [[ "${result}" != "Everyone" ]] || [[ -z "${result}" ]]; then
         info "${humanReadableCheckName}: Compliant"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
     else
         errorOut "${humanReadableCheckName}: Discoverable by Everyone (value: ${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=#EB5545, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only, status: fail, statustext: Everyone"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only, status: fail, statustext: Everyone"
         overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorFail}"
     fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
 
 }
 
@@ -4497,30 +8711,64 @@ function checkAirDropSettings() {
 
 function updateComputerInventory() {
 
-    notice "Updating Computer Inventory …"
+    local humanReadableCheckName="Update Computer Inventory"
+    local inventoryCommand=()
+    local inventoryCommandPreview=""
+    local inventoryOutput=""
+    local inventoryExitCode=0
+    local inventoryFailureSubtitle="Please try again later"
+    local inventoryTimeoutSubtitle=""
+
+    if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
+        notice "Skipping Jamf Pro inventory update: Operation Mode is ${operationMode} and Splunk Reporting is ${splunkOperationMode}"
+        return 0
+    else
+        notice "${humanReadableCheckName} …"
+    fi
+
+    if [[ -n "${supportTeamName}" ]]; then
+        inventoryFailureSubtitle+=" or contact ${supportTeamName}"
+    fi
+    inventoryTimeoutSubtitle="Inventory update took longer than ${inventorySubmissionTimeoutSeconds} seconds. ${inventoryFailureSubtitle}"
 
     dialogUpdate "icon: SF=pencil.and.list.clipboard,${organizationColorScheme}"
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Updating …"
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Updating Computer Inventory …"
+    dialogUpdate "progresstext: ${humanReadableCheckName} …"
 
     if [[ "${operationMode}" != "Test" ]]; then
 
         if [[ -n "${inventoryEndUsername}" ]]; then
             notice "Including '-endUsername' in 'jamf recon' (source: ${inventoryEndUsernameSource}; value: ${inventoryEndUsername})"
-            jamf recon -endUsername "${inventoryEndUsername}"
+            inventoryCommand=( jamf recon -endUsername "${inventoryEndUsername}" )
         else
             warning "NOT including '-endUsername' in 'jamf recon' since no SSO username is available for ${loggedInUser} (source: ${inventoryEndUsernameSource}; value: <empty>)"
-            jamf recon # -verbose
+            inventoryCommand=( jamf recon )
+        fi
+
+        inventoryCommandPreview="$( formatCommandForLog "${inventoryCommand[@]}" )"
+        inventoryOutput="$( captureCommandOutputWithTimeout "${inventorySubmissionTimeoutSeconds}" "${inventoryCommand[@]}" )"
+        inventoryExitCode=$?
+        inventoryOutput="${inventoryOutput//$'\r'/ }"
+        inventoryOutput="${inventoryOutput//$'\n'/; }"
+
+        if (( inventoryExitCode == 124 )); then
+            warning "${humanReadableCheckName}: jamf recon timed out after ${inventorySubmissionTimeoutSeconds} seconds${inventoryOutput:+: ${inventoryOutput}}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${inventoryTimeoutSubtitle}, status: error, statustext: Timed Out"
+        elif (( inventoryExitCode != 0 )); then
+            warning "${humanReadableCheckName}: jamf recon exited ${inventoryExitCode}${inventoryOutput:+: ${inventoryOutput}}"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Inventory update failed. ${inventoryFailureSubtitle}, status: error, statustext: Failed"
+        else
+            info "${humanReadableCheckName}: Completed \"${inventoryCommandPreview}\""
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Latest computer inventory submitted at $( date '+%A, %B %d at %I:%M %p %Z' ), status: success, statustext: Updated"
         fi
 
     else
 
         sleep "${anticipationDuration}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: Latest computer inventory submitted at $( date '+%A, %B %d at %I:%M %p %Z' ), status: success, statustext: Updated"
 
     fi
-
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: Latest computer inventory submitted at $( date '+%d-%b-%Y %H:%M:%S' ), status: success, statustext: Updated"
 
 }
 
@@ -4548,16 +8796,16 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
-    if ! echo "$developmentListitemJSON" | jq . >/dev/null 2>&1; then
+    if ! validateJson "${developmentListitemJSON}"; then
         echo "Error: developmentListitemJSON is invalid JSON"
         echo "$developmentListitemJSON"
         exit 1
     else
-        combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$developmentListitemJSON" '$dialog + { "listitem": $listitems }' )
+        combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${developmentListitemJSON}" )
     fi
 
 else
@@ -4566,18 +8814,22 @@ else
 
     case ${mdmVendor} in
 
-        "Addigy"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$addigyMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Filewave"          ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$filewaveMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Fleet"             ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$fleetMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Jamf Pro"          ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jamfProListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "JumpCloud"         ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$jumpcloudMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Kandji"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$kandjiMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Microsoft Intune"  ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$microsoftMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        "Mosyle"            ) combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$mosyleListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
-        *                   ) warning "Unknown MDM vendor: ${mdmVendor}" ; combinedJSON=$( jq -n --argjson dialog "$mainDialogJSON" --argjson listitems "$genericMdmListitemJSON" '$dialog + { "listitem": $listitems }' ) ;;
+        "Addigy"            ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${addigyMdmListitemJSON}" ) ;;
+        "Filewave"          ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${filewaveMdmListitemJSON}" ) ;;
+        "Fleet"             ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${fleetMdmListitemJSON}" ) ;;
+        "Jamf Pro"          ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${jamfProListitemJSON}" ) ;;
+        "JumpCloud"         ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${jumpcloudMdmListitemJSON}" ) ;;
+        "Kandji"            ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${kandjiMdmListitemJSON}" ) ;;
+        "Microsoft Intune"  ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${microsoftMdmListitemJSON}" ) ;;
+        "Mosyle"            ) combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${mosyleListitemJSON}" ) ;;
+        *                   ) warning "Unknown MDM vendor: ${mdmVendor}" ; combinedJSON=$( mergeDialogAndListItems "${mainDialogJSON}" "${genericMdmListitemJSON}" ) ;;
 
     esac
 
+fi
+
+if ! validateJson "${combinedJSON}"; then
+    fatal "combinedJSON is invalid; exiting."
 fi
 
 # Runtime check counters for dock badge updates
@@ -4587,6 +8839,7 @@ if [[ "${listitemLength}" != <-> ]]; then
 fi
 remainingChecks="${listitemLength}"
 completedCheckIndicesCsv=","
+initializeCheckMetadataFromCombinedJSON
 
 echo "$combinedJSON" > "$dialogJSONFile"
 
@@ -4687,9 +8940,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    set -x
-    checkWiFiStrength "0"
-    set +x
+    # set -x
+    checkEntraIDRegistration "0"
+    # set +x
 
 else
 
@@ -4719,7 +8972,7 @@ else
                 checkUptime "10"
                 checkFreeDiskSpace "11"
                 checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
@@ -4734,9 +8987,10 @@ else
                 checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkElectronCornerMask "28"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                checkHomebrewStatus "28"
+                checkElectronCornerMask "29"
+                checkWiFiStrength "30"
+                checkNetworkQuality "31"
                 ;;
 
             "Filewave" )
@@ -4753,7 +9007,7 @@ else
                 checkUptime "10"
                 checkFreeDiskSpace "11"
                 checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
@@ -4767,9 +9021,10 @@ else
                 checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
                 checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkElectronCornerMask "27"
-                checkWiFiStrength "28"
-                checkNetworkQuality "29"
+                checkHomebrewStatus "27"
+                checkElectronCornerMask "28"
+                checkWiFiStrength "29"
+                checkNetworkQuality "30"
                 ;;
 
             "Fleet" )
@@ -4786,7 +9041,7 @@ else
                 checkUptime "10"
                 checkFreeDiskSpace "11"
                 checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
@@ -4801,9 +9056,10 @@ else
                 checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 checkInternal "27" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
-                checkElectronCornerMask "28"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                checkHomebrewStatus "28"
+                checkElectronCornerMask "29"
+                checkWiFiStrength "30"
+                checkNetworkQuality "31"
                 ;;
 
             "Jamf Pro" )
@@ -4822,29 +9078,31 @@ else
                 checkUptime "12"
                 checkFreeDiskSpace "13"
                 checkUserDirectorySizeItems "14" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "15" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "15" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "16" ".Trash" "trash.fill" "Trash"
                 checkMdmProfile "17"
-                checkMdmCertificateExpiration "18"
-                checkAPNs "19"
-                checkJamfProCheckIn "20"
-                checkJamfProInventory "21"
-                checkNetworkHosts  "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts  "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts  "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts  "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts  "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkNetworkHosts  "27" "Jamf Hosts"                            "${jamfHosts[@]}"
-                checkAppAutoPatch "28"
-                checkElectronCornerMask "29"
-                checkInternal "30" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkExternalJamfPro "31" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
-                checkExternalJamfPro "32" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
-                checkExternalJamfPro "33" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
-                checkExternalJamfPro "34" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
-                checkWiFiStrength "35"
-                checkNetworkQuality "36"
-                updateComputerInventory "37"
+                checkEntraIDRegistration "18"
+                checkMdmCertificateExpiration "19"
+                checkAPNs "20"
+                checkJamfProCheckIn "21"
+                checkJamfProInventory "22"
+                checkNetworkHosts  "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts  "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts  "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts  "26" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts  "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkNetworkHosts  "28" "Jamf Hosts"                            "${jamfHosts[@]}"
+                checkAppAutoPatch "29"
+                checkHomebrewStatus "30"
+                checkElectronCornerMask "31"
+                checkInternal "32" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkExternalJamfPro "33" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
+                checkExternalJamfPro "34" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
+                checkExternalJamfPro "35" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
+                checkExternalJamfPro "36" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
+                checkWiFiStrength "37"
+                checkNetworkQuality "38"
+                updateComputerInventory "39"
                 ;;
 
             "JumpCloud" )
@@ -4861,7 +9119,7 @@ else
                 checkUptime "10"
                 checkFreeDiskSpace "11"
                 checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
@@ -4876,9 +9134,10 @@ else
                 checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkElectronCornerMask "28"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                checkHomebrewStatus "28"
+                checkElectronCornerMask "29"
+                checkWiFiStrength "30"
+                checkNetworkQuality "31"
                 ;;
 
             "Kandji" )
@@ -4909,8 +9168,8 @@ else
 				checkInternal "24" "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
 				checkInternal "25" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
 				checkInternal "26" "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"
-				checkInternal "27" "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"				
-				checkInternal "28" "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"				
+				checkInternal "27" "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"
+				checkInternal "28" "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"
                 checkWiFiStrength "29"
                 checkNetworkQuality "30"
                 ;;
@@ -4929,7 +9188,7 @@ else
                 checkUptime "10"
                 checkFreeDiskSpace "11"
                 checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
@@ -4944,9 +9203,10 @@ else
                 checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 checkInternal "27" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"
-                checkElectronCornerMask "28"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                checkHomebrewStatus "28"
+                checkElectronCornerMask "29"
+                checkWiFiStrength "30"
+                checkNetworkQuality "31"
                 ;;
 
             "Mosyle" )
@@ -4963,7 +9223,7 @@ else
                 checkUptime "10"
                 checkFreeDiskSpace "11"
                 checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "15"
                 checkAirDropSettings "16"
@@ -4979,9 +9239,10 @@ else
                 checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 checkInternal "28" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                checkHomebrewStatus "29"
+                checkElectronCornerMask "30"
+                checkWiFiStrength "31"
+                checkNetworkQuality "32"
                 ;;
 
             * )
@@ -4997,7 +9258,7 @@ else
                 checkUptime "9"
                 checkFreeDiskSpace "10"
                 checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
+                checkUserDirectorySizeItems "12" "Downloads" "folder.fill.badge.plus" "Downloads"
                 checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
                 checkPasswordHint "14"
                 checkAirDropSettings "15"
@@ -5009,9 +9270,10 @@ else
                 checkNetworkHosts "21" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
                 checkNetworkHosts "22" "Apple Certificate Validation"          "${certHosts[@]}"
                 checkNetworkHosts "23" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkElectronCornerMask "24"
-                checkWiFiStrength "25"
-                checkNetworkQuality "26"
+                checkHomebrewStatus "24"
+                checkElectronCornerMask "25"
+                checkWiFiStrength "26"
+                checkNetworkQuality "27"
                 ;;
         
         esac
@@ -5033,7 +9295,7 @@ else
             dialogUpdate "progress: increment"
             dialogUpdate "progresstext: [Operation Mode: ${operationMode}] • Item No. ${i} …"
             # sleep "${anticipationDuration}"
-            dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill weight=semibold colour=#63CA56, iconalpha: 0.6, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${operationMode}"
+            dialogUpdate "listitem: index: ${i}, icon: SF=$(printf "%02d" $(($i+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${operationMode}"
         done
 
         dialogUpdate "icon: ${icon}"

@@ -1,0 +1,75 @@
+{
+  "exitCode" : 0,
+  "lastStepIndex" : 10,
+  "pid" : 21973,
+  "steps" : [
+    {
+      "id" : "overview",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "remediation",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "security",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "maintenance",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "mdm__inventory",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "connectivity",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "applications",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "unhealthy",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "healthy",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "help",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    },
+    {
+      "id" : "nextSteps",
+      "result" : "success",
+      "status" : "completed",
+      "stepType" : "info"
+    }
+  ],
+  "timestamp" : "2026-06-23T21:18:01Z",
+  "totalSteps" : 11
+}

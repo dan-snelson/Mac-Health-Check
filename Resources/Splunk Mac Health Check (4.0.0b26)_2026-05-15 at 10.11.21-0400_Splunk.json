@@ -1,0 +1,535 @@
+{
+  "title": "Mac Health Check (4.0.0)",
+  "description": "Latest status for Macs: macOS version, CrowdStrike Falcon, BeyondTrust EPM and Cisco Umbrella",
+  "inputs": {
+    "input_global_trp": {
+      "options": {
+        "defaultValue": "@d,now",
+        "token": "global_time"
+      },
+      "title": "Global Time Range",
+      "type": "input.timerange"
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "earliest": "$global_time.earliest$",
+            "latest": "$global_time.latest$"
+          }
+        }
+      }
+    },
+    "visualizations": {
+      "global": {
+        "showProgressBar": true
+      }
+    }
+  },
+  "visualizations": {
+    "viz_KZC9layp": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_tGOKu1sU"
+      },
+      "description": "",
+      "options": {
+        "gaugeColor": "#53a051",
+        "labelDisplay": "percentage",
+        "orientation": "horizontal",
+        "valueDisplay": "percentage"
+      },
+      "title": "FileVault Disk Encryption",
+      "type": "splunk.fillergauge"
+    },
+    "viz_VjliKlrl": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_B0t8DYjx"
+      },
+      "description": "Latest status for the macOS version check",
+      "eventHandlers": [
+        {
+          "options": {
+            "earliest": "auto",
+            "latest": "auto",
+            "newTab": true,
+            "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| eval reportedOverallStatus=coalesce(reportedOverallStatus, \"unknown\")\n| eval reportEpoch=coalesce(\n    strptime(replace(reportTimestamp,\"([+-]\\d\\d):(\\d\\d)$\",\"\\1\\2\"), \"%Y-%m-%dT%H:%M:%S%z\"),\n    _time\n  )\n| eval latestReport=strftime(reportEpoch, \"%Y-%m-%d %H:%M:%S %z\")\n| where isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\")\n| where macOSVersionStatus=\"$row.status.value$\"\n| eval matchingChecks=\"macOS Version\"\n| sort 0 deviceKey\n| rename latestReport as \"Latest Report\"\n         overallStatus as \"Computed Overall\"\n         reportedOverallStatus as \"Reported Overall\"\n         matchingChecks as \"Matching Check\"\n         serialNumber as \"Serial Number\"\n         computerName as \"Computer Name\"\n         hostname as \"Hostname\"\n         macOSBuild as \"macOS Build\"\n         macOSVersionStatus as \"macOS Version\"\n         crowdstrikeFalconStatus as \"CrowdStrike Falcon\"\n         beyondtrustPrivilegeManagementStatus as \"BeyondTrust PM\"\n         ciscoUmbrellaStatus as \"Cisco Umbrella\"\n| table \"Latest Report\" \"Computed Overall\" \"Reported Overall\" \"Matching Check\" \"Serial Number\" \"Computer Name\" \"Hostname\" \"macOS Build\" \"macOS Version\" \"CrowdStrike Falcon\" \"BeyondTrust PM\" \"Cisco Umbrella\"",
+            "type": "custom"
+          },
+          "type": "drilldown.linkToSearch"
+        }
+      ],
+      "options": {
+        "labelDisplay": "valuesAndPercentage",
+        "labelField": "status",
+        "seriesColorsByField": {
+          "fail": "#D93F3C",
+          "healthy": "#2DA44E",
+          "unknown": "#9AA5B1",
+          "warning": "#F2B827"
+        },
+        "showDonutHole": true,
+        "valueField": "count"
+      },
+      "title": "macOS Health",
+      "type": "splunk.pie"
+    },
+    "viz_cmCo9JV1": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_I21vxolY"
+      },
+      "description": "",
+      "options": {
+        "gaugeColor": "#53a051",
+        "labelDisplay": "percentage",
+        "orientation": "horizontal",
+        "valueDisplay": "percentage"
+      },
+      "title": "Signed System Volume",
+      "type": "splunk.fillergauge"
+    },
+    "viz_iwWbcf75": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_27k2pPay"
+      },
+      "description": "Latest status for the CrowdStrike Falcon check",
+      "eventHandlers": [
+        {
+          "options": {
+            "earliest": "auto",
+            "latest": "auto",
+            "newTab": true,
+            "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| eval reportedOverallStatus=coalesce(reportedOverallStatus, \"unknown\")\n| eval reportEpoch=coalesce(\n    strptime(replace(reportTimestamp,\"([+-]\\d\\d):(\\d\\d)$\",\"\\1\\2\"), \"%Y-%m-%dT%H:%M:%S%z\"),\n    _time\n  )\n| eval latestReport=strftime(reportEpoch, \"%Y-%m-%d %H:%M:%S %z\")\n| where crowdstrikeFalconStatus=\"$row.status.value$\"\n| eval matchingChecks=\"CrowdStrike Falcon\"\n| sort 0 deviceKey\n| rename latestReport as \"Latest Report\"\n         overallStatus as \"Computed Overall\"\n         reportedOverallStatus as \"Reported Overall\"\n         matchingChecks as \"Matching Check\"\n         serialNumber as \"Serial Number\"\n         computerName as \"Computer Name\"\n         hostname as \"Hostname\"\n         macOSBuild as \"macOS Build\"\n         macOSVersionStatus as \"macOS Version\"\n         crowdstrikeFalconStatus as \"CrowdStrike Falcon\"\n         beyondtrustPrivilegeManagementStatus as \"BeyondTrust PM\"\n         ciscoUmbrellaStatus as \"Cisco Umbrella\"\n| table \"Latest Report\" \"Computed Overall\" \"Reported Overall\" \"Matching Check\" \"Serial Number\" \"Computer Name\" \"Hostname\" \"macOS Build\" \"macOS Version\" \"CrowdStrike Falcon\" \"BeyondTrust PM\" \"Cisco Umbrella\"",
+            "type": "custom"
+          },
+          "type": "drilldown.linkToSearch"
+        }
+      ],
+      "options": {
+        "labelDisplay": "valuesAndPercentage",
+        "labelField": "status",
+        "seriesColorsByField": {
+          "fail": "#D93F3C",
+          "healthy": "#2DA44E",
+          "unknown": "#9AA5B1",
+          "warning": "#F2B827"
+        },
+        "showDonutHole": true,
+        "valueField": "count"
+      },
+      "title": "CrowdStrike Falcon Health",
+      "type": "splunk.pie"
+    },
+    "viz_oRqxJZcb": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_TBEpmQTc"
+      },
+      "description": "Latest status for the BeyondTrust EPM check",
+      "eventHandlers": [
+        {
+          "options": {
+            "earliest": "auto",
+            "latest": "auto",
+            "newTab": true,
+            "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| eval reportedOverallStatus=coalesce(reportedOverallStatus, \"unknown\")\n| eval reportEpoch=coalesce(\n    strptime(replace(reportTimestamp,\"([+-]\\d\\d):(\\d\\d)$\",\"\\1\\2\"), \"%Y-%m-%dT%H:%M:%S%z\"),\n    _time\n  )\n| eval latestReport=strftime(reportEpoch, \"%Y-%m-%d %H:%M:%S %z\")\n| where beyondtrustPrivilegeManagementStatus=\"$row.status.value$\"\n| eval matchingChecks=\"BeyondTrust PM\"\n| sort 0 deviceKey\n| rename latestReport as \"Latest Report\"\n         overallStatus as \"Computed Overall\"\n         reportedOverallStatus as \"Reported Overall\"\n         matchingChecks as \"Matching Check\"\n         serialNumber as \"Serial Number\"\n         computerName as \"Computer Name\"\n         hostname as \"Hostname\"\n         macOSBuild as \"macOS Build\"\n         macOSVersionStatus as \"macOS Version\"\n         crowdstrikeFalconStatus as \"CrowdStrike Falcon\"\n         beyondtrustPrivilegeManagementStatus as \"BeyondTrust PM\"\n         ciscoUmbrellaStatus as \"Cisco Umbrella\"\n| table \"Latest Report\" \"Computed Overall\" \"Reported Overall\" \"Matching Check\" \"Serial Number\" \"Computer Name\" \"Hostname\" \"macOS Build\" \"macOS Version\" \"CrowdStrike Falcon\" \"BeyondTrust PM\" \"Cisco Umbrella\"",
+            "type": "custom"
+          },
+          "type": "drilldown.linkToSearch"
+        }
+      ],
+      "options": {
+        "labelDisplay": "valuesAndPercentage",
+        "labelField": "status",
+        "seriesColorsByField": {
+          "fail": "#D93F3C",
+          "healthy": "#2DA44E",
+          "unknown": "#9AA5B1",
+          "warning": "#F2B827"
+        },
+        "showDonutHole": true,
+        "valueField": "count"
+      },
+      "title": "BeyondTrust EPM Health",
+      "type": "splunk.pie"
+    },
+    "viz_sItF2ahE": {
+      "dataSources": {
+        "primary": "ds_JSve2lfc"
+      },
+      "description": "",
+      "eventHandlers": [],
+      "options": {
+        "dataOverlayMode": "none",
+        "drilldown": "none",
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "showRowNumbers": true
+      },
+      "title": "Latest status for macOS version, CrowdStrike, BeyondTrust PM, and Cisco Umbrella",
+      "type": "splunk.table"
+    },
+    "viz_tqxnCkGE": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_8Sraokuv"
+      },
+      "description": "Latest status for the Cisco Umbrella check",
+      "eventHandlers": [
+        {
+          "options": {
+            "earliest": "auto",
+            "latest": "auto",
+            "newTab": true,
+            "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| eval reportedOverallStatus=coalesce(reportedOverallStatus, \"unknown\")\n| eval reportEpoch=coalesce(\n    strptime(replace(reportTimestamp,\"([+-]\\d\\d):(\\d\\d)$\",\"\\1\\2\"), \"%Y-%m-%dT%H:%M:%S%z\"),\n    _time\n  )\n| eval latestReport=strftime(reportEpoch, \"%Y-%m-%d %H:%M:%S %z\")\n| where ciscoUmbrellaStatus=\"$row.status.value$\"\n| eval matchingChecks=\"Cisco Umbrella\"\n| sort 0 deviceKey\n| rename latestReport as \"Latest Report\"\n         overallStatus as \"Computed Overall\"\n         reportedOverallStatus as \"Reported Overall\"\n         matchingChecks as \"Matching Check\"\n         serialNumber as \"Serial Number\"\n         computerName as \"Computer Name\"\n         hostname as \"Hostname\"\n         macOSBuild as \"macOS Build\"\n         macOSVersionStatus as \"macOS Version\"\n         crowdstrikeFalconStatus as \"CrowdStrike Falcon\"\n         beyondtrustPrivilegeManagementStatus as \"BeyondTrust PM\"\n         ciscoUmbrellaStatus as \"Cisco Umbrella\"\n| table \"Latest Report\" \"Computed Overall\" \"Reported Overall\" \"Matching Check\" \"Serial Number\" \"Computer Name\" \"Hostname\" \"macOS Build\" \"macOS Version\" \"CrowdStrike Falcon\" \"BeyondTrust PM\" \"Cisco Umbrella\"",
+            "type": "custom"
+          },
+          "type": "drilldown.linkToSearch"
+        }
+      ],
+      "options": {
+        "labelDisplay": "valuesAndPercentage",
+        "labelField": "status",
+        "seriesColorsByField": {
+          "fail": "#D93F3C",
+          "healthy": "#2DA44E",
+          "unknown": "#9AA5B1",
+          "warning": "#F2B827"
+        },
+        "showDonutHole": true,
+        "valueField": "count"
+      },
+      "title": "Cisco Umbrella Health",
+      "type": "splunk.pie"
+    },
+    "viz_uRhQaxCl": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_U9kDKnHI_ds_tGOKu1sU"
+      },
+      "description": "",
+      "options": {
+        "gaugeColor": "#53a051",
+        "labelDisplay": "percentage",
+        "orientation": "horizontal",
+        "valueDisplay": "percentage"
+      },
+      "title": "Firewall",
+      "type": "splunk.fillergauge"
+    },
+    "viz_vbgilhPi": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_4LzUIOUD"
+      },
+      "description": "",
+      "options": {
+        "gaugeColor": "#53a051",
+        "labelDisplay": "percentage",
+        "orientation": "horizontal",
+        "valueDisplay": "percentage"
+      },
+      "title": "System Integrity Protection",
+      "type": "splunk.fillergauge"
+    },
+    "viz_vdkuy9pO": {
+      "cornerRadius": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "dataSources": {
+        "primary": "ds_sqVYxkHb"
+      },
+      "description": "Latest status for macOS version, CrowdStrike, BeyondTrust PM, and Cisco Umbrella",
+      "eventHandlers": [
+        {
+          "options": {
+            "earliest": "auto",
+            "latest": "auto",
+            "newTab": true,
+            "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| eval reportedOverallStatus=coalesce(reportedOverallStatus, \"unknown\")\n| eval reportEpoch=coalesce(\n    strptime(replace(reportTimestamp,\"([+-]\\d\\d):(\\d\\d)$\",\"\\1\\2\"), \"%Y-%m-%dT%H:%M:%S%z\"),\n    _time\n  )\n| eval latestReport=strftime(reportEpoch, \"%Y-%m-%d %H:%M:%S %z\")\n| where overallStatus=\"$row.overallStatus.value$\"\n| eval matchingChecks=mvappend(\n    if(macOSVersionStatus=overallStatus, \"macOS Version\", null()),\n    if(crowdstrikeFalconStatus=overallStatus, \"CrowdStrike Falcon\", null()),\n    if(beyondtrustPrivilegeManagementStatus=overallStatus, \"BeyondTrust PM\", null()),\n    if(ciscoUmbrellaStatus=overallStatus, \"Cisco Umbrella\", null())\n  )\n| eval matchingChecks=mvjoin(matchingChecks, \", \")\n| sort 0 deviceKey\n| rename latestReport as \"Latest Report\"\n         overallStatus as \"Computed Overall\"\n         reportedOverallStatus as \"Reported Overall\"\n         matchingChecks as \"Matching Check\"\n         serialNumber as \"Serial Number\"\n         computerName as \"Computer Name\"\n         hostname as \"Hostname\"\n         macOSBuild as \"macOS Build\"\n         macOSVersionStatus as \"macOS Version\"\n         crowdstrikeFalconStatus as \"CrowdStrike Falcon\"\n         beyondtrustPrivilegeManagementStatus as \"BeyondTrust PM\"\n         ciscoUmbrellaStatus as \"Cisco Umbrella\"\n| table \"Latest Report\" \"Computed Overall\" \"Reported Overall\" \"Matching Check\" \"Serial Number\" \"Computer Name\" \"Hostname\" \"macOS Build\" \"macOS Version\" \"CrowdStrike Falcon\" \"BeyondTrust PM\" \"Cisco Umbrella\"",
+            "type": "custom"
+          },
+          "type": "drilldown.linkToSearch"
+        }
+      ],
+      "options": {
+        "labelDisplay": "valuesAndPercentage",
+        "labelField": "overallStatus",
+        "seriesColorsByField": {
+          "fail": "#D93F3C",
+          "healthy": "#2DA44E",
+          "warning": "#F2B827"
+        },
+        "showDonutHole": true,
+        "valueField": "count"
+      },
+      "title": "Overall Health",
+      "type": "splunk.pie"
+    }
+  },
+  "dataSources": {
+    "ds_27k2pPay": {
+      "name": "ds_crowdstrikeHealth",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval status=crowdstrikeFalconStatus\n| stats count by status\n| eventstats sum(count) as total\n| eval pct=round((count/total)*100, 1)\n| eval sortOrder=case(\n    status=\"fail\", 1,\n    status=\"warning\", 2,\n    status=\"healthy\", 3,\n    status=\"unknown\", 4,\n    true(), 5\n  )\n| sort sortOrder\n| fields status count pct"
+      },
+      "type": "ds.search"
+    },
+    "ds_4LzUIOUD": {
+      "name": "ds_SIP",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval status=coalesce(mvindex(checkStatus, mvfind(checkKey, \"^system_integrity_protection$\")), \"unknown\")\n| stats count as deviceCount sum(eval(status=\"healthy\")) as healthyCount\n| eval healthyPct=if(deviceCount>0, round((healthyCount/deviceCount)*100, 1), 0)\n| fields healthyPct"
+      },
+      "type": "ds.search"
+    },
+    "ds_8Sraokuv": {
+      "name": "ds_ciscoUmbrellaHealth",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval status=ciscoUmbrellaStatus\n| stats count by status\n| eventstats sum(count) as total\n| eval pct=round((count/total)*100, 1)\n| eval sortOrder=case(\n    status=\"fail\", 1,\n    status=\"warning\", 2,\n    status=\"healthy\", 3,\n    status=\"unknown\", 4,\n    true(), 5\n  )\n| sort sortOrder\n| fields status count pct"
+      },
+      "type": "ds.search"
+    },
+    "ds_B0t8DYjx": {
+      "name": "ds_macOS",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| where isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\")\n| eval status=macOSVersionStatus\n| stats count by status\n| eventstats sum(count) as total\n| eval pct=round((count/total)*100, 1)\n| eval sortOrder=case(\n    status=\"fail\", 1,\n    status=\"warning\", 2,\n    status=\"healthy\", 3,\n    status=\"unknown\", 4,\n    true(), 5\n  )\n| sort sortOrder\n| fields status count pct"
+      },
+      "type": "ds.search"
+    },
+    "ds_I21vxolY": {
+      "name": "ds_SSV",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval status=coalesce(mvindex(checkStatus, mvfind(checkKey, \"^signed_system_volume$\")), \"unknown\")\n| stats count as deviceCount sum(eval(status=\"healthy\")) as healthyCount\n| eval healthyPct=if(deviceCount>0, round((healthyCount/deviceCount)*100, 1), 0)\n| fields healthyPct"
+      },
+      "type": "ds.search"
+    },
+    "ds_JSve2lfc": {
+      "name": "Table - Table search",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| eval reportedOverallStatus=coalesce(reportedOverallStatus, \"unknown\")\n| eval reportEpoch=coalesce(\n    strptime(replace(reportTimestamp,\"([+-]\\d\\d):(\\d\\d)$\",\"\\1\\2\"), \"%Y-%m-%dT%H:%M:%S%z\"),\n    _time\n  )\n| eval latestReport=strftime(reportEpoch, \"%Y-%m-%d %H:%M:%S %z\")\n| eval focusRank=case(\n    overallStatus=\"fail\", 0,\n    overallStatus=\"warning\", 1,\n    overallStatus=\"healthy\", 2,\n    true(), 3\n  )\n| sort 0 focusRank overallStatus deviceKey\n| rename latestReport as \"Latest Report\"\n         overallStatus as \"Computed Overall\"\n         reportedOverallStatus as \"Reported Overall\"\n         serialNumber as \"Serial Number\"\n         computerName as \"Computer Name\"\n         hostname as \"Hostname\"\n         macOSBuild as \"macOS Build\"\n         macOSVersionStatus as \"macOS Version\"\n         crowdstrikeFalconStatus as \"CrowdStrike Falcon\"\n         beyondtrustPrivilegeManagementStatus as \"BeyondTrust PM\"\n         ciscoUmbrellaStatus as \"Cisco Umbrella\"\n| table \"Latest Report\" \"Computed Overall\" \"Reported Overall\" \"Serial Number\" \"Computer Name\" \"Hostname\" \"macOS Build\" \"macOS Version\" \"CrowdStrike Falcon\" \"BeyondTrust PM\" \"Cisco Umbrella\"",
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$",
+          "sampleRatio": 1
+        }
+      },
+      "type": "ds.search"
+    },
+    "ds_TBEpmQTc": {
+      "name": "ds_beyondtrustHealth",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval status=beyondtrustPrivilegeManagementStatus\n| stats count by status\n| eventstats sum(count) as total\n| eval pct=round((count/total)*100, 1)\n| eval sortOrder=case(\n    status=\"fail\", 1,\n    status=\"warning\", 2,\n    status=\"healthy\", 3,\n    status=\"unknown\", 4,\n    true(), 5\n  )\n| sort sortOrder\n| fields status count pct"
+      },
+      "type": "ds.search"
+    },
+    "ds_U9kDKnHI_ds_tGOKu1sU": {
+      "name": "ds_firewall",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval status=coalesce(mvindex(checkStatus, mvfind(checkKey, \"^firewall$\")), \"unknown\")\n| stats count as deviceCount sum(eval(status=\"healthy\")) as healthyCount\n| eval healthyPct=if(deviceCount>0, round((healthyCount/deviceCount)*100, 1), 0)\n| fields healthyPct"
+      },
+      "type": "ds.search"
+    },
+    "ds_sqVYxkHb": {
+      "name": "ds_overallHealth",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval macOSVersionStatus=if(isnull(macOSBuild) OR NOT match(macOSBuild, \"[A-Za-z]$\"), mvindex(checkStatus, mvfind(checkKey, \"^macos_version$\")), null())\n| eval crowdstrikeFalconStatus=mvindex(checkStatus, mvfind(checkKey, \"^crowdstrike_falcon$\"))\n| eval beyondtrustPrivilegeManagementStatus=mvindex(checkStatus, mvfind(checkKey, \"^beyondtrust_privilege_management$\"))\n| eval ciscoUmbrellaStatus=mvindex(checkStatus, mvfind(checkKey, \"^cisco_umbrella$\"))\n| fillnull value=\"unknown\" macOSVersionStatus crowdstrikeFalconStatus beyondtrustPrivilegeManagementStatus ciscoUmbrellaStatus\n| eval overallStatus=case(\n    macOSVersionStatus=\"fail\" OR crowdstrikeFalconStatus=\"fail\" OR beyondtrustPrivilegeManagementStatus=\"fail\" OR ciscoUmbrellaStatus=\"fail\", \"fail\",\n    macOSVersionStatus=\"warning\" OR crowdstrikeFalconStatus=\"warning\" OR beyondtrustPrivilegeManagementStatus=\"warning\" OR ciscoUmbrellaStatus=\"warning\", \"warning\",\n    true(), \"healthy\"\n  )\n| stats count by overallStatus\n| eventstats sum(count) as total\n| eval pct=round((count/total)*100, 1)\n| eval sortOrder=case(\n    overallStatus=\"fail\", 1,\n    overallStatus=\"warning\", 2,\n    overallStatus=\"healthy\", 3,\n    true(), 4\n  )\n| sort sortOrder\n| fields overallStatus count pct"
+      },
+      "type": "ds.search"
+    },
+    "ds_tGOKu1sU": {
+      "name": "ds_filevaultEncryptionHealth",
+      "options": {
+        "query": "index=replace_with_your_index_prefix sourcetype=macHealthCheck\n| rename metadata.serialNumber AS serialNumber\n| rename systemInfo.computerName AS computerName\n| rename metadata.hostname AS hostname\n| rename metadata.timestamp AS reportTimestamp\n| rename summary.overallStatus AS reportedOverallStatus\n| rename systemInfo.macOSBuild AS macOSBuild\n| rename checks{}.key AS checkKey\n| rename checks{}.status AS checkStatus\n| eval deviceKey=coalesce(serialNumber, computerName, hostname)\n| where isnotnull(deviceKey)\n| sort 0 - _time\n| dedup deviceKey\n| eval status=coalesce(mvindex(checkStatus, mvfind(checkKey, \"^filevault_encryption$\")), \"unknown\")\n| stats count as deviceCount sum(eval(status=\"healthy\")) as healthyCount\n| eval healthyPct=if(deviceCount>0, round((healthyCount/deviceCount)*100, 1), 0)\n| fields healthyPct"
+      },
+      "type": "ds.search"
+    }
+  },
+  "layout": {
+    "globalInputs": [
+      "input_global_trp"
+    ],
+    "layoutDefinitions": {
+      "layout_1": {
+        "options": {
+          "height": 960,
+          "width": 1440
+        },
+        "structure": [
+          {
+            "item": "viz_sItF2ahE",
+            "position": {
+              "h": 931,
+              "w": 1440,
+              "x": 0,
+              "y": 0
+            },
+            "type": "block"
+          }
+        ],
+        "type": "grid"
+      },
+      "layout_IuZGnUr3": {
+        "options": {},
+        "structure": [
+          {
+            "item": "viz_vdkuy9pO",
+            "position": {
+              "h": 400,
+              "w": 595,
+              "x": 0,
+              "y": 0
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_VjliKlrl",
+            "position": {
+              "h": 400,
+              "w": 594,
+              "x": 605,
+              "y": 0
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_iwWbcf75",
+            "position": {
+              "h": 300,
+              "w": 395,
+              "x": 0,
+              "y": 405
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_oRqxJZcb",
+            "position": {
+              "h": 300,
+              "w": 395,
+              "x": 402,
+              "y": 405
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_tqxnCkGE",
+            "position": {
+              "h": 300,
+              "w": 394,
+              "x": 805,
+              "y": 405
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_KZC9layp",
+            "position": {
+              "h": 145,
+              "w": 295,
+              "x": 0,
+              "y": 711
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_uRhQaxCl",
+            "position": {
+              "h": 145,
+              "w": 295,
+              "x": 300,
+              "y": 711
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_vbgilhPi",
+            "position": {
+              "h": 145,
+              "w": 295,
+              "x": 600,
+              "y": 711
+            },
+            "type": "block"
+          },
+          {
+            "item": "viz_cmCo9JV1",
+            "position": {
+              "h": 145,
+              "w": 295,
+              "x": 900,
+              "y": 711
+            },
+            "type": "block"
+          }
+        ],
+        "type": "absolute"
+      }
+    },
+    "options": {},
+    "tabs": {
+      "items": [
+        {
+          "label": "Charts",
+          "layoutId": "layout_IuZGnUr3"
+        },
+        {
+          "label": "Table",
+          "layoutId": "layout_1"
+        }
+      ]
+    }
+  },
+  "applicationProperties": {
+    "collapseNavigation": true,
+    "hideEdit": false,
+    "hideExport": false
+  }
+}

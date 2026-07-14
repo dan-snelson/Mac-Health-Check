@@ -2,9 +2,11 @@
 
 ###########################################################################################
 # A script to collect the status of Palo Alto GlobalProtect.                              #
-# • If Palo Alto GlobalProtect is not installed, "Not Installed" will be returned.        #
-# • If the local user is not logged-in, "${loggedInUser} not logged-in" will be returned. #
-# • If no gateway is selected, "Best Available Gateway selected" will be returned.        #
+# • If Palo Alto GlobalProtect is not installed, "Failed: ... NOT installed" is returned. #
+# • If GlobalProtect is connected, "Running: Connected ..." is returned.                  #
+# • If GlobalProtect is internal, "Running: Internal ..." is returned.                    #
+# • If GlobalProtect is disconnected, "Warning: Disconnected" is returned.                #
+# • If GlobalProtect status cannot be determined, "Error: Unknown" is returned.           #
 ###########################################################################################
 #
 # HISTORY
@@ -15,29 +17,62 @@
 #   Version 0.0.2, 26-Aug-2025, Dan K. Snelson (@dan-snelson)
 #   - Updated based on Mac Health Check (2.3.0)
 #
+#   Version 0.0.3, 14-Jul-2026, Dan K. Snelson (@dan-snelson)
+#   - Updated based on Mac Health Check (4.0.0) [inspired by @kgolden-code’s PR #88]
+#   - Added safe plist reads, connected-non-pa support and normalized external-check output
+#   - Report disconnected VPN as a warning instead of a failure
+#
 ###########################################################################################
 
-loggedInUser=$( /bin/echo "show State:/Users/ConsoleUser" | /usr/sbin/scutil | /usr/bin/awk '/Name :/ && ! /loginwindow/ { print $3 }' )
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
+
+function readPlistValue() {
+    local plistPath="${1}"
+    local plistKey="${2}"
+
+    /usr/libexec/PlistBuddy -c "Print ${plistKey}" "${plistPath}" 2>/dev/null
+}
+
+function getGlobalProtectUserStatus() {
+    local globalProtectUserResult
+
+    if [[ -z "${loggedInUser}" ]]; then
+        echo "No console user"
+        return
+    fi
+
+    globalProtectUserResult=$( defaults read "/Users/${loggedInUser}/Library/Preferences/com.paloaltonetworks.GlobalProtect.client" User 2>/dev/null )
+
+    if [[ -z "${globalProtectUserResult}" ]]; then
+        echo "${loggedInUser} NOT logged-in"
+    else
+        echo "\"${loggedInUser}\" logged-in"
+    fi
+}
+
+loggedInUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ && ! /loginwindow/ { print $3 }' )
 vpnAppPath="/Applications/GlobalProtect.app"
-vpnStatus="GlobalProtect is NOT installed"
+globalProtectSettingsPlist="/Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist"
+vpnStatus="Failed: GlobalProtect is NOT installed"
 
 if [[ -d "${vpnAppPath}" ]]; then
     vpnStatus="Running: Installed"
-    if [[ $(find /var/db/.AppleSetupDone -mmin +60) ]]; then
-        globalProtectTunnelStatus=$( /usr/libexec/PlistBuddy -c "Print :'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist )
-        case "$globalProtectTunnelStatus" in
-            "connected"* | "internal" )
-                globalProtectVpnIP=$( /usr/libexec/PlistBuddy -c 'Print :"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' /Library/Preferences/com.paloaltonetworks.GlobalProtect.settings.plist 2>/dev/null | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
-                vpnStatus="Running: ${globalProtectVpnIP}; "
-                globalProtectUserResult=$( defaults read /Users/"${loggedInUser}"/Library/Preferences/com.paloaltonetworks.GlobalProtect.client User 2>&1 )
-                if [[ "${globalProtectUserResult}"  == *"Does Not Exist" || -z "${globalProtectUserResult}" ]]; then
-                    globalProtectUserResult="${loggedInUser} NOT logged-in"
-                elif [[ -n "${globalProtectUserResult}" ]]; then
-                    globalProtectUserResult="\"${loggedInUser}\" logged-in"
-                fi
+
+    if [[ -e "/var/db/.AppleSetupDone" ]] && [[ -n $( find /var/db/.AppleSetupDone -mmin +60 2>/dev/null ) ]]; then
+        globalProtectTunnelStatus=$( readPlistValue "${globalProtectSettingsPlist}" ":'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" )
+
+        case "${globalProtectTunnelStatus}" in
+            "connected" | "connected-non-pa" )
+                globalProtectVpnIP=$( readPlistValue "${globalProtectSettingsPlist}" ':"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
+                globalProtectUserResult=$( getGlobalProtectUserStatus )
+                vpnStatus="Running: Connected ${globalProtectVpnIP:-<no-IP>}; ${globalProtectUserResult}"
+                ;;
+            "internal" )
+                globalProtectUserResult=$( getGlobalProtectUserStatus )
+                vpnStatus="Running: Internal; ${globalProtectUserResult}"
                 ;;
             "disconnected" )
-                vpnStatus="Failed: Disconnected"
+                vpnStatus="Warning: Disconnected"
                 ;;
             *)
                 vpnStatus="Error: Unknown"
@@ -46,6 +81,6 @@ if [[ -d "${vpnAppPath}" ]]; then
     fi
 fi
 
-/bin/echo "<result>${vpnStatus}${globalProtectUserResult}</result>"
+echo "${vpnStatus}"
 
 exit 0

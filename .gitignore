@@ -1,5 +1,5 @@
 # Mac Health Check
-## Version 3.2.0
+## Version 4.0.0
 
 
 
@@ -31,5 +31,5 @@ Icon?
 
 
 ### Project temp
-.deployMacHealthCheck.zsh
+.deploy*
 VERSION.txt

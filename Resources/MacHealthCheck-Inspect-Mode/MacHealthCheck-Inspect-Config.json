@@ -1,0 +1,1645 @@
+{
+    "preset": "6",
+    "title": "Mac Health Check (4.0.0)",
+    "highlightColor": "#F69325",
+    "moveable": true,
+    "triggerFile": "/var/tmp/MacHealthCheck-Inspect.trigger",
+    "readinessFile": "/var/tmp/MacHealthCheck-Inspect.ready",
+    "resultFile": "/var/tmp/MacHealthCheck-Inspect-Result.json",
+    "plistSources": [
+        {
+            "path": "/var/tmp/MacHealthCheck-Inspect-Compliance.plist",
+            "type": "compliance",
+            "displayName": "Mac Health Check Compliance",
+            "icon": "SF=shield.checkered",
+            "healthyLabel": "Healthy",
+            "attentionLabel": "Needs Attention",
+            "successValues": [
+                "healthy"
+            ],
+            "excludeKeys": [
+                "lastComplianceCheck"
+            ],
+            "keyMappings": [
+                {
+                    "key": "macos_version",
+                    "displayName": "macOS Version",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "available_updates",
+                    "displayName": "Available Updates",
+                    "category": "Maintenance",
+                    "isCritical": true
+                },
+                {
+                    "key": "system_integrity_protection",
+                    "displayName": "System Integrity Protection",
+                    "category": "Security",
+                    "isCritical": true
+                },
+                {
+                    "key": "signed_system_volume",
+                    "displayName": "Signed System Volume",
+                    "category": "Security",
+                    "isCritical": true
+                },
+                {
+                    "key": "firewall",
+                    "displayName": "Firewall",
+                    "category": "Security"
+                },
+                {
+                    "key": "filevault_encryption",
+                    "displayName": "FileVault Encryption",
+                    "category": "Security",
+                    "isCritical": true
+                },
+                {
+                    "key": "gatekeeper__xprotect",
+                    "displayName": "Gatekeeper / XProtect",
+                    "category": "Security",
+                    "isCritical": true
+                },
+                {
+                    "key": "touch_id",
+                    "displayName": "Touch ID",
+                    "category": "Security"
+                },
+                {
+                    "key": "airdrop",
+                    "displayName": "AirDrop",
+                    "category": "Security",
+                    "severity": "failure",
+                    "explanation": "System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only",
+                    "remediation": "System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only"
+                },
+                {
+                    "key": "airplay_receiver",
+                    "displayName": "AirPlay Receiver",
+                    "category": "Security"
+                },
+                {
+                    "key": "bluetooth_sharing",
+                    "displayName": "Bluetooth Sharing",
+                    "category": "Security",
+                    "severity": "failure",
+                    "explanation": "System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable",
+                    "remediation": "System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable"
+                },
+                {
+                    "key": "vpn_client",
+                    "displayName": "VPN Client",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "last_reboot",
+                    "displayName": "Last Reboot",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "free_disk_space",
+                    "displayName": "Free Disk Space",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "desktop_size_and_item_count",
+                    "displayName": "Desktop Size and Item Count",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "downloads_size_and_item_count",
+                    "displayName": "Downloads Size and Item Count",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "trash_size_and_item_count",
+                    "displayName": "Trash Size and Item Count",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "jamf_pro_mdm_profile",
+                    "displayName": "Jamf Pro MDM Profile",
+                    "category": "MDM",
+                    "isCritical": true
+                },
+                {
+                    "key": "entra_id_registration",
+                    "displayName": "Entra ID Registration",
+                    "category": "MDM",
+                    "isCritical": true
+                },
+                {
+                    "key": "jamf_pro_mdm_certificate_expiration",
+                    "displayName": "Jamf Pro MDM Certificate Expiration",
+                    "category": "MDM",
+                    "isCritical": true
+                },
+                {
+                    "key": "apple_push_notification_service",
+                    "displayName": "Apple Push Notification service",
+                    "category": "MDM"
+                },
+                {
+                    "key": "jamf_pro_check_in",
+                    "displayName": "Jamf Pro Check-In",
+                    "category": "MDM",
+                    "isCritical": true
+                },
+                {
+                    "key": "jamf_pro_inventory",
+                    "displayName": "Jamf Pro Inventory",
+                    "category": "MDM",
+                    "isCritical": true
+                },
+                {
+                    "key": "apple_push_notification_hosts",
+                    "displayName": "Apple Push Notification Hosts",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "apple_device_management",
+                    "displayName": "Apple Device Management",
+                    "category": "Connectivity",
+                    "isCritical": true
+                },
+                {
+                    "key": "apple_software_and_carrier_updates",
+                    "displayName": "Apple Software and Carrier Updates",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "apple_certificate_validation",
+                    "displayName": "Apple Certificate Validation",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "apple_identity_and_content_services",
+                    "displayName": "Apple Identity and Content Services",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "jamf_hosts",
+                    "displayName": "Jamf Hosts",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "app_auto_patch",
+                    "displayName": "App Auto-Patch",
+                    "category": "Maintenance",
+                    "severity": "failure",
+                    "explanation": "Please run App Auto-Patch from the Workforce App Store",
+                    "remediation": "Please run App Auto-Patch from the Workforce App Store"
+                },
+                {
+                    "key": "homebrew_status",
+                    "displayName": "Homebrew Status",
+                    "category": "Applications",
+                    "severity": "warning",
+                    "explanation": "Open Terminal and update Homebrew packages if you manage them on this Mac",
+                    "remediation": "Open Terminal and update Homebrew packages if you manage them on this Mac"
+                },
+                {
+                    "key": "electron_corner_mask",
+                    "displayName": "Electron Corner Mask",
+                    "category": "Applications"
+                },
+                {
+                    "key": "microsoft_teams",
+                    "displayName": "Microsoft Teams",
+                    "category": "Applications"
+                },
+                {
+                    "key": "beyondtrust_privilege_management",
+                    "displayName": "BeyondTrust Privilege Management",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "cisco_umbrella",
+                    "displayName": "Cisco Umbrella",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "crowdstrike_falcon",
+                    "displayName": "CrowdStrike Falcon",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "palo_alto_globalprotect",
+                    "displayName": "Palo Alto GlobalProtect",
+                    "category": "Maintenance"
+                },
+                {
+                    "key": "wi_fi_strength",
+                    "displayName": "Wi-Fi Strength",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "network_quality_test",
+                    "displayName": "Network Quality Test",
+                    "category": "Connectivity"
+                },
+                {
+                    "key": "computer_inventory",
+                    "displayName": "Computer Inventory",
+                    "category": "MDM",
+                    "isCritical": true
+                }
+            ]
+        }
+    ],
+    "items": [
+        {
+            "displayName": "Overview",
+            "guidanceContent": [
+                {
+                    "content": "Your recent Mac Health Check results are ready to review. One or more executed checks failed.",
+                    "type": "highlight"
+                },
+                {
+                    "content": "Results as of: **Tuesday, June 23 at 05:14 PM EDT**.\n\nThese cached results may be reused for up to 15 minutes.",
+                    "type": "info"
+                },
+                {
+                    "type": "compliance-summary",
+                    "label": "Overall Compliance Status"
+                },
+                {
+                    "type": "findings-list"
+                }
+            ],
+            "guidanceTitle": "Results Overview",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "overview",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Remediation Guide",
+            "guidanceContent": [
+                {
+                    "content": "4 checks need attention. Warnings: 1. Failures: 3. Errors: 0. Overall status: Unhealthy.",
+                    "type": "warning"
+                },
+                {
+                    "content": "Address failures first, then warnings to restore full compliance.",
+                    "type": "info"
+                },
+                {
+                    "content": "AirDrop",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Problem",
+                    "expected": "System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only",
+                    "expectedColor": "#EB4C46",
+                    "expectedIcon": "xmark.circle.fill",
+                    "actualLabel": "What to do",
+                    "actual": "System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only",
+                    "actualColor": "#34C759",
+                    "actualIcon": "xmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Bluetooth Sharing",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Problem",
+                    "expected": "System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable",
+                    "expectedColor": "#EB4C46",
+                    "expectedIcon": "xmark.circle.fill",
+                    "actualLabel": "What to do",
+                    "actual": "System Settings > General > Sharing > Accessories & Internet > Bluetooth Sharing > Disable",
+                    "actualColor": "#34C759",
+                    "actualIcon": "xmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "App Auto-Patch",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Problem",
+                    "expected": "Please run App Auto-Patch from the Workforce App Store",
+                    "expectedColor": "#EB4C46",
+                    "expectedIcon": "xmark.circle.fill",
+                    "actualLabel": "What to do",
+                    "actual": "Please run App Auto-Patch from the Workforce App Store",
+                    "actualColor": "#34C759",
+                    "actualIcon": "xmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Homebrew Status",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Problem",
+                    "expected": "Open Terminal and update Homebrew packages if you manage them on this Mac",
+                    "expectedColor": "#F5BE0A",
+                    "expectedIcon": "exclamationmark.triangle.fill",
+                    "actualLabel": "What to do",
+                    "actual": "Open Terminal and update Homebrew packages if you manage them on this Mac",
+                    "actualColor": "#34C759",
+                    "actualIcon": "mug.fill",
+                    "type": "comparison-table"
+                }
+            ],
+            "guidanceTitle": "How to Fix Issues",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "remediation",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Security",
+            "guidanceContent": [
+                {
+                    "type": "bento-grid",
+                    "bentoColumns": 3,
+                    "bentoGap": 12,
+                    "bentoRowHeight": 110,
+                    "bentoCells": [
+                        {
+                            "id": "system_integrity_protection",
+                            "column": 0,
+                            "row": 0,
+                            "title": "System Integrity Protection",
+                            "sfSymbol": "shield.lefthalf.filled",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "signed_system_volume",
+                            "column": 1,
+                            "row": 0,
+                            "title": "Signed System Volume",
+                            "sfSymbol": "checkmark.seal",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "firewall",
+                            "column": 2,
+                            "row": 0,
+                            "title": "Firewall",
+                            "sfSymbol": "firewall",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "filevault_encryption",
+                            "column": 0,
+                            "row": 1,
+                            "title": "FileVault Encryption",
+                            "sfSymbol": "lock.shield",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "gatekeeper__xprotect",
+                            "column": 1,
+                            "row": 1,
+                            "title": "Gatekeeper / XProtect",
+                            "sfSymbol": "lock.circle",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "touch_id",
+                            "column": 2,
+                            "row": 1,
+                            "title": "Touch ID",
+                            "sfSymbol": "touchid",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "airdrop",
+                            "column": 0,
+                            "row": 2,
+                            "title": "AirDrop",
+                            "sfSymbol": "xmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#4A1F1F"
+                        },
+                        {
+                            "id": "airplay_receiver",
+                            "column": 1,
+                            "row": 2,
+                            "title": "AirPlay Receiver",
+                            "sfSymbol": "airplayaudio",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "bluetooth_sharing",
+                            "column": 2,
+                            "row": 2,
+                            "title": "Bluetooth Sharing",
+                            "sfSymbol": "xmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#4A1F1F"
+                        }
+                    ]
+                }
+            ],
+            "guidanceTitle": "Security Status",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "security",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Maintenance",
+            "guidanceContent": [
+                {
+                    "type": "bento-grid",
+                    "bentoColumns": 3,
+                    "bentoGap": 12,
+                    "bentoRowHeight": 110,
+                    "bentoCells": [
+                        {
+                            "id": "macos_version",
+                            "column": 0,
+                            "row": 0,
+                            "title": "macOS Version",
+                            "sfSymbol": "apple.logo",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "available_updates",
+                            "column": 1,
+                            "row": 0,
+                            "title": "Available Updates",
+                            "sfSymbol": "arrow.down.circle",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "last_reboot",
+                            "column": 2,
+                            "row": 0,
+                            "title": "Last Reboot",
+                            "sfSymbol": "power.circle",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "free_disk_space",
+                            "column": 0,
+                            "row": 1,
+                            "title": "Free Disk Space",
+                            "sfSymbol": "internaldrive",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "desktop_size_and_item_count",
+                            "column": 1,
+                            "row": 1,
+                            "title": "Desktop Size and Item Count",
+                            "sfSymbol": "desktopcomputer",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "downloads_size_and_item_count",
+                            "column": 2,
+                            "row": 1,
+                            "title": "Downloads Size and Item Count",
+                            "sfSymbol": "folder.fill.badge.plus",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "trash_size_and_item_count",
+                            "column": 0,
+                            "row": 2,
+                            "title": "Trash Size and Item Count",
+                            "sfSymbol": "trash",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "jamf_hosts",
+                            "column": 1,
+                            "row": 2,
+                            "title": "Jamf Hosts",
+                            "sfSymbol": "checkmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "app_auto_patch",
+                            "column": 2,
+                            "row": 2,
+                            "title": "App Auto-Patch",
+                            "sfSymbol": "xmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#4A1F1F"
+                        },
+                        {
+                            "id": "beyondtrust_privilege_management",
+                            "column": 0,
+                            "row": 3,
+                            "title": "BeyondTrust Privilege Management",
+                            "sfSymbol": "checkmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "cisco_umbrella",
+                            "column": 1,
+                            "row": 3,
+                            "title": "Cisco Umbrella",
+                            "sfSymbol": "checkmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "crowdstrike_falcon",
+                            "column": 2,
+                            "row": 3,
+                            "title": "CrowdStrike Falcon",
+                            "sfSymbol": "checkmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "palo_alto_globalprotect",
+                            "column": 0,
+                            "row": 4,
+                            "title": "Palo Alto GlobalProtect",
+                            "sfSymbol": "checkmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        }
+                    ]
+                }
+            ],
+            "guidanceTitle": "Maintenance Status",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "maintenance",
+            "stepType": "info"
+        },
+        {
+            "displayName": "MDM & Inventory",
+            "guidanceContent": [
+                {
+                    "type": "bento-grid",
+                    "bentoColumns": 3,
+                    "bentoGap": 12,
+                    "bentoRowHeight": 110,
+                    "bentoCells": [
+                        {
+                            "id": "jamf_pro_mdm_profile",
+                            "column": 0,
+                            "row": 0,
+                            "title": "Jamf Pro MDM Profile",
+                            "sfSymbol": "checkmark.shield",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "entra_id_registration",
+                            "column": 1,
+                            "row": 0,
+                            "title": "Entra ID Registration",
+                            "sfSymbol": "person.badge.key.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "jamf_pro_mdm_certificate_expiration",
+                            "column": 2,
+                            "row": 0,
+                            "title": "Jamf Pro MDM Certificate Expiration",
+                            "sfSymbol": "checkmark.seal",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "apple_push_notification_service",
+                            "column": 0,
+                            "row": 1,
+                            "title": "Apple Push Notification service",
+                            "sfSymbol": "bell.badge",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "jamf_pro_check_in",
+                            "column": 1,
+                            "row": 1,
+                            "title": "Jamf Pro Check-In",
+                            "sfSymbol": "arrow.triangle.2.circlepath",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "jamf_pro_inventory",
+                            "column": 2,
+                            "row": 1,
+                            "title": "Jamf Pro Inventory",
+                            "sfSymbol": "arrow.triangle.2.circlepath",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "computer_inventory",
+                            "column": 0,
+                            "row": 2,
+                            "title": "Computer Inventory",
+                            "sfSymbol": "arrow.triangle.2.circlepath",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        }
+                    ]
+                }
+            ],
+            "guidanceTitle": "MDM & Inventory Status",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "mdm__inventory",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Connectivity",
+            "guidanceContent": [
+                {
+                    "type": "bento-grid",
+                    "bentoColumns": 3,
+                    "bentoGap": 12,
+                    "bentoRowHeight": 110,
+                    "bentoCells": [
+                        {
+                            "id": "vpn_client",
+                            "column": 0,
+                            "row": 0,
+                            "title": "VPN Client",
+                            "sfSymbol": "lock.circle",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "apple_push_notification_hosts",
+                            "column": 1,
+                            "row": 0,
+                            "title": "Apple Push Notification Hosts",
+                            "sfSymbol": "wifi",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "apple_device_management",
+                            "column": 2,
+                            "row": 0,
+                            "title": "Apple Device Management",
+                            "sfSymbol": "desktopcomputer.badge.shield.checkmark",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "apple_software_and_carrier_updates",
+                            "column": 0,
+                            "row": 1,
+                            "title": "Apple Software and Carrier Updates",
+                            "sfSymbol": "square.and.arrow.down",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "apple_certificate_validation",
+                            "column": 1,
+                            "row": 1,
+                            "title": "Apple Certificate Validation",
+                            "sfSymbol": "checkmark.seal",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "apple_identity_and_content_services",
+                            "column": 2,
+                            "row": 1,
+                            "title": "Apple Identity and Content Services",
+                            "sfSymbol": "person.text.rectangle",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "wi_fi_strength",
+                            "column": 0,
+                            "row": 2,
+                            "title": "Wi-Fi Strength",
+                            "sfSymbol": "checkmark.circle.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "network_quality_test",
+                            "column": 1,
+                            "row": 2,
+                            "title": "Network Quality Test",
+                            "sfSymbol": "wifi",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        }
+                    ]
+                }
+            ],
+            "guidanceTitle": "Connectivity Status",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "connectivity",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Applications",
+            "guidanceContent": [
+                {
+                    "type": "bento-grid",
+                    "bentoColumns": 3,
+                    "bentoGap": 12,
+                    "bentoRowHeight": 110,
+                    "bentoCells": [
+                        {
+                            "id": "homebrew_status",
+                            "column": 0,
+                            "row": 0,
+                            "title": "Homebrew Status",
+                            "sfSymbol": "mug.fill",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#4A3510"
+                        },
+                        {
+                            "id": "electron_corner_mask",
+                            "column": 1,
+                            "row": 0,
+                            "title": "Electron Corner Mask",
+                            "sfSymbol": "bolt.circle",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        },
+                        {
+                            "id": "microsoft_teams",
+                            "column": 2,
+                            "row": 0,
+                            "title": "Microsoft Teams",
+                            "sfSymbol": "app.translucent",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#1D2C22"
+                        }
+                    ]
+                }
+            ],
+            "guidanceTitle": "Applications Status",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "applications",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Unhealthy",
+            "guidanceContent": [
+                {
+                    "content": "4 checks need attention. Warnings: 1. Failures: 3. Errors: 0. Overall status: Unhealthy.",
+                    "type": "warning"
+                },
+                {
+                    "content": "AirDrop",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "No One / Contacts Only",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Failed: Everyone",
+                    "actualColor": "#EB4C46",
+                    "actualIcon": "xmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Bluetooth Sharing",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Disabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Failed: Enabled",
+                    "actualColor": "#EB4C46",
+                    "actualIcon": "xmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "App Auto-Patch",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Meets organizational standards",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Failed: 40 day(s) ago",
+                    "actualColor": "#EB4C46",
+                    "actualIcon": "xmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Homebrew Status",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Current or not installed",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Warning: 5.1.10 vs 6.0.3",
+                    "actualColor": "#F5BE0A",
+                    "actualIcon": "mug.fill",
+                    "type": "comparison-table"
+                }
+            ],
+            "guidanceTitle": "Unhealthy Results",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "unhealthy",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Healthy",
+            "guidanceContent": [
+                {
+                    "content": "36 checks completed successfully and remain compliant.",
+                    "type": "success"
+                },
+                {
+                    "content": "macOS Version",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Supported macOS release",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "macOS 26.5.1 (25F80)",
+                    "actualColor": "#65C466",
+                    "actualIcon": "apple.logo",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Available Updates",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "No updates pending",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "None",
+                    "actualColor": "#65C466",
+                    "actualIcon": "arrow.down.circle",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "System Integrity Protection",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Enabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Enabled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "shield.lefthalf.filled",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Signed System Volume",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Enabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Enabled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.seal",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Firewall",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Enabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Enabled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "firewall",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "FileVault Encryption",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Enabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Enabled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "lock.shield",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Gatekeeper / XProtect",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Enabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Enabled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "lock.circle",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Touch ID",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Enrolled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Enrolled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "touchid",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "AirPlay Receiver",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Disabled",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Disabled",
+                    "actualColor": "#65C466",
+                    "actualIcon": "airplayaudio",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "VPN Client",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Connected when required",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Connected",
+                    "actualColor": "#65C466",
+                    "actualIcon": "lock.circle",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Last Reboot",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Restarted within policy",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "6:01 (HH:MM)",
+                    "actualColor": "#65C466",
+                    "actualIcon": "power.circle",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Free Disk Space",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "At least 10% free",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "439.2 GB free (44.15% available)",
+                    "actualColor": "#65C466",
+                    "actualIcon": "internaldrive",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Desktop Size and Item Count",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "At most 5% of disk",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "258M (172 items) — .02% of disk",
+                    "actualColor": "#65C466",
+                    "actualIcon": "desktopcomputer",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Downloads Size and Item Count",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "At most 5% of disk",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "231M (20 items) — .02% of disk",
+                    "actualColor": "#65C466",
+                    "actualIcon": "folder.fill.badge.plus",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Trash Size and Item Count",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "At most 5% of disk",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Empty",
+                    "actualColor": "#65C466",
+                    "actualIcon": "trash",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Jamf Pro MDM Profile",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Installed",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Installed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.shield",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Entra ID Registration",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Registered or not applicable",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Registered",
+                    "actualColor": "#65C466",
+                    "actualIcon": "person.badge.key.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Jamf Pro MDM Certificate Expiration",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Certificate not expired",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "09-Dec-2027",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.seal",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Apple Push Notification service",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Recent APNS communication",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "5:08 PM",
+                    "actualColor": "#65C466",
+                    "actualIcon": "bell.badge",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Jamf Pro Check-In",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Checked in recently",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "5:07 PM",
+                    "actualColor": "#65C466",
+                    "actualIcon": "arrow.triangle.2.circlepath",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Jamf Pro Inventory",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Inventory updated recently",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "5:08 PM",
+                    "actualColor": "#65C466",
+                    "actualIcon": "arrow.triangle.2.circlepath",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Apple Push Notification Hosts",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Reachable",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Passed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "wifi",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Apple Device Management",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Reachable",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Passed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "desktopcomputer.badge.shield.checkmark",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Apple Software and Carrier Updates",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Reachable",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Passed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "square.and.arrow.down",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Apple Certificate Validation",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Reachable",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Passed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.seal",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Apple Identity and Content Services",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Reachable",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Passed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "person.text.rectangle",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Jamf Hosts",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Passed",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Passed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Electron Corner Mask",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "No susceptible Electron apps detected",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "All Electron apps patched",
+                    "actualColor": "#65C466",
+                    "actualIcon": "bolt.circle",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Microsoft Teams",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Installed",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Installed",
+                    "actualColor": "#65C466",
+                    "actualIcon": "app.translucent",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "BeyondTrust Privilege Management",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Running",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Running",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Cisco Umbrella",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Running",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Running",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "CrowdStrike Falcon",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Running",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Running",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Palo Alto GlobalProtect",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Running",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Running",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Wi-Fi Strength",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Excellent >= -55\nGood >= -65\nFair >= -75, Poor < -75",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Excellent (-40 dBm)",
+                    "actualColor": "#65C466",
+                    "actualIcon": "checkmark.circle.fill",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Network Quality Test",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Network quality passed",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "542.17 Mbps ",
+                    "actualColor": "#65C466",
+                    "actualIcon": "wifi",
+                    "type": "comparison-table"
+                },
+                {
+                    "content": "Computer Inventory",
+                    "comparisonStyle": "columns",
+                    "expectedLabel": "Expected",
+                    "expected": "Inventory updated recently",
+                    "expectedColor": "#34C759",
+                    "expectedIcon": "checkmark.circle.fill",
+                    "actualLabel": "Actual",
+                    "actual": "Updated",
+                    "actualColor": "#65C466",
+                    "actualIcon": "arrow.triangle.2.circlepath",
+                    "type": "comparison-table"
+                }
+            ],
+            "guidanceTitle": "Healthy Results",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "healthy",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Help & Support",
+            "guidanceContent": [
+                {
+                    "type": "bento-grid",
+                    "bentoColumns": 3,
+                    "bentoGap": 12,
+                    "bentoRowHeight": 110,
+                    "bentoCells": [
+                        {
+                            "id": "support_resources",
+                            "column": 0,
+                            "row": 0,
+                            "columnSpan": 3,
+                            "title": "Help & Support",
+                            "subtitle": "Action Recommended",
+                            "sfSymbol": "person.crop.circle.badge.questionmark",
+                            "contentType": "mixed",
+                            "iconSize": 36,
+                            "iconWeight": "semibold",
+                            "textSize": "small",
+                            "textColor": "#FFFFFF",
+                            "backgroundColor": "#143A52",
+                            "detailOverlay": {
+                                "title": "Help & Support",
+                                "subtitle": "Action Recommended",
+                                "icon": "SF=person.crop.circle.badge.questionmark",
+                                "content": [
+                                    {
+                                        "type": "info",
+                                        "content": "Use these support options if you need help completing recommended steps."
+                                    },
+                                    {
+                                        "items": [
+                                            "Telephone: +1 (801) 555-1212",
+                                            "Email: rescue@domain.org",
+                                            "Knowledge Base Article: [KB8675309](https://servicenow.domain.org/support?id=kb_article_view&sysparm_article=KB8675309)"
+                                        ],
+                                        "type": "bullets"
+                                    },
+                                    {
+                                        "action": "url",
+                                        "content": "Website",
+                                        "icon": "safari.fill",
+                                        "type": "button",
+                                        "url": "https://support.domain.org"
+                                    }
+                                ],
+                                "showSystemInfo": false,
+                                "showProgressInfo": false,
+                                "closeButtonText": "Close"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "content": "For assistance, please contact: **IT Support**",
+                    "type": "info"
+                },
+                {
+                    "items": [
+                        "Telephone: +1 (801) 555-1212",
+                        "Email: rescue@domain.org",
+                        "Knowledge Base Article: [KB8675309](https://servicenow.domain.org/support?id=kb_article_view&sysparm_article=KB8675309)"
+                    ],
+                    "type": "bullets"
+                },
+                {
+                    "action": "url",
+                    "content": "Website",
+                    "icon": "safari.fill",
+                    "type": "button",
+                    "url": "https://support.domain.org"
+                },
+                {
+                    "content": "User Information:",
+                    "type": "info"
+                },
+                {
+                    "items": [
+                        "**Full Name:** Dan K. Snelson",
+                        "**User Name:** dan",
+                        "**User ID:** 502",
+                        "**Volume Owners:** dan",
+                        "**Secure Token:** Enabled",
+                        "**Location Services:** Enabled",
+                        "**Microsoft OneDrive Sync Date:** 23-Jun-2026",
+                        "**Platform SSOe:** dan"
+                    ],
+                    "type": "bullets"
+                },
+                {
+                    "content": "Computer Information:",
+                    "type": "info"
+                },
+                {
+                    "items": [
+                        "**macOS:** 26.5.1 (25F80)",
+                        "**Dialog:** 3.1.0.4994",
+                        "**Script:** 4.0.0",
+                        "**Computer Name:** Dan's Old MacBook Pro (16-inch, 2024)",
+                        "**Serial Number:** XDT8675309",
+                        "**Wi-Fi:** NO SIGNAL",
+                        "**Wi-Fi IP:** 192.168.1.184",
+                        "**VPN IP:** Connected 10.254.130.107"
+                    ],
+                    "type": "bullets"
+                }
+            ],
+            "guidanceTitle": "Help & Support",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "help",
+            "stepType": "info"
+        },
+        {
+            "displayName": "Next Steps",
+            "guidanceContent": [
+                {
+                    "content": "Mac Health Check Flow",
+                    "phases": [
+                        "Checks Complete",
+                        "Report Written",
+                        "Summary Reviewed",
+                        "Cached Report Expires"
+                    ],
+                    "currentPhase": 4,
+                    "style": "stepper",
+                    "type": "phase-tracker"
+                },
+                {
+                    "content": "Click **Finish** to close this report.\n\nResults as of: **Tuesday, June 23 at 05:14 PM EDT**.\n\nThese cached results may be reused for up to 15 minutes.",
+                    "type": "info"
+                },
+                {
+                    "type": "compliance-summary",
+                    "label": "Overall Compliance Status"
+                },
+                {
+                    "type": "findings-list"
+                }
+            ],
+            "guidanceTitle": "Next Steps",
+            "icon": "https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733c0784031a4943bef3b82a2981eb937ab2f5b2bd55e91",
+            "id": "nextSteps",
+            "stepType": "info"
+        }
+    ],
+    "height": 750,
+    "width": 975
+}

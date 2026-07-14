@@ -1,4 +1,4 @@
-# Mac Health Check (3.2.0)
+# Mac Health Check (4.0.0)
 ## External Checks
 
 This directory contains scripts that perform external checks for the services of various third-party applications. 
@@ -22,11 +22,20 @@ checkExternalJamfPro "14" "symvCrowdStrikeFalcon" "/Applications/Falcon.app"
 checkExternalJamfPro "15" "symvGlobalProtect" "/Applications/GlobalProtect.app"
 ```
 
-When the policy successfully executes, the returned output must include the keyword `Running`, meaning the service which you’re checking is running.
+When the policy successfully executes, the returned output should include one of the following keywords:
+
+- `Running` — service is running
+- `Warning` — service is installed but needs attention
+- `Failed` — service is missing or failed a required check
+- `Error` — service status could not be determined
 
 ```
 *"Running"* ) 
     dialogUpdate "listitem: index: ${1}, status: success, statustext: Running"
     info "${appPath} Running"
+    ;;
+*"Warning"* )
+    dialogUpdate "listitem: index: ${1}, status: error, statustext: Warning"
+    warning "${appPath} Warning"
     ;;
 ```
