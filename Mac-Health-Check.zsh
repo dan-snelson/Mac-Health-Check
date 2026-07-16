@@ -397,6 +397,7 @@ allowedUptimeMinutes="10080"
 maxUptimeMinutes="43200"
 
 # Should excessive uptime result in a "warning" or "error" ?
+# Setting this to error will disable the max uptime check above
 excessiveUptimeAlertStyle="warning"
 
 # Completion Timer (in seconds)
@@ -6626,31 +6627,44 @@ function checkUptime() {
     else
         uptimeHumanReadable="${uptimeNumber} (HH:MM)"
     fi
+    
+    if [[ "${maxUptimeMinutes}" =~ '^[1-9][0-9]*$' ]]; then
+        if [[ "${allowedUptimeMinutes}" gt "${maxUptimeMinutes}" ]]; then
+            warning "${humanReadableCheckName}: Error in configuration: Variable allowedUptimeMinutes is greater than maxUptimeMinutes. Maximum uptime check disabled."
+            maxUptimeMinutes=""
+        elif [[ -n "${maxUptimeMinutes}" ]] && [[ "${excessiveUptimeAlertStyle}" == "error" ]]; then
+            warning "${humanReadableCheckName}: Error in configuration: Variable excessiveUptimeAlertStyle is set to error instead of warning. Maximum uptime check disabled."
+            maxUptimeMinutes=""
+        fi
+    else
+            warning "${humanReadableCheckName}: Error in configuration: Variable maxUptimeMinutes is not a postive integer. Maximum uptime check disabled."
+            maxUptimeMinutes=""
+    fi
 
-    if [[ "${upTimeMin}" -gt "${maxUptimeMinutes}" ]] && [[ -n "${maxUptimeMinutes}" ]]; then
-        uptimeExtendedStatus="Your Mac's uptime is beyond the maximum 30 days allowed."
+    if [[ -n "${maxUptimeMinutes}" ]] && [[ "${upTimeMin}" -gt "${maxUptimeMinutes}" ]]; then
+        local uptimeExtendedStatus="Your Mac's uptime is beyond the maximum allowed by your organization."
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: fail, statustext: ${uptimeHumanReadable}"
-        errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: "
+        errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
         overallHealth+="${humanReadableCheckName}; "
     elif [[ "${upTimeMin}" -gt "${allowedUptimeMinutes}" ]]; then
-        uptimeExtendedStatus="Please restart your Mac regularly. "
+        local uptimeExtendedStatus="Please restart your Mac regularly. "
         case ${excessiveUptimeAlertStyle} in
 
             "warning" )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: error, statustext: ${uptimeHumanReadable}"
-                warning "${humanReadableCheckName}: ${uptimeHumanReadable}: "
+                warning "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
                 ;;
 
-            "error" )
+            "error" | * )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: fail, statustext: ${uptimeHumanReadable}"
-                errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: "
+                errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
 
         esac
     else
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.6, subtitle: ${uptimeExtendedStatus}, status: success, statustext: ${uptimeHumanReadable}"
-        info "${humanReadableCheckName}: ${uptimeHumanReadable}: "   
+        info "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
     fi
 
 }
