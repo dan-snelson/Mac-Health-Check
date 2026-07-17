@@ -2,8 +2,9 @@
 
 ## CHANGELOG
 
-### 4.1.0b1 (17-Jul-2026)
+### 4.1.0b2 (17-Jul-2026)
 - Updated `checkUptime()` with new functionality (thanks for PR #96, @HowardGMac!)
+- Standardized `checkUptime()`
 
 ### 4.0.0 (16-Jul-2026)
 - Raised the minimum required swiftDialog version to `3.1.0.4994` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build

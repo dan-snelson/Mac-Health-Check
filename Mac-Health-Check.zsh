@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.1.0b1, 17-Jul-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.1.0b2, 17-Jul-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.1.0b1"
+scriptVersion="4.1.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -6604,12 +6604,13 @@ function checkFirewall() {
 function checkUptime() {
 
     local humanReadableCheckName="Uptime"
-    notice "Check ${humanReadableCheckName} ..."
+    local footerStatusColor="${statusColorSuccess}"
+    notice "Check ${humanReadableCheckName} …"
 
     dialogUpdate "icon: SF=stopwatch,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking ..."
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
     dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Calculating time since last reboot ..."
+    dialogUpdate "progresstext: Calculating time since last reboot …"
 
     sleep "${anticipationDuration}"
 
@@ -6660,11 +6661,13 @@ function checkUptime() {
 
             "warning" )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: error, statustext: ${uptimeHumanReadable}"
+                footerStatusColor="${statusColorError}"
                 warning "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
                 ;;
 
             "error" | * )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: fail, statustext: ${uptimeHumanReadable}"
+                footerStatusColor="${statusColorFail}"
                 errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
                 overallHealth+="${humanReadableCheckName}; "
                 ;;
@@ -6672,10 +6675,15 @@ function checkUptime() {
         esac
     else
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.6, subtitle: ${uptimeExtendedStatus}, status: success, statustext: ${uptimeHumanReadable}"
+        footerStatusColor="${statusColorSuccess}"
         info "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
     fi
 
+    dialogUpdate "icon: SF=stopwatch,weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+
 }
+
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
