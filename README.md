@@ -1,6 +1,6 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check) [![swiftDialog](https://img.shields.io/badge/swiftDialog-Enabled-blue)](https://swiftdialog.app) [![Semgrep Security Scan](https://img.shields.io/badge/security%20scanned%20by-Semgrep-00C7B7?style=flat&logo=semgrep&logoColor=white)](https://semgrep.dev)
 
-# Mac Health Check (4.0.0)
+# Mac Health Check (4.1.0b2)
 
 > A **major** update to the practical, MDM-agnostic, user-friendly approach to surfacing Mac compliance information directly to end-users — and now **enterprise reporting data warehouses** — via your MDM's self-service app
 
@@ -48,7 +48,7 @@ The tool logs results for review, writes a structured JSON health report locally
 - Structured JSON health report generated at the end of every run
 - Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
 - Optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
-- Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 enables reporting debug output
+- Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run
 - `splunkOperationMode=off` disables HEC delivery explicitly while still preserving local JSON report generation
 - `splunkOperationMode=test` preserves local report generation while intentionally skipping network transmission
 - In `4.0.0`, non-`Silent` runs and full Jamf production runs install a client-side copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus a `org.churchofjesuschrist.MHC` LaunchDaemon that refreshes the local report across a deterministic 00:53-01:53 window centered on 1:23 a.m.
