@@ -5826,7 +5826,7 @@ function checkStagedUpdate() {
     local stagedUpdateStatus="Pending download"
     
     # Check for APFS snapshots indicating staged updates
-    local updateSnapshots=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.os.update")
+    local updateSnapshots=$(/usr/sbin/diskutil apfs listsnapshots / 2>/dev/null | grep -c "com.apple.os.update")
     
     if [[ ${updateSnapshots} -gt 0 ]]; then
         info "Found ${updateSnapshots} update snapshot(s)"
