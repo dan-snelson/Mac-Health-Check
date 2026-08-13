@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.1.0b4, 13-Aug-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.1.0b6, 13-Aug-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.1.0b4"
+scriptVersion="4.1.0b6"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -8556,10 +8556,11 @@ function checkBluetoothSharing() {
     sleep "${anticipationDuration}"
     
     # Check Bluetooth sharing settings using -currentHost as per macOS Security Compliance Project
-    local result=$( captureRunAsUserOutput defaults -currentHost read com.apple.Bluetooth PrefKeyServicesEnabled )
-    
-    # If the key doesn't exist or is 0, Bluetooth sharing is disabled (compliant)
-    if [[ "${result}" == "0" ]] || [[ "${result}" =~ "does not exist" ]]; then
+    local result=""
+    result=$( captureRunAsUserOutput defaults -currentHost read com.apple.Bluetooth PrefKeyServicesEnabled )
+
+    # A missing preference retains macOS's disabled default; macOS 27 reports a missing domain differently.
+    if [[ "${result}" == "0" ]] || [[ "${result}" == *"does not exist"* ]] || [[ "${result}" == "Error: Domain 'com.apple.Bluetooth' not found." ]]; then
         info "${humanReadableCheckName}: Disabled"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
     else
@@ -8668,7 +8669,7 @@ function checkAirPlayReceiver() {
         if [[ "${osMajorVersion}" -eq 15 && "${osMinorVersion}" -ge 7 ]]; then
             # 15.7.x: assume Enabled when key is missing
             errorOut "${humanReadableCheckName}: Enabled (no ${keyFound:-AirplayReceiverEnabled} key; default behavior on macOS ${osMajorVersion}.${osMinorVersion})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
             overallHealth+="${humanReadableCheckName}; "
             footerStatusColor="${statusColorFail}"
         else
@@ -8685,7 +8686,7 @@ function checkAirPlayReceiver() {
     elif [[ "${result}" == "1" ]]; then
         # Value is 1, enabled (non-compliant)
         errorOut "${humanReadableCheckName}: Enabled (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
         overallHealth+="${humanReadableCheckName}; "
         footerStatusColor="${statusColorFail}"
 
@@ -8697,7 +8698,7 @@ function checkAirPlayReceiver() {
     else
         # Unexpected value
         warning "${humanReadableCheckName}: Unexpected value (${keyFound}=${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirPlay Receiver > Disable, status: error, statustext: Status Unknown"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: error, statustext: Status Unknown"
         footerStatusColor="${statusColorError}"
     fi
 
@@ -8734,7 +8735,7 @@ function checkAirDropSettings() {
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Compliant"
     else
         errorOut "${humanReadableCheckName}: Discoverable by Everyone (value: ${result})"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Handoff > AirDrop > No One / Contacts Only, status: fail, statustext: Everyone"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirDrop > No One / Contacts Only, status: fail, statustext: Everyone"
         overallHealth+="${humanReadableCheckName}; "
         footerStatusColor="${statusColorFail}"
     fi
@@ -8837,7 +8838,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -8981,9 +8982,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    # set -x
-    checkEntraIDRegistration "0"
-    # set +x
+    set -x
+    checkBluetoothSharing "0"
+    set +x
 
 else
 
