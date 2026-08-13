@@ -2,7 +2,8 @@
 
 ## CHANGELOG
 
-### 4.1.0b3 (13-Aug-2026)
+### 4.1.0b4 (13-Aug-2026)
+- Updated detached Inspect Mode Preset 6 dialogs to remain on top and allow users to move the window (thanks for the suggestion, @TechTrekkie!)
 - Hardened staged macOS update snapshot detection to use APFS-native `diskutil` with timeout-safe fallback behavior (thanks for PR #99, @HowardGMac!)
 - Updated `checkUptime()` with new functionality (thanks for PR #96, @HowardGMac!)
 - Standardized `checkUptime()`

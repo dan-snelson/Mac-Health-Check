@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.1.0b3, 13-Aug-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.1.0b4, 13-Aug-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.1.0b3"
+scriptVersion="4.1.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -4621,7 +4621,7 @@ function buildInspectItemsJSONArray() {
 function buildInspectConfigJSON() {
 
     local inspectHighlightColor="#F69325"
-    local inspectWindowHeight="750"
+    local inspectWindowHeight="850"
     local inspectWindowWidth="975"
 
     printf '%s' "{"
@@ -4920,7 +4920,7 @@ function launchInspectSummary() {
         return 1
     fi
 
-    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} DIALOG_DEBUG=1 ${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
+    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} DIALOG_DEBUG=1 ${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} --ontop --moveable >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
     inspectPID="$( runAsUser /bin/zsh -lc "${launchCommand}" 2>/dev/null | tr -d '[:space:]' )"
 
     if [[ ! "${inspectPID}" == <-> ]]; then
