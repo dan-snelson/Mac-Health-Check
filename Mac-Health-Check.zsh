@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.1.0b2, 17-Jul-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.1.0b3, 13-Aug-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.1.0b2"
+scriptVersion="4.1.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -5824,9 +5824,29 @@ function checkStagedUpdate() {
     local stagedUpdateSize="0"
     local stagedUpdateLocation="Not detected"
     local stagedUpdateStatus="Pending download"
+    local stagedSnapshotTimeoutSeconds="10"
+    local snapshotListOutput=""
+    local snapshotListExitCode="0"
+    local updateSnapshots="0"
     
     # Check for APFS snapshots indicating staged updates
-    local updateSnapshots=$(/usr/sbin/diskutil apfs listsnapshots / 2>/dev/null | grep -c "com.apple.os.update")
+    snapshotListOutput="$( captureCommandOutputWithTimeout "${stagedSnapshotTimeoutSeconds}" /usr/sbin/diskutil apfs listsnapshots / )"
+    snapshotListExitCode="$?"
+    case "${snapshotListExitCode}" in
+        "0" )
+            ;;
+        "124" )
+            info "APFS snapshot check timed out after ${stagedSnapshotTimeoutSeconds} seconds; continuing with Preboot staging checks."
+            ;;
+        * )
+            info "APFS snapshot check returned exit ${snapshotListExitCode}; continuing with Preboot staging checks."
+            ;;
+    esac
+
+    updateSnapshots="$( printf '%s' "${snapshotListOutput}" | grep -c "com.apple.os.update" )"
+    if [[ "${updateSnapshots}" != <-> ]]; then
+        updateSnapshots="0"
+    fi
     
     if [[ ${updateSnapshots} -gt 0 ]]; then
         info "Found ${updateSnapshots} update snapshot(s)"

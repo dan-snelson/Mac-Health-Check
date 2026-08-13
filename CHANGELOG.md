@@ -2,7 +2,8 @@
 
 ## CHANGELOG
 
-### 4.1.0b2 (17-Jul-2026)
+### 4.1.0b3 (13-Aug-2026)
+- Hardened staged macOS update snapshot detection to use APFS-native `diskutil` with timeout-safe fallback behavior (thanks for PR #99, @HowardGMac!)
 - Updated `checkUptime()` with new functionality (thanks for PR #96, @HowardGMac!)
 - Standardized `checkUptime()`
 
