@@ -4676,7 +4676,7 @@ function validateInspectConfigFile() {
                 and (.category | length > 0)
             )
         )
-        and (.height == 750)
+        and (.height == 850)
         and (.width == 975)
         and (.items | type == "array")
         and (.items | length >= 3)
@@ -5863,7 +5863,17 @@ function checkStagedUpdate() {
 
     if [[ -z "${systemVolumeUUID}" ]]; then
         info "No Preboot UUID directory found; staging cannot be evaluated."
-        updateStagingStatus="Pending download"
+        updateStagedSize="${stagedUpdateSize}"
+        updateStagedLocation="${stagedUpdateLocation}"
+        updateStagingStatus="${stagedUpdateStatus}"
+        case "${updateStagingStatus}" in
+            "Partially staged")
+                stagingMessage="Preparing update …"
+                ;;
+            *)
+                stagingMessage="Will start download when you open System Settings > General > Software Update"
+                ;;
+        esac
         return
     fi
 
@@ -6643,7 +6653,8 @@ function checkUptime() {
     uptimeDays=$( uptime | awk '{ print $4 }' | sed 's/,//g' )
     uptimeNumber=$( uptime | awk '{ print $3 }' | sed 's/,//g' )
 
-    uptimeExtendedStatus="Thanks for restarting your Mac regularly."
+    local uptimeExtendedStatus="Thanks for restarting your Mac regularly."
+    local effectiveMaxUptimeMinutes="${maxUptimeMinutes}"
 
     if [[ "${uptimeDays}" = "day"* ]]; then
         if [[ "${uptimeNumber}" -gt 1 ]]; then
@@ -6657,20 +6668,22 @@ function checkUptime() {
         uptimeHumanReadable="${uptimeNumber} (HH:MM)"
     fi
     
-    if [[ "${maxUptimeMinutes}" =~ '^[1-9][0-9]*$' ]]; then
-        if [[ "${allowedUptimeMinutes}" -gt "${maxUptimeMinutes}" ]]; then
-            warning "${humanReadableCheckName}: Error in configuration: Variable allowedUptimeMinutes is greater than maxUptimeMinutes. Maximum uptime check disabled."
-            maxUptimeMinutes=""
-        elif [[ -n "${maxUptimeMinutes}" ]] && [[ "${excessiveUptimeAlertStyle}" == "error" ]]; then
-            warning "${humanReadableCheckName}: Error in configuration: Variable excessiveUptimeAlertStyle is set to error instead of warning. Maximum uptime check disabled."
-            maxUptimeMinutes=""
+    if [[ -n "${effectiveMaxUptimeMinutes}" ]]; then
+        if [[ "${effectiveMaxUptimeMinutes}" =~ '^[1-9][0-9]*$' ]]; then
+            if [[ "${allowedUptimeMinutes}" -gt "${effectiveMaxUptimeMinutes}" ]]; then
+                warning "${humanReadableCheckName}: Error in configuration: Variable allowedUptimeMinutes is greater than maxUptimeMinutes. Maximum uptime check disabled."
+                effectiveMaxUptimeMinutes=""
+            elif [[ "${excessiveUptimeAlertStyle}" == "error" ]]; then
+                warning "${humanReadableCheckName}: Error in configuration: Variable excessiveUptimeAlertStyle is set to error instead of warning. Maximum uptime check disabled."
+                effectiveMaxUptimeMinutes=""
+            fi
+        else
+            warning "${humanReadableCheckName}: Error in configuration: Variable maxUptimeMinutes is not a positive integer. Maximum uptime check disabled."
+            effectiveMaxUptimeMinutes=""
         fi
-    else
-            warning "${humanReadableCheckName}: Error in configuration: Variable maxUptimeMinutes is not a postive integer. Maximum uptime check disabled."
-            maxUptimeMinutes=""
     fi
 
-    if [[ -n "${maxUptimeMinutes}" ]] && [[ "${upTimeMin}" -gt "${maxUptimeMinutes}" ]]; then
+    if [[ -n "${effectiveMaxUptimeMinutes}" ]] && [[ "${upTimeMin}" -gt "${effectiveMaxUptimeMinutes}" ]]; then
         local uptimeExtendedStatus="Your Mac's uptime is beyond the maximum allowed by your organization."
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: ${uptimeExtendedStatus}, status: fail, statustext: ${uptimeHumanReadable}"
         errorOut "${humanReadableCheckName}: ${uptimeHumanReadable}: ${uptimeExtendedStatus}"
@@ -8560,7 +8573,7 @@ function checkBluetoothSharing() {
     result=$( captureRunAsUserOutput defaults -currentHost read com.apple.Bluetooth PrefKeyServicesEnabled )
 
     # A missing preference retains macOS's disabled default; macOS 27 reports a missing domain differently.
-    if [[ "${result}" == "0" ]] || [[ "${result}" == *"does not exist"* ]] || [[ "${result}" == "Error: Domain 'com.apple.Bluetooth' not found." ]]; then
+    if [[ "${result}" == "0" ]] || [[ "${result}" == *"does not exist"* ]] || [[ "${result}" == *"Domain 'com.apple.Bluetooth' not found"* ]]; then
         info "${humanReadableCheckName}: Disabled"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
     else
@@ -8982,9 +8995,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    set -x
+    # set -x
     checkBluetoothSharing "0"
-    set +x
+    # set +x
 
 else
 

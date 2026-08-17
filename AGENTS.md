@@ -112,7 +112,7 @@ Out of scope:
 - `Development` is intentionally curated, not representative of full suite; when changing checks or list items, verify whether `developmentListitemJSON` also needs update.
 
 ## Repository Rules
-- Current branch prepares `4.0.0`; use `VERSION.txt`, `scriptVersion`, and `CHANGELOG.md` as release-state truth.
+- Current branch prepares `4.1.0`; use `VERSION.txt`, `scriptVersion`, and `CHANGELOG.md` as release-state truth.
 - Keep `scriptVersion` inside script aligned with `VERSION.txt` at all times.
 - Current beta expects swiftDialog `3.1.0.4994` or newer; treat older version references as documentation debt unless task is explicitly historical.
 - Check `git status` before editing shared docs or assets so unrelated local work is not overwritten.
