@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.1.0b6, 13-Aug-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.1.0, 17-Aug-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.1.0b6"
+scriptVersion="4.1.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
