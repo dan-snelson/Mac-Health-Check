@@ -163,10 +163,10 @@ The following health checks and information reporting are included in version `4
 
 ### Health Checks
 
-:tada: Improved in version `4.0.0`
+:tada: Improved in version `4.1.0`
 
 1. macOS Version
-1. Available Updates (including deferred and DDM-enforced updates)
+1. :tada: Available Updates (including deferred, staged, and DDM-enforced updates)
 1. System Integrity Protection
 1. Signed System Volume (SSV)
 1. Firewall
@@ -176,16 +176,16 @@ The following health checks and information reporting are included in version `4
 1. Password Hint
 1. AirDrop
 1. AirPlay Receiver
-1. Bluetooth Sharing
+1. :tada: Bluetooth Sharing
 1. VPN Client
-1. Last Reboot
+1. :tada: Last Reboot
 1. Free Disk Space
 1. User's Directory Size and Item Count
     - Desktop
     - Downloads
     - Trash
 1. MDM Profile
-1. :new: Entra ID Registration
+1. Entra ID Registration
 1. MDM Certificate Expiration
 1. Apple Push Notification service
 1. Jamf Pro Check-in
@@ -200,7 +200,7 @@ The following health checks and information reporting are included in version `4
 1. Wi-Fi Strength
 1. App Auto-Patch
 1. Homebrew Status
-1. :tada: Electron Corner Mask [🔗](https://avarayr.github.io/shamelectron/)
+1. Electron Corner Mask [🔗](https://avarayr.github.io/shamelectron/)
 1. Organizationally required Applications (i.e., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*
