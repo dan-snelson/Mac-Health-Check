@@ -2,6 +2,9 @@
 
 ## CHANGELOG
 
+### 4.2.0b1 (26-Aug-2026)
+- Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
+
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27
 - Updated detached Inspect Mode Preset 6 dialogs to remain on top and allow users to move the window (thanks for the suggestion, @TechTrekkie!)

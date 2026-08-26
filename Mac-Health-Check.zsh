@@ -11,13 +11,13 @@
 # https://snelson.us/mhc
 #
 # Inspired by:
-#   - @talkingmoose and @robjschroeder
+# - @talkingmoose and @robjschroeder
 #
 ####################################################################################################
 #
 # HISTORY
 #
-# Version 4.1.0, 17-Aug-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b1 26-Aug-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.1.0"
+scriptVersion="4.2.0b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -8646,47 +8646,37 @@ function checkAirPlayReceiver() {
 
     sleep "${anticipationDuration}"
     
-    # Check AirPlay Receiver settings
-    # Key names have changed across macOS versions:
-    # - macOS 26.0: AirplayReceiverAdvertising
-    # - macOS 26.1+: AirplayReceiverEnabled (correct spelling)
-    # - Older versions: AirplayRecieverEnabled (misspelled)
-    
+    # Key names and missing-key responses have changed across macOS versions.
     local result=""
     local keyFound=""
-    
-    # Try the new correctly-spelled key first (macOS 26.1+)
-    result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverEnabled )
-    if [[ ! "${result}" =~ "does not exist" ]]; then
-        keyFound="AirplayReceiverEnabled"
-    else
-        # Try the misspelled key (older versions)
-        result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayRecieverEnabled )
-        if [[ ! "${result}" =~ "does not exist" ]]; then
-            keyFound="AirplayRecieverEnabled"
-        else
-            # Try the advertising key (macOS 26.0)
-            result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter AirplayReceiverAdvertising )
-            if [[ ! "${result}" =~ "does not exist" ]]; then
-                keyFound="AirplayReceiverAdvertising"
-            fi
+    local candidateKey=""
+    local -a preferenceKeys=(
+        "AirplayReceiverEnabled"
+        "AirplayRecieverEnabled"
+        "AirplayReceiverAdvertising"
+    )
+
+    for candidateKey in "${preferenceKeys[@]}"; do
+        result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter "${candidateKey}" )
+        if [[ "${result}" != *"does not exist"* ]] && \
+           [[ "${result}" != *"Could not find key"* ]] && \
+           [[ "${result}" != *"Domain 'com.apple.controlcenter' not found"* ]]; then
+            keyFound="${candidateKey}"
+            break
         fi
-    fi
+    done
     
     # Evaluate the result
-    if [[ -z "${keyFound}" ]] || [[ "${result}" =~ "does not exist" ]]; then
+    if [[ -z "${keyFound}" ]]; then
         # No key found:
-        # - On macOS 15.7.x, this now means "Enabled" (default)
-        # - On macOS 15.6.1 and earlier, and on 26.x, your tests show the key
-        #   exists and holds 0/1, so "no key" is a safe "Disabled" fallback.
-        if [[ "${osMajorVersion}" -eq 15 && "${osMinorVersion}" -ge 7 ]]; then
-            # 15.7.x: assume Enabled when key is missing
+        # - macOS 15.7.x and macOS 27 default to Enabled
+        # - macOS 15.6.1 and earlier, and macOS 26, default to Disabled
+        if [[ ( "${osMajorVersion}" -eq 15 && "${osMinorVersion}" -ge 7 ) || "${osMajorVersion}" -ge 27 ]]; then
             errorOut "${humanReadableCheckName}: Enabled (no ${keyFound:-AirplayReceiverEnabled} key; default behavior on macOS ${osMajorVersion}.${osMinorVersion})"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: fail, statustext: Enabled"
             overallHealth+="${humanReadableCheckName}; "
             footerStatusColor="${statusColorFail}"
         else
-            # 15.6.1 and earlier, and 26.x+: missing key treated as Disabled/compliant
             info "${humanReadableCheckName}: Disabled (key not found on macOS ${osMajorVersion}.${osMinorVersion})"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
         fi
@@ -8851,7 +8841,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -8995,9 +8985,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    # set -x
-    checkBluetoothSharing "0"
-    # set +x
+    set -x
+    checkAirPlayReceiver "0"
+    set +x
 
 else
 
