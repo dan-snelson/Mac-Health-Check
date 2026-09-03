@@ -61,7 +61,8 @@ graph LR
         M4["checkMdmCertificateExpiration()<br>MDM Certificate Expiration"]
         M5["checkJamfProCheckIn()<br>Jamf Pro Check-In"]
         M6["checkJamfProInventory()<br>Jamf Pro Inventory"]
-        M7["checkMosyleCheckIn()<br>Mosyle Check-In"]
+        M7["checkClockSkew()<br>Clock Skew"]
+        M8["checkMosyleCheckIn()<br>Mosyle Check-In"]
 
         style M1 fill:#b2dfdb
         style M2 fill:#b2dfdb
@@ -70,6 +71,7 @@ graph LR
         style M5 fill:#b2dfdb
         style M6 fill:#b2dfdb
         style M7 fill:#b2dfdb
+        style M8 fill:#b2dfdb
     end
 
     subgraph Network["🌐 Network"]
@@ -185,6 +187,7 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
 | `checkJamfProInventory()` | Jamf Pro Inventory | Jamf Pro only |
+| `checkClockSkew()` | Clock Skew | Jamf Pro only; checks local clock offset against `time.apple.com` before inventory submission |
 | `checkMosyleCheckIn()` | Mosyle Check-In | Mosyle only |
 
 ### Network

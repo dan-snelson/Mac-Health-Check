@@ -2,7 +2,8 @@
 
 ## CHANGELOG
 
-### 4.2.0b1 (26-Aug-2026)
+### 4.2.0b2 (03-Sep-2026)
+- Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
 
 ### 4.1.0 (17-Aug-2026)

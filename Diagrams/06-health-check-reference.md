@@ -9,7 +9,7 @@ This text-only reference documents the key configurable defaults and runtime inv
 - `operationMode` is documented for the `4.0.0` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` and full `Silent` health-check runs now generate readable inspect-summary assets after the canonical report is written. `Self Service` launches a detached moveable swiftDialog Inspect Mode Preset 6 guided summary, separates recorded results into `Unhealthy` and `Healthy` sections, and retains the normal main-dialog completion countdown during full runs; `Silent` writes the assets without launching swiftDialog.
 - Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
-- `Development` mode currently runs only `checkEntraIDRegistration()` instead of the full vendor-specific suite.
+- `Development` mode currently runs only `checkClockSkew()` instead of the full vendor-specific suite.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
 - Pre-flight targets swiftDialog `3.1.0.4994` or newer and skips redundant production downloads when the installed release already matches the latest production build.
@@ -121,6 +121,7 @@ The table below lists every health check function, its human-readable name, and 
 | MDM | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | MDM | `checkJamfProCheckIn()` | Jamf Pro Check-In | — | — | — | ✅ | — | — | — | — | — |
 | MDM | `checkJamfProInventory()` | Jamf Pro Inventory | — | — | — | ✅ | — | — | — | — | — |
+| MDM | `checkClockSkew()` | Clock Skew | — | — | — | ✅ | — | — | — | — | — |
 | MDM | `checkMosyleCheckIn()` | Mosyle Check-In | — | — | — | — | — | — | — | ✅ | — |
 | Network | `checkNetworkHosts()` | Apple Push Notification Hosts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Network | `checkNetworkHosts()` | Apple Device Management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
