@@ -7693,7 +7693,7 @@ function checkClockSkew() {
 
     if [[ -z "${clockSkewSeconds}" ]]; then
         warning "${humanReadableCheckName}: unable to determine offset from ${trustedTimeServer} (sntp exit ${sntpExitCode})${sntpOutput:+: ${sntpOutput}}"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Verify internet access and automatic time sync or contact ${supportTeamName}, status: error, statustext: Unable to determine"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Verify Internet access and automatic time sync or contact ${supportTeamName}, status: error, statustext: Unable to determine"
         overallHealth+="${humanReadableCheckName}; "
         footerStatusColor="${statusColorError}"
     else
