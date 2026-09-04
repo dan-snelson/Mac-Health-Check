@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b2 03-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b2 04-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -7659,15 +7659,23 @@ function checkClockSkew() {
     local clockSkewSeconds=""
     local clockSkew=""
     local clockSkewExceedsThreshold="false"
+    local displayDialogUpdates="true"
+    local listitemCommand=""
+
+    if [[ "${operationMode}" == "Silent" || "${operationMode}" == "Test" ]]; then
+        displayDialogUpdates="false"
+    fi
 
     notice "Check ${humanReadableCheckName} …"
 
-    dialogUpdate "icon: SF=clock,${organizationColorScheme}"
-    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
-    dialogUpdate "progress: increment"
-    dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
+    if [[ "${displayDialogUpdates}" == "true" ]]; then
+        dialogUpdate "icon: SF=clock,${organizationColorScheme}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+        dialogUpdate "progress: increment"
+        dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
 
-    sleep "${anticipationDuration}"
+        sleep "${anticipationDuration}"
+    fi
 
     sntpOutput="$( captureCommandOutputWithTimeout "${networkTimeout}" sntp "${trustedTimeServer}" )"
     sntpExitCode=$?
@@ -7693,7 +7701,12 @@ function checkClockSkew() {
 
     if [[ -z "${clockSkewSeconds}" ]]; then
         warning "${humanReadableCheckName}: unable to determine offset from ${trustedTimeServer} (sntp exit ${sntpExitCode})${sntpOutput:+: ${sntpOutput}}"
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Verify Internet access and automatic time sync or contact ${supportTeamName}, status: error, statustext: Unable to determine"
+        listitemCommand="listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Verify Internet access and automatic time sync or contact ${supportTeamName}, status: error, statustext: Unable to determine"
+        if [[ "${displayDialogUpdates}" == "true" ]]; then
+            dialogUpdate "${listitemCommand}"
+        else
+            recordHealthCheckResult "${1}" "${listitemCommand}"
+        fi
         overallHealth+="${humanReadableCheckName}; "
         footerStatusColor="${statusColorError}"
     else
@@ -7724,17 +7737,29 @@ function checkClockSkew() {
 
         if [[ "${clockSkewExceedsThreshold}" == "true" ]]; then
             errorOut "${humanReadableCheckName}: Skew ${clockSkew} (${clockSkewSeconds}s from ${trustedTimeServer})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run macOS Maintenance from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Skew ${clockSkew}"
+            listitemCommand="listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run macOS Maintenance from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Skew ${clockSkew}"
+            if [[ "${displayDialogUpdates}" == "true" ]]; then
+                dialogUpdate "${listitemCommand}"
+            else
+                recordHealthCheckResult "${1}" "${listitemCommand}"
+            fi
             overallHealth+="${humanReadableCheckName}; "
             footerStatusColor="${statusColorFail}"
         else
             info "${humanReadableCheckName}: Skew ${clockSkew} (${clockSkewSeconds}s from ${trustedTimeServer})"
-            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Skew ${clockSkew}"
+            listitemCommand="listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Skew ${clockSkew}"
+            if [[ "${displayDialogUpdates}" == "true" ]]; then
+                dialogUpdate "${listitemCommand}"
+            else
+                recordHealthCheckResult "${1}" "${listitemCommand}"
+            fi
         fi
     fi
 
-    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
-    sleep $((anticipationDuration / 2))
+    if [[ "${displayDialogUpdates}" == "true" ]]; then
+        dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+        sleep $((anticipationDuration / 2))
+    fi
 
 }
 
@@ -8960,7 +8985,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
