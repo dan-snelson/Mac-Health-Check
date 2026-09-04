@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b1 26-Aug-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b2 04-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.2.0b1"
+scriptVersion="4.2.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -1531,23 +1531,24 @@ jamfProListitemJSON='
     {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=21.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Jamf Pro Check-In", "subtitle" : "Your Mac should check-in with the Jamf Pro MDM server multiple times each day", "icon" : "SF=22.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Jamf Pro Inventory", "subtitle" : "Your Mac should submit its inventory to the Jamf Pro MDM server daily", "icon" : "SF=23.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=24.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=29.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
-    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=39.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=40.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com before Jamf Pro inventory submission", "icon" : "SF=24.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Push Notification Hosts","subtitle":"Test connectivity to Apple Push Notification hosts","icon":"SF=25.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Device Management","subtitle":"Test connectivity to Apple device enrollment and MDM services","icon":"SF=26.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Software and Carrier Updates","subtitle":"Test connectivity to Apple software update endpoints","icon":"SF=27.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Certificate Validation","subtitle":"Test connectivity to Apple certificate and OCSP services","icon":"SF=28.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Apple Identity and Content Services","subtitle":"Test connectivity to Apple Identity and Content services","icon":"SF=29.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "Jamf Hosts","subtitle":"Test connectivity to Jamf Pro cloud and on-prem endpoints","icon":"SF=30.circle,'"${organizationColorScheme}"'", "status":"pending","statustext":"Pending …", "iconalpha" : 0.5},
+    {"title" : "App Auto-Patch", "subtitle" : "Keep your apps up-to-date to ensure their security and performance", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsoft 365.", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=35.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=36.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=39.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=40.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=41.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -3403,6 +3404,10 @@ function getInspectExpectedComparisonTextByIndex() {
             echo "Recent APNS communication"
             return
             ;;
+        "Clock Skew" )
+            echo "Offset within 5 minutes"
+            return
+            ;;
         *"Check-In" )
             echo "Checked in recently"
             return
@@ -3535,6 +3540,13 @@ function getInspectDetailExplanationByIndex() {
             fi
             return
             ;;
+        "clock_skew" )
+            printf '%s' "This Mac's local clock differs too much from ${trustedTimeServer:-time.apple.com}. Clock skew can prevent Jamf Pro inventory submission and other time-sensitive services from working correctly."
+            if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+                printf '\n\n%s' "**Detected skew:** ${rawValue}"
+            fi
+            return
+            ;;
     esac
 
     if [[ -n "${message}" ]] && [[ "${message}" != "${organizationBoilerplateComplianceMessage}" ]]; then
@@ -3576,6 +3588,10 @@ function getInspectDetailRemediationByIndex() {
                 rawValue="your current macOS release"
             fi
             printf '%b' "1. Open **System Settings**.\n2. Select **General > Software Update**.\n3. Install supported updates for **${rawValue}**.\n4. Restart your Mac if prompted.\n5. Run **Mac Health Check** again.\n\n${supportFallbackText}"
+            return
+            ;;
+        "clock_skew" )
+            printf '%b' "1. Open **System Settings > General > Date & Time**.\n2. Verify automatic time sync is enabled.\n3. Run **macOS Maintenance** from ${organizationSelfServiceMarketingName}.\n4. Run **Mac Health Check** again.\n\n${supportFallbackText}"
             return
             ;;
     esac
@@ -3713,6 +3729,9 @@ function getInspectFailureSymbolByIndex() {
         *device*management* )
             echo "desktopcomputer.trianglebadge.exclamationmark"
             ;;
+        *clock*skew* )
+            echo "clock"
+            ;;
         * )
             echo ""
             ;;
@@ -3804,6 +3823,9 @@ function getInspectCheckSymbolByIndex() {
         *push*notification*service* )
             echo "bell.badge"
             ;;
+        *clock*skew* )
+            echo "clock"
+            ;;
         *check-in*|*inventory* )
             echo "arrow.triangle.2.circlepath"
             ;;
@@ -3859,7 +3881,7 @@ function getInspectComplianceCategoryByIndex() {
         *push*notification*hosts*|*device*management*|*software*and*carrier*updates*|*certificate*validation*|*identity*and*content*services*|*network*quality*|*wi-fi*|*vpn* )
             echo "Connectivity"
             ;;
-        *entra*id*registration*|*mdm*|*check-in*|*inventory*|*push*notification*service* )
+        *entra*id*registration*|*mdm*|*check-in*|*inventory*|*push*notification*service*|*clock*skew* )
             echo "MDM"
             ;;
         *teams*|*homebrew*|*electron* )
@@ -3878,7 +3900,7 @@ function getInspectComplianceCriticalityByIndex() {
     local title="${checkTitleByIndex[${index}]:l}"
 
     case "${title}" in
-        *system*integrity*protection*|*signed*system*volume*|*filevault*|*gatekeeper*|*xprotect*|*available*update*|*entra*id*registration*|*mdm*profile*|*mdm*certificate*|*check-in*|*inventory*|*device*management* )
+        *system*integrity*protection*|*signed*system*volume*|*filevault*|*gatekeeper*|*xprotect*|*available*update*|*entra*id*registration*|*mdm*profile*|*mdm*certificate*|*check-in*|*inventory*|*device*management*|*clock*skew* )
             echo "high"
             ;;
         *desktop*|*downloads*|*trash*|*airdrop*|*airplay*receiver*|*bluetooth*sharing*|*teams* )
@@ -7622,6 +7644,128 @@ function checkJamfProInventory() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Clock Skew
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkClockSkew() {
+
+    local humanReadableCheckName="Clock Skew"
+    local footerCheckIcon="SF=clock"
+    local footerStatusColor="${statusColorSuccess}"
+    local trustedTimeServer="time.apple.com"
+    local allowedClockSkewSeconds="300"
+    local sntpOutput=""
+    local sntpExitCode=0
+    local clockSkewSeconds=""
+    local clockSkew=""
+    local clockSkewExceedsThreshold="false"
+    local displayDialogUpdates="true"
+    local listitemCommand=""
+
+    if [[ "${operationMode}" == "Silent" || "${operationMode}" == "Test" ]]; then
+        displayDialogUpdates="false"
+    fi
+
+    notice "Check ${humanReadableCheckName} …"
+
+    if [[ "${displayDialogUpdates}" == "true" ]]; then
+        dialogUpdate "icon: SF=clock,${organizationColorScheme}"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+        dialogUpdate "progress: increment"
+        dialogUpdate "progresstext: Determining ${humanReadableCheckName} …"
+
+        sleep "${anticipationDuration}"
+    fi
+
+    sntpOutput="$( captureCommandOutputWithTimeout "${networkTimeout}" sntp "${trustedTimeServer}" )"
+    sntpExitCode=$?
+    sntpOutput="${sntpOutput//$'\r'/ }"
+    sntpOutput="${sntpOutput//$'\n'/; }"
+
+    clockSkewSeconds="$(
+        printf '%s\n' "${sntpOutput}" | awk '
+            {
+                for (i = 1; i <= NF; i++) {
+                    if (tolower($i) == "offset" && $(i + 1) ~ /^[-+]?[0-9]+([.][0-9]+)?$/) {
+                        print $(i + 1)
+                        exit
+                    }
+                    if ($i ~ /^[+-][0-9]+([.][0-9]+)?$/) {
+                        print $i
+                        exit
+                    }
+                }
+            }
+        '
+    )"
+
+    if [[ -z "${clockSkewSeconds}" ]]; then
+        warning "${humanReadableCheckName}: unable to determine offset from ${trustedTimeServer} (sntp exit ${sntpExitCode})${sntpOutput:+: ${sntpOutput}}"
+        listitemCommand="listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Verify Internet access and automatic time sync or contact ${supportTeamName}, status: error, statustext: Unable to determine"
+        if [[ "${displayDialogUpdates}" == "true" ]]; then
+            dialogUpdate "${listitemCommand}"
+        else
+            recordHealthCheckResult "${1}" "${listitemCommand}"
+        fi
+        overallHealth+="${humanReadableCheckName}; "
+        footerStatusColor="${statusColorError}"
+    else
+        clockSkew="$(
+            awk -v offset="${clockSkewSeconds}" 'BEGIN {
+                absoluteOffset = offset + 0
+                if (absoluteOffset < 0) absoluteOffset = -absoluteOffset
+                minutes = int(absoluteOffset / 60)
+                seconds = int(absoluteOffset - (minutes * 60) + 0.5)
+                if (seconds >= 60) {
+                    minutes++
+                    seconds -= 60
+                }
+                if (minutes > 0) {
+                    printf "%dm %02ds", minutes, seconds
+                } else {
+                    printf "%.1fs", absoluteOffset
+                }
+            }'
+        )"
+        clockSkewExceedsThreshold="$(
+            awk -v offset="${clockSkewSeconds}" -v threshold="${allowedClockSkewSeconds}" 'BEGIN {
+                absoluteOffset = offset + 0
+                if (absoluteOffset < 0) absoluteOffset = -absoluteOffset
+                print (absoluteOffset > threshold ? "true" : "false")
+            }'
+        )"
+
+        if [[ "${clockSkewExceedsThreshold}" == "true" ]]; then
+            errorOut "${humanReadableCheckName}: Skew ${clockSkew} (${clockSkewSeconds}s from ${trustedTimeServer})"
+            listitemCommand="listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run macOS Maintenance from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Skew ${clockSkew}"
+            if [[ "${displayDialogUpdates}" == "true" ]]; then
+                dialogUpdate "${listitemCommand}"
+            else
+                recordHealthCheckResult "${1}" "${listitemCommand}"
+            fi
+            overallHealth+="${humanReadableCheckName}; "
+            footerStatusColor="${statusColorFail}"
+        else
+            info "${humanReadableCheckName}: Skew ${clockSkew} (${clockSkewSeconds}s from ${trustedTimeServer})"
+            listitemCommand="listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Skew ${clockSkew}"
+            if [[ "${displayDialogUpdates}" == "true" ]]; then
+                dialogUpdate "${listitemCommand}"
+            else
+                recordHealthCheckResult "${1}" "${listitemCommand}"
+            fi
+        fi
+    fi
+
+    if [[ "${displayDialogUpdates}" == "true" ]]; then
+        dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+        sleep $((anticipationDuration / 2))
+    fi
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Last Mosyle Check-In (thanks, @precursorca!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -8841,7 +8985,7 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "AirPlay Receiver", "subtitle" : "Ensure AirPlay Receiver is disabled when not needed", "icon" : "SF=18.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -8986,7 +9130,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     set -x
-    checkAirPlayReceiver "0"
+    checkClockSkew "0"
     set +x
 
 else
@@ -9131,23 +9275,24 @@ else
                 checkAPNs "20"
                 checkJamfProCheckIn "21"
                 checkJamfProInventory "22"
-                checkNetworkHosts  "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts  "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts  "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts  "26" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts  "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkNetworkHosts  "28" "Jamf Hosts"                            "${jamfHosts[@]}"
-                checkAppAutoPatch "29"
-                checkHomebrewStatus "30"
-                checkElectronCornerMask "31"
-                checkInternal "32" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkExternalJamfPro "33" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
-                checkExternalJamfPro "34" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
-                checkExternalJamfPro "35" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
-                checkExternalJamfPro "36" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
-                checkWiFiStrength "37"
-                checkNetworkQuality "38"
-                updateComputerInventory "39"
+                checkClockSkew "23"
+                checkNetworkHosts  "24" "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                checkNetworkHosts  "25" "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                checkNetworkHosts  "26" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                checkNetworkHosts  "27" "Apple Certificate Validation"          "${certHosts[@]}"
+                checkNetworkHosts  "28" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                checkNetworkHosts  "29" "Jamf Hosts"                            "${jamfHosts[@]}"
+                checkAppAutoPatch "30"
+                checkHomebrewStatus "31"
+                checkElectronCornerMask "32"
+                checkInternal "33" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                checkExternalJamfPro "34" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
+                checkExternalJamfPro "35" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
+                checkExternalJamfPro "36" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
+                checkExternalJamfPro "37" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
+                checkWiFiStrength "38"
+                checkNetworkQuality "39"
+                updateComputerInventory "40"
                 ;;
 
             "JumpCloud" )

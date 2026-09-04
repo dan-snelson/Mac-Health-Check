@@ -61,7 +61,8 @@ graph LR
         M4["checkMdmCertificateExpiration()<br>MDM Certificate Expiration"]
         M5["checkJamfProCheckIn()<br>Jamf Pro Check-In"]
         M6["checkJamfProInventory()<br>Jamf Pro Inventory"]
-        M7["checkMosyleCheckIn()<br>Mosyle Check-In"]
+        M7["checkClockSkew()<br>Clock Skew"]
+        M8["checkMosyleCheckIn()<br>Mosyle Check-In"]
 
         style M1 fill:#b2dfdb
         style M2 fill:#b2dfdb
@@ -70,6 +71,7 @@ graph LR
         style M5 fill:#b2dfdb
         style M6 fill:#b2dfdb
         style M7 fill:#b2dfdb
+        style M8 fill:#b2dfdb
     end
 
     subgraph Network["🌐 Network"]
@@ -185,6 +187,7 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
 | `checkJamfProInventory()` | Jamf Pro Inventory | Jamf Pro only |
+| `checkClockSkew()` | Clock Skew | Jamf Pro only; checks local clock offset against `time.apple.com` before inventory submission |
 | `checkMosyleCheckIn()` | Mosyle Check-In | Mosyle only |
 
 ### Network
@@ -204,4 +207,4 @@ Optional plugin checks for third-party security tools. These require separate MD
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
 
 ### Inventory
-`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.0.0` runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.2.0b2` runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
