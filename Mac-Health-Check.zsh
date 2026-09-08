@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b2 04-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b3 08-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.2.0b2"
+scriptVersion="4.2.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -7677,7 +7677,10 @@ function checkClockSkew() {
         sleep "${anticipationDuration}"
     fi
 
-    sntpOutput="$( captureCommandOutputWithTimeout "${networkTimeout}" sntp "${trustedTimeServer}" )"
+    sntpOutput="$(
+        set +x
+        captureCommandOutputWithTimeout "${networkTimeout}" /usr/bin/sntp -n 1 -t 3 "${trustedTimeServer}"
+    )"
     sntpExitCode=$?
     sntpOutput="${sntpOutput//$'\r'/ }"
     sntpOutput="${sntpOutput//$'\n'/; }"
