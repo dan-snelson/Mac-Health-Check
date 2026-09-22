@@ -2330,6 +2330,18 @@ function initializeFullCheckMetadata() {
 
 }
 
+function getTargetedCheckCountText() {
+
+    local targetedCheckCount="${#targetedCheckKeys[@]}"
+
+    if (( targetedCheckCount == 1 )); then
+        echo "1 selected check"
+    else
+        echo "${targetedCheckCount} selected checks"
+    fi
+
+}
+
 function detectSelfServiceForceFreshRun() {
 
     if [[ "${operationMode}" != "Self Service" ]]; then
@@ -2533,7 +2545,18 @@ function prepareTargetedRecheckIfEligible() {
         return 1
     fi
 
-    filteredCombinedJSON="$( printf '%s' "${fullCombinedJSON}" | jq -c --argjson indexes "${targetIndicesJSON}" '.listitem as $items | .listitem = [$indexes[] | $items[.]] | .progress = ($indexes | length)' )"
+    filteredCombinedJSON="$( printf '%s' "${fullCombinedJSON}" | jq -c --argjson indexes "${targetIndicesJSON}" '
+        .listitem as $items
+        | .listitem = [
+            range(0; ($indexes | length)) as $displayIndex
+            | $items[$indexes[$displayIndex]]
+            | .icon |= sub(
+                "^SF=[0-9]+\\.circle";
+                "SF=" + (if ($displayIndex + 1) < 10 then "0" else "" end) + (($displayIndex + 1) | tostring) + ".circle"
+            )
+        ]
+        | .progress = ($indexes | length)
+    ' )"
     if ! validateJson "${filteredCombinedJSON}"; then
         targetedRecheckEligibilityStatus="invalid_filtered_dialog"
         warning "Targeted Recheck: filtered dialog JSON is invalid; running full health check."
@@ -3655,6 +3678,16 @@ function getInspectOverallStatusLabel() {
 
 }
 
+function getInspectOverallStatusGuidanceType() {
+
+    if [[ "${reportOverallStatus}" == "healthy" ]]; then
+        echo "success"
+    else
+        echo "warning"
+    fi
+
+}
+
 function getDisplayStatusLabelFromNormalizedStatus() {
 
     local normalizedStatus="${1}"
@@ -3820,7 +3853,7 @@ function getInspectTimestampAndReplayMessage() {
 
     if [[ "${targetedRecheckMode}" == "true" ]]; then
         inspectFullRunDisplayTimestamp="$( formatInspectTimestampForDisplay "${targetedBaseFullRunTimestamp}" )"
-        echo "**${#targetedCheckKeys[@]} selected check(s) were rechecked as of ${inspectDisplayTimestamp}.**
+        echo "**$( getTargetedCheckCountText ) were rechecked as of ${inspectDisplayTimestamp}.**
 
 Remaining results came from the full health check completed ${inspectFullRunDisplayTimestamp}.
 
@@ -3860,7 +3893,7 @@ function getInspectResultsSummaryText() {
     local errorCountLocal="${#reportErrorChecks[@]}"
     local executedCount=$(( healthyCount + warningCount + failCount + errorCountLocal ))
 
-    echo "${executedCount} checks executed. Healthy: ${healthyCount}. Warnings: ${warningCount}. Failures: ${failCount}. Errors: ${errorCountLocal}. Only healthy results count as compliant. Overall status: $( getInspectOverallStatusLabel )."
+    echo "**Overall Status: $( getInspectOverallStatusLabel ).** ${executedCount} checks executed. Healthy: ${healthyCount}. Warnings: ${warningCount}. Failures: ${failCount}. Errors: ${errorCountLocal}. Only healthy results count as compliant."
 
 }
 
@@ -3880,6 +3913,15 @@ function getInspectHealthyResultsSummaryText() {
     local healthyCount="${#reportHealthyChecks[@]}"
 
     echo "${healthyCount} checks completed successfully and remain compliant."
+
+}
+
+function buildInspectOverallStatusGuidanceJSON() {
+
+    printf '%s' "{"
+    printf '%s' "\"content\":$( jsonString "$( getInspectResultsSummaryText )" ),"
+    printf '%s' "\"type\":$( jsonString "$( getInspectOverallStatusGuidanceType )" )"
+    printf '%s' "}"
 
 }
 
@@ -4876,8 +4918,9 @@ function buildInspectOverviewGuidanceContentJSON() {
     printf '%s' "["
     # swiftDialog PR #684 renders Preset 6 highlights as centered onboarding copy without a chip.
     printf '%s' "{\"content\":$( jsonString "$( getInspectIntroductionText )" ),\"type\":\"highlight\"},"
+    printf '%s' "$( buildInspectOverallStatusGuidanceJSON ),"
     printf '%s' "{\"content\":$( jsonString "$( getInspectTimestampAndReplayMessage )" ),\"type\":\"info\"},"
-    printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Overall Compliance Status\"},"
+    printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Compliance Score\"},"
     printf '%s' "{\"type\":\"findings-list\"}"
     printf '%s' "]"
 
@@ -5160,7 +5203,8 @@ function buildInspectNextStepsGuidanceContentJSON() {
     printf '%s' "["
     printf '%s' "{\"content\":\"Mac Health Check Flow\",\"phases\":[\"Checks Complete\",\"Report Written\",\"Summary Reviewed\",\"Cached Report Expires\"],\"currentPhase\":4,\"style\":\"stepper\",\"type\":\"phase-tracker\"},"
     printf '%s' "{\"content\":$( jsonString "$( getInspectNextStepsText )" ),\"type\":\"info\"},"
-    printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Overall Compliance Status\"},"
+    printf '%s' "$( buildInspectOverallStatusGuidanceJSON ),"
+    printf '%s' "{\"type\":\"compliance-summary\",\"label\":\"Compliance Score\"},"
     printf '%s' "{\"type\":\"findings-list\"}"
     printf '%s' "]"
 
@@ -5329,7 +5373,7 @@ function validateInspectConfigFile() {
                         and all(.phases[]; (type == "string") and (length > 0))
                         and (.currentPhase | type == "number")
                     elif .type == "compliance-summary" then
-                        ((.label? // "Overall Compliance Status") | type == "string")
+                        ((.label? // "Compliance Score") | type == "string")
                     elif .type == "findings-list" then
                         true
                     elif .type == "bento-grid" then
@@ -9718,7 +9762,7 @@ if [[ "${operationMode}" != "Silent" ]]; then
     info "Dialog PID: ${dialogPID}"
     dialogUpdate "progresstext: Initializing …"
     if [[ "${targetedRecheckMode}" == "true" ]]; then
-        dialogUpdate "title: Rechecking Recent Warnings & Failures <br>${#targetedCheckKeys[@]} selected check(s)"
+        dialogUpdate "title: Rechecking Recent Warnings & Failures <br>$( getTargetedCheckCountText )"
         dialogUpdate "progresstext: Preparing targeted verification …"
     fi
 

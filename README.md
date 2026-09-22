@@ -2,7 +2,7 @@
 
 # Mac Health Check (4.2.0b4)
 
-> Mac Health Check 4.2.0b4 hardens Jamf Pro clock skew detection for macOS 27 while retaining smarter Bluetooth Sharing detection, safer staged-update checks, richer uptime insight and a more user-friendly reporting summary
+> Mac Health Check 4.2.0b4 makes post-remediation verification dramatically faster by rechecking only recent findings, merging updates into the complete device-health report and presenting clearer status guidance—while strengthening Jamf Pro clock-skew detection, macOS 27 compatibility, staged-update checks, Bluetooth Sharing detection and uptime insight.
 
 <img src="images/MHC_4.0.0.png" alt="Mac Health Check Hero" width="800"/>
 
@@ -239,6 +239,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - `Self Service` and full `Silent` health-check runs also generate `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
 - The generated config includes `/var/tmp/MacHealthCheck-Inspect.trigger`, `/var/tmp/MacHealthCheck-Inspect.ready` and `/var/tmp/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
 - `Self Service` automatically rechecks non-healthy `.checks[].key` values when the canonical report has a matching device, MDM vendor, script version and full-run baseline less than 36 hours old
+- Targeted dialogs display contiguous check numbers immediately, while Inspect presents the authoritative Mac Health Check status separately from swiftDialog's weighted `Compliance Score`
 - Targeted results replace only matching check records, preserve untouched results, add `checkedAt` / `checkedAtEpoch`, and expose `metadata.runScope`, full-run baseline fields and `summary.recheckedCount`
 - Targeted writes cannot extend the 36-hour age of their underlying full-run baseline; missing, stale, malformed or incompatible reports fall back to all checks
 - Parameter 11 `forceFreshRun=true` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` bypass targeted verification and cached replay for a full `Self Service` run

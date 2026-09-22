@@ -4,6 +4,7 @@
 
 ### 4.2.0b4 (22-Sep-2026)
 - Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails
+- Corrected targeted-run UI details by assigning compact list-item numbers before dialog launch and separating the authoritative Mac Health Check status from swiftDialog's weighted compliance score
 - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Refactored `checkClockSkew()` for macOS 27 to query one DNS record with a 3-second SNTP timeout while preserving the existing 5-second outer timeout and keeping Development and Debug tracing out of captured command output
