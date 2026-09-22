@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b3 08-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b4 22-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.2.0b3"
+scriptVersion="4.2.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -190,15 +190,29 @@ function validateCachedSplunkReport() {
         return 1
     fi
 
-    cachedReportAgeSeconds=$(( $( date +%s ) - cachedReportModificationEpoch ))
-    if (( cachedReportAgeSeconds > clientSideMaximumCacheAgeSeconds )); then
-        cachedReportValidationStatus="stale"
-        return 1
-    fi
-
     cachedReportJSON="$( < "${cachedReportPath}" )"
     if ! printf '%s' "${cachedReportJSON}" | jq -e . >/dev/null 2>&1; then
         cachedReportValidationStatus="invalid_json"
+        return 1
+    fi
+
+    local cachedReportRunScope=""
+    local cachedReportFullRunEpoch=""
+
+    cachedReportRunScope="$( printf '%s' "${cachedReportJSON}" | jq -r '.metadata.runScope // "legacy"' 2>/dev/null )"
+    if [[ "${cachedReportRunScope}" == "targeted" ]]; then
+        cachedReportFullRunEpoch="$( printf '%s' "${cachedReportJSON}" | jq -r '.metadata.fullRunTimestampEpoch // empty' 2>/dev/null )"
+        if [[ "${cachedReportFullRunEpoch}" != <-> ]] || (( cachedReportFullRunEpoch <= 0 )); then
+            cachedReportValidationStatus="invalid_full_run_timestamp"
+            return 1
+        fi
+        cachedReportAgeSeconds=$(( $( date +%s ) - cachedReportFullRunEpoch ))
+    else
+        cachedReportAgeSeconds=$(( $( date +%s ) - cachedReportModificationEpoch ))
+    fi
+
+    if (( cachedReportAgeSeconds < 0 || cachedReportAgeSeconds >= clientSideMaximumCacheAgeSeconds )); then
+        cachedReportValidationStatus="stale"
         return 1
     fi
 
@@ -414,6 +428,7 @@ inspectReadinessFilePath="/var/tmp/MacHealthCheck-Inspect.ready"
 inspectResultFilePath="/var/tmp/MacHealthCheck-Inspect-Result.json"
 inspectLaunchLogPath="/var/tmp/MacHealthCheck-Inspect-Summary.log"
 inspectReplayMaximumAgeSeconds="900" # 15 minutes
+targetedRecheckMaximumAgeSeconds="129600" # 36 hours
 # swiftDialog PR #684 uses a renderer-owned 12pt spacing scale: 6pt intra, 12pt inner,
 # 24pt section and 36pt outer. Preset 6 exposes only the bento-grid gap as JSON.
 inspectBentoGap="12"
@@ -433,6 +448,17 @@ reportTransmissionAttemptCount="0"
 reportOverallStatus="healthy"
 reportTimestamp=""
 reportTimestampEpoch=""
+reportRunScope="full"
+reportFullRunTimestamp=""
+reportFullRunTimestampEpoch=""
+reportBaseTimestamp=""
+targetedRecheckMode="false"
+targetedRecheckEligibilityStatus="not_checked"
+targetedBaseReportJSON=""
+targetedBaseFullRunTimestamp=""
+targetedBaseFullRunTimestampEpoch=""
+fullCombinedJSON=""
+fullListitemLength="0"
 reportFilePayload=""
 reportHECPayload=""
 reportJSONTool="jq"
@@ -450,11 +476,19 @@ typeset -A checkMessageByIndex
 typeset -A checkRemediationByIndex
 typeset -A checkExecutedByIndex
 typeset -A checkIndexByTitle
+typeset -A checkCompletedAtByIndex
+typeset -A checkCompletedEpochByIndex
+typeset -A fullCheckTitleByIndex
+typeset -A fullCheckKeyByIndex
+typeset -A targetedSelectedOriginalIndex
+typeset -A targetedDisplayIndexByOriginalIndex
 
 typeset -a reportHealthyChecks
 typeset -a reportWarningChecks
 typeset -a reportFailChecks
 typeset -a reportErrorChecks
+typeset -a targetedCheckKeys
+typeset -a targetedOriginalIndices
 
 entraIDRegistrationStatus="unknown"
 entraIDRegistrationMethod=""
@@ -2264,6 +2298,8 @@ function recordHealthCheckResult() {
     checkMessageByIndex[${listItemIndex}]="${messageText}"
     checkExecutedByIndex[${listItemIndex}]="true"
     checkIndexByTitle[${title}]="${listItemIndex}"
+    checkCompletedEpochByIndex[${listItemIndex}]="$( date +%s )"
+    checkCompletedAtByIndex[${listItemIndex}]="$( date '+%Y-%m-%dT%H:%M:%S%z' | sed -E 's/(..)$/:\1/' )"
 
 }
 
@@ -2278,6 +2314,277 @@ function initializeCheckMetadataFromCombinedJSON() {
         checkKeyByIndex[${i}]="$( sanitizeCheckKey "${title}" )"
         checkIndexByTitle[${title}]="${i}"
     done
+
+}
+
+function initializeFullCheckMetadata() {
+
+    local title=""
+
+    fullListitemLength="${listitemLength}"
+    for (( i=0; i<fullListitemLength; i++ )); do
+        title="${checkTitleByIndex[${i}]}"
+        fullCheckTitleByIndex[${i}]="${title}"
+        fullCheckKeyByIndex[${i}]="${checkKeyByIndex[${i}]}"
+    done
+
+}
+
+function detectSelfServiceForceFreshRun() {
+
+    if [[ "${operationMode}" != "Self Service" ]]; then
+        return 1
+    fi
+
+    if [[ "${forceFreshRun:l}" == "true" ]] || [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        forceFreshRunDetected="true"
+
+        if [[ "${forceFreshRun:l}" == "true" ]] && [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            forceFreshRunSource="trigger file and Parameter 11"
+        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            forceFreshRunSource="trigger file"
+        else
+            forceFreshRunSource="Parameter 11"
+        fi
+
+        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+            rm -f "${forceFreshRunTriggerFilePath}"
+        fi
+
+        notice "Targeted Recheck: Force Fresh Run requested via ${forceFreshRunSource}; running full health check."
+        return 0
+    fi
+
+    return 1
+
+}
+
+function prepareTargetedRecheckIfEligible() {
+
+    local baseReportModificationEpoch=""
+    local baseReportRunScope=""
+    local baseReportScriptVersion=""
+    local baseReportHardwareUUID=""
+    local baseReportSerialNumber=""
+    local baseReportMdmVendor=""
+    local baseReportOverallStatus=""
+    local baseReportHasReportingErrors="false"
+    local baseReportAgeSeconds="0"
+    local baseCheckKeysJSON=""
+    local currentCheckKeysJSON=""
+    local targetIndicesJSON="["
+    local targetIndicesSeparator=""
+    local filteredCombinedJSON=""
+    local candidateKey=""
+    local targetedKeyOutput=""
+    local matchedTargetCount=0
+    local displayIndex=0
+    local -a currentCheckKeys
+    local -A targetKeySet
+
+    targetedRecheckMode="false"
+    targetedCheckKeys=()
+    targetedOriginalIndices=()
+    targetedSelectedOriginalIndex=()
+    targetedDisplayIndexByOriginalIndex=()
+
+    if [[ "${operationMode}" != "Self Service" ]]; then
+        targetedRecheckEligibilityStatus="unsupported_mode"
+        return 1
+    fi
+
+    if detectSelfServiceForceFreshRun; then
+        targetedRecheckEligibilityStatus="forced_full"
+        return 1
+    fi
+
+    if [[ ! -r "${splunkJSONReportPath}" ]]; then
+        targetedRecheckEligibilityStatus="missing"
+        info "Targeted Recheck: no readable canonical report; running full health check."
+        return 1
+    fi
+
+    targetedBaseReportJSON="$( < "${splunkJSONReportPath}" )"
+    if ! printf '%s' "${targetedBaseReportJSON}" | jq -e '
+        (.metadata | type == "object") and
+        (.summary | type == "object") and
+        (.checks | type == "array") and
+        ((.metadata.timestamp // "") | type == "string" and length > 0) and
+        ((.metadata.scriptVersion // "") | type == "string" and length > 0) and
+        ((.summary.overallStatus // "") | type == "string" and length > 0) and
+        ((.summary.errorCount // 0) | type == "number") and
+        ((.summary.reportingErrors // []) | type == "array") and
+        (all(.checks[]; (.key | type == "string") and (.key | length > 0) and (.status | type == "string"))) and
+        (([.checks[].key] | length) == ([.checks[].key] | unique | length))
+    ' >/dev/null 2>&1; then
+        targetedRecheckEligibilityStatus="invalid_structure"
+        warning "Targeted Recheck: canonical report structure is invalid; running full health check."
+        return 1
+    fi
+
+    baseReportScriptVersion="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.scriptVersion // empty' )"
+    baseReportHardwareUUID="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.hardwareUUID // empty' )"
+    baseReportSerialNumber="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.serialNumber // empty' )"
+    baseReportMdmVendor="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.mdm.vendor // empty' )"
+    baseReportOverallStatus="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.summary.overallStatus // empty' )"
+    baseReportHasReportingErrors="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '((.summary.errorCount // 0) > 0) or ((.summary.reportingErrors // []) | length > 0)' )"
+    baseReportRunScope="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.runScope // "legacy"' )"
+
+    if [[ "${baseReportScriptVersion}" != "${scriptVersion}" ]]; then
+        targetedRecheckEligibilityStatus="version_mismatch"
+        info "Targeted Recheck: report version ${baseReportScriptVersion:-unknown} does not match ${scriptVersion}; running full health check."
+        return 1
+    fi
+
+    if [[ "${baseReportMdmVendor}" != "${mdmVendor}" ]]; then
+        targetedRecheckEligibilityStatus="mdm_mismatch"
+        info "Targeted Recheck: report MDM ${baseReportMdmVendor:-unknown} does not match ${mdmVendor}; running full health check."
+        return 1
+    fi
+
+    if { [[ -z "${baseReportHardwareUUID}" ]] || [[ "${baseReportHardwareUUID}" != "${hardwareUUID}" ]]; } && \
+       { [[ -z "${baseReportSerialNumber}" ]] || [[ "${baseReportSerialNumber}" != "${serialNumber}" ]]; }; then
+        targetedRecheckEligibilityStatus="device_mismatch"
+        warning "Targeted Recheck: canonical report belongs to another Mac; running full health check."
+        return 1
+    fi
+
+    targetedBaseFullRunTimestamp="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.fullRunTimestamp // empty' )"
+    targetedBaseFullRunTimestampEpoch="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.fullRunTimestampEpoch // empty' )"
+
+    if [[ "${baseReportRunScope}" == "targeted" ]]; then
+        if [[ -z "${targetedBaseFullRunTimestamp}" ]] || [[ "${targetedBaseFullRunTimestampEpoch}" != <-> ]] || (( targetedBaseFullRunTimestampEpoch <= 0 )); then
+            targetedRecheckEligibilityStatus="invalid_full_run_timestamp"
+            warning "Targeted Recheck: targeted report lacks a valid full-run baseline; running full health check."
+            return 1
+        fi
+    elif [[ "${baseReportRunScope}" == "full" ]] || [[ "${baseReportRunScope}" == "legacy" ]]; then
+        [[ -z "${targetedBaseFullRunTimestamp}" ]] && targetedBaseFullRunTimestamp="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.timestamp' )"
+        if [[ "${targetedBaseFullRunTimestampEpoch}" != <-> ]] || (( targetedBaseFullRunTimestampEpoch <= 0 )); then
+            baseReportModificationEpoch="$( stat -f %m "${splunkJSONReportPath}" 2>/dev/null )"
+            if [[ "${baseReportModificationEpoch}" != <-> ]] || (( baseReportModificationEpoch <= 0 )); then
+                targetedRecheckEligibilityStatus="invalid_mtime"
+                warning "Targeted Recheck: unable to determine legacy report age; running full health check."
+                return 1
+            fi
+            targetedBaseFullRunTimestampEpoch="${baseReportModificationEpoch}"
+        fi
+    else
+        targetedRecheckEligibilityStatus="invalid_run_scope"
+        warning "Targeted Recheck: report run scope ${baseReportRunScope:-empty} is not recognized; running full health check."
+        return 1
+    fi
+
+    baseReportAgeSeconds=$(( $( date +%s ) - targetedBaseFullRunTimestampEpoch ))
+    if (( baseReportAgeSeconds < 0 || baseReportAgeSeconds >= targetedRecheckMaximumAgeSeconds )); then
+        targetedRecheckEligibilityStatus="stale"
+        info "Targeted Recheck: full-run baseline is ${baseReportAgeSeconds}s old; running full health check."
+        return 1
+    fi
+
+    currentCheckKeys=()
+    for (( i=0; i<fullListitemLength; i++ )); do
+        currentCheckKeys+=( "${fullCheckKeyByIndex[${i}]}" )
+    done
+    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | jq -c 'sort' )"
+    baseCheckKeysJSON="$( printf '%s' "${targetedBaseReportJSON}" | jq -c '[.checks[].key] | sort' )"
+    if [[ "${baseCheckKeysJSON}" != "${currentCheckKeysJSON}" ]]; then
+        targetedRecheckEligibilityStatus="check_set_mismatch"
+        warning "Targeted Recheck: report check set does not match current ${mdmVendor} configuration; running full health check."
+        return 1
+    fi
+
+    targetedKeyOutput="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.checks[] | select(.status != "healthy") | .key' )"
+    if [[ -z "${targetedKeyOutput}" ]]; then
+        if [[ "${baseReportOverallStatus}" == "healthy" ]] && [[ "${baseReportHasReportingErrors}" != "true" ]]; then
+            targetedRecheckEligibilityStatus="healthy"
+            info "Targeted Recheck: recent canonical report is healthy; evaluating cached Inspect replay."
+        else
+            targetedRecheckEligibilityStatus="reporting_error_only"
+            warning "Targeted Recheck: report has no re-runnable findings; running full health check."
+        fi
+        return 1
+    fi
+    targetedCheckKeys=( "${(@f)targetedKeyOutput}" )
+
+    for candidateKey in "${targetedCheckKeys[@]}"; do
+        targetKeySet[${candidateKey}]="true"
+    done
+
+    targetedCheckKeys=()
+    for (( i=0; i<fullListitemLength; i++ )); do
+        candidateKey="${fullCheckKeyByIndex[${i}]}"
+        if [[ "${targetKeySet[${candidateKey}]}" == "true" ]]; then
+            targetedCheckKeys+=( "${candidateKey}" )
+            targetedOriginalIndices+=( "${i}" )
+            targetedSelectedOriginalIndex[${i}]="true"
+            targetedDisplayIndexByOriginalIndex[${i}]="${displayIndex}"
+            targetIndicesJSON+="${targetIndicesSeparator}${i}"
+            targetIndicesSeparator=","
+            (( displayIndex++ ))
+            (( matchedTargetCount++ ))
+        fi
+    done
+    targetIndicesJSON+="]"
+
+    if (( matchedTargetCount == 0 || matchedTargetCount != ${#targetKeySet[@]} )); then
+        targetedRecheckEligibilityStatus="unmapped_target"
+        warning "Targeted Recheck: one or more findings cannot be mapped to current checks; running full health check."
+        return 1
+    fi
+
+    filteredCombinedJSON="$( printf '%s' "${fullCombinedJSON}" | jq -c --argjson indexes "${targetIndicesJSON}" '.listitem as $items | .listitem = [$indexes[] | $items[.]] | .progress = ($indexes | length)' )"
+    if ! validateJson "${filteredCombinedJSON}"; then
+        targetedRecheckEligibilityStatus="invalid_filtered_dialog"
+        warning "Targeted Recheck: filtered dialog JSON is invalid; running full health check."
+        return 1
+    fi
+
+    combinedJSON="${filteredCombinedJSON}"
+    listitemLength="${#targetedOriginalIndices[@]}"
+    checkTitleByIndex=()
+    checkKeyByIndex=()
+    checkIndexByTitle=()
+    initializeCheckMetadataFromCombinedJSON
+
+    targetedRecheckMode="true"
+    targetedRecheckEligibilityStatus="eligible"
+    reportRunScope="targeted"
+    reportFullRunTimestamp="${targetedBaseFullRunTimestamp}"
+    reportFullRunTimestampEpoch="${targetedBaseFullRunTimestampEpoch}"
+    reportBaseTimestamp="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.timestamp // empty' )"
+    notice "Targeted Recheck: rechecking ${#targetedCheckKeys[@]} recent warning(s), failure(s) or error(s): ${(j:, :)targetedCheckKeys}."
+    return 0
+
+}
+
+function runConfiguredHealthCheck() {
+
+    local originalIndex="${1}"
+    local healthCheckFunction="${2}"
+    local executionIndex="${originalIndex}"
+    shift 2
+
+    if [[ "${targetedRecheckMode}" == "true" ]]; then
+        if [[ "${targetedSelectedOriginalIndex[${originalIndex}]}" != "true" ]]; then
+            return 0
+        fi
+        executionIndex="${targetedDisplayIndexByOriginalIndex[${originalIndex}]}"
+    fi
+
+    "${healthCheckFunction}" "${executionIndex}" "$@"
+
+    if [[ "${targetedRecheckMode}" == "true" ]] && [[ "${checkExecutedByIndex[${executionIndex}]}" != "true" ]]; then
+        warning "Targeted Recheck: ${checkTitleByIndex[${executionIndex}]} did not record a terminal result."
+        checkNormalizedStatusByIndex[${executionIndex}]="error"
+        checkStatustextByIndex[${executionIndex}]="Verification Error"
+        checkInspectTextByIndex[${executionIndex}]="Verification Error"
+        checkRemediationByIndex[${executionIndex}]="Run a full Mac Health Check"
+        checkMessageByIndex[${executionIndex}]="Targeted verification did not produce a result"
+        checkExecutedByIndex[${executionIndex}]="true"
+        checkCompletedEpochByIndex[${executionIndex}]="$( date +%s )"
+        checkCompletedAtByIndex[${executionIndex}]="$( date '+%Y-%m-%dT%H:%M:%S%z' | sed -E 's/(..)$/:\1/' )"
+    fi
 
 }
 
@@ -2440,6 +2747,8 @@ function buildChecksJSONArray() {
     local message=""
     local rawValue=""
     local remediation=""
+    local checkedAt=""
+    local checkedAtEpoch=""
 
     for (( i=0; i<listitemLength; i++ )); do
         if [[ "${checkExecutedByIndex[${i}]}" == "true" ]]; then
@@ -2449,6 +2758,8 @@ function buildChecksJSONArray() {
             message="${checkMessageByIndex[${i}]}"
             rawValue="${checkStatustextByIndex[${i}]}"
             remediation="${checkRemediationByIndex[${i}]}"
+            checkedAt="${checkCompletedAtByIndex[${i}]:-${reportTimestamp}}"
+            checkedAtEpoch="${checkCompletedEpochByIndex[${i}]:-${reportTimestampEpoch}}"
 
             checksJSON+="${separator}{"
             checksJSON+="\"index\":${i},"
@@ -2457,7 +2768,9 @@ function buildChecksJSONArray() {
             checksJSON+="\"status\":$( jsonString "${normalizedStatus}" ),"
             checksJSON+="\"message\":$( jsonString "${message}" ),"
             checksJSON+="\"rawValue\":$( jsonString "${rawValue}" ),"
-            checksJSON+="\"remediation\":$( jsonString "${remediation}" )"
+            checksJSON+="\"remediation\":$( jsonString "${remediation}" ),"
+            checksJSON+="\"checkedAt\":$( jsonString "${checkedAt}" ),"
+            checksJSON+="\"checkedAtEpoch\":${checkedAtEpoch:-0}"
             checksJSON+="}"
             separator=","
         fi
@@ -2527,6 +2840,12 @@ function buildMacHealthReportJSON() {
     metadataJSON="{"
     metadataJSON+="\"scriptVersion\":$( jsonString "${scriptVersion}" ),"
     metadataJSON+="\"timestamp\":$( jsonString "${reportTimestamp}" ),"
+    metadataJSON+="\"timestampEpoch\":${reportTimestampEpoch:-0},"
+    metadataJSON+="\"runScope\":$( jsonString "${reportRunScope}" ),"
+    metadataJSON+="\"fullRunTimestamp\":$( jsonString "${reportFullRunTimestamp:-${reportTimestamp}}" ),"
+    metadataJSON+="\"fullRunTimestampEpoch\":${reportFullRunTimestampEpoch:-${reportTimestampEpoch:-0}},"
+    metadataJSON+="\"baseReportTimestamp\":$( jsonString "${reportBaseTimestamp}" ),"
+    metadataJSON+="\"targetedCheckKeys\":$( buildJSONStringArray "${targetedCheckKeys[@]}" ),"
     metadataJSON+="\"hostname\":$( jsonString "${hostName}" ),"
     metadataJSON+="\"localHostName\":$( jsonString "${localHostName}" ),"
     metadataJSON+="\"serialNumber\":$( jsonString "${serialNumber}" ),"
@@ -2542,6 +2861,11 @@ function buildMacHealthReportJSON() {
     summaryJSON+="\"warningCount\":${#reportWarningChecks[@]},"
     summaryJSON+="\"failCount\":${#reportFailChecks[@]},"
     summaryJSON+="\"errorCount\":$(( ${#reportErrorChecks[@]} + reportingErrorCount )),"
+    if [[ "${targetedRecheckMode}" == "true" ]]; then
+        summaryJSON+="\"recheckedCount\":${#targetedCheckKeys[@]},"
+    else
+        summaryJSON+="\"recheckedCount\":0,"
+    fi
     summaryJSON+="\"elapsedSeconds\":${SECONDS},"
     summaryJSON+="\"warningChecks\":$( buildJSONStringArray "${reportWarningChecks[@]}" ),"
     summaryJSON+="\"failedChecks\":$( buildJSONStringArray "${reportFailChecks[@]}" ),"
@@ -2608,6 +2932,205 @@ function buildMacHealthReportJSON() {
 
 }
 
+function buildFullCheckIndexMapJSON() {
+
+    local indexMapJSON="{"
+    local separator=""
+
+    for (( i=0; i<fullListitemLength; i++ )); do
+        indexMapJSON+="${separator}$( jsonString "${fullCheckKeyByIndex[${i}]}" ):${i}"
+        separator=","
+    done
+    indexMapJSON+="}"
+
+    printf '%s' "${indexMapJSON}"
+
+}
+
+function mergeTargetedReportJSON() {
+
+    local baseReportJSON="${1}"
+    local targetedRunJSON="${2}"
+    local targetKeysJSON=""
+    local indexMapJSON=""
+
+    targetKeysJSON="$( buildJSONStringArray "${targetedCheckKeys[@]}" )"
+    indexMapJSON="$( buildFullCheckIndexMapJSON )"
+
+    jq -c \
+        --argjson run "${targetedRunJSON}" \
+        --argjson targets "${targetKeysJSON}" \
+        --argjson indexMap "${indexMapJSON}" \
+        --arg fullRunTimestamp "${targetedBaseFullRunTimestamp}" \
+        --argjson fullRunTimestampEpoch "${targetedBaseFullRunTimestampEpoch}" \
+        --arg baseReportTimestamp "${reportBaseTimestamp}" '
+        def targeted($key): ($targets | index($key)) != null;
+        def replacement($key): ([$run.checks[] | select(.key == $key)][0] // null);
+
+        . as $base
+        | ($base.checks | map(
+            . as $old
+            | replacement($old.key) as $new
+            | (if $new == null then
+                $old + {
+                    checkedAt: ($old.checkedAt // $base.metadata.timestamp),
+                    checkedAtEpoch: ($old.checkedAtEpoch // $base.metadata.timestampEpoch // $fullRunTimestampEpoch)
+                }
+              else
+                $old + {
+                    status: $new.status,
+                    message: $new.message,
+                    rawValue: $new.rawValue,
+                    remediation: $new.remediation,
+                    checkedAt: $new.checkedAt,
+                    checkedAtEpoch: $new.checkedAtEpoch
+                }
+              end)
+            | .index = $indexMap[.key]
+        ) | sort_by(.index)) as $mergedChecks
+        | ($mergedChecks | map(select(.status == "healthy"))) as $healthyChecks
+        | ($mergedChecks | map(select(.status == "warning"))) as $warningChecks
+        | ($mergedChecks | map(select(.status == "fail"))) as $failedChecks
+        | ($mergedChecks | map(select(.status != "healthy" and .status != "warning" and .status != "fail"))) as $errorChecks
+        | ($run.summary.reportingErrors // []) as $reportingErrors
+        | .metadata = ($base.metadata + $run.metadata + {
+            runScope: "targeted",
+            fullRunTimestamp: $fullRunTimestamp,
+            fullRunTimestampEpoch: $fullRunTimestampEpoch,
+            baseReportTimestamp: $baseReportTimestamp,
+            targetedCheckKeys: $targets
+        })
+        | .checks = $mergedChecks
+        | .summary = ($base.summary + {
+            overallStatus: (
+                if (($errorChecks | length) + ($reportingErrors | length)) > 0 then "error"
+                elif ($failedChecks | length) > 0 then "fail"
+                elif ($warningChecks | length) > 0 then "warning"
+                else "healthy"
+                end
+            ),
+            healthyCount: ($healthyChecks | length),
+            warningCount: ($warningChecks | length),
+            failCount: ($failedChecks | length),
+            errorCount: (($errorChecks | length) + ($reportingErrors | length)),
+            elapsedSeconds: $run.summary.elapsedSeconds,
+            recheckedCount: ($targets | length),
+            warningChecks: [$warningChecks[].name],
+            failedChecks: [$failedChecks[].name],
+            reportingErrors: $reportingErrors
+        })
+        | .systemInfo = $base.systemInfo
+        | if targeted("macos_version") then
+            .systemInfo.macOSVersion = $run.systemInfo.macOSVersion
+            | .systemInfo.macOSBuild = $run.systemInfo.macOSBuild
+          else . end
+        | if targeted("free_disk_space") then .systemInfo.freeDiskSpace = $run.systemInfo.freeDiskSpace else . end
+        | if targeted("last_reboot") then .systemInfo.lastReboot = $run.systemInfo.lastReboot else . end
+        | if targeted("system_integrity_protection") then .systemInfo.sipStatus = $run.systemInfo.sipStatus else . end
+        | if targeted("signed_system_volume") then .systemInfo.signedSystemVolumeStatus = $run.systemInfo.signedSystemVolumeStatus else . end
+        | if targeted("firewall") then .systemInfo.firewallStatus = $run.systemInfo.firewallStatus else . end
+        | if targeted("filevault_encryption") then .systemInfo.fileVaultStatus = $run.systemInfo.fileVaultStatus else . end
+        | if targeted("apple_push_notification_service") then .systemInfo.apnsStatus = $run.systemInfo.apnsStatus else . end
+        | if targeted("vpn_client") then .systemInfo.vpnStatus = $run.systemInfo.vpnStatus else . end
+        | .mdm = $base.mdm
+        | if any($targets[]; endswith("_mdm_profile")) then
+            .mdm.enrollmentStatus = $run.mdm.enrollmentStatus
+            | .mdm.profileResult = $run.mdm.profileResult
+            | .mdm.profileUUID = $run.mdm.profileUUID
+            | .mdm.profileIdentifier = $run.mdm.profileIdentifier
+          else . end
+        | if any($targets[]; endswith("_mdm_certificate_expiration")) then .mdm.certificateExpiration = $run.mdm.certificateExpiration else . end
+        | if targeted("jamf_pro_check_in") or targeted("mosyle_check_in") then .mdm.lastCheckIn = $run.mdm.lastCheckIn else . end
+        | if targeted("jamf_pro_inventory") then .mdm.lastInventory = $run.mdm.lastInventory else . end
+        | .identity = $base.identity
+        | if targeted("entra_id_registration") then .identity.entraIDRegistration = $run.identity.entraIDRegistration else . end
+    ' <<< "${baseReportJSON}"
+
+}
+
+function decodeReportBase64Value() {
+
+    printf '%s' "${1}" | base64 -D 2>/dev/null
+
+}
+
+function hydrateRecordedResultsFromReportJSON() {
+
+    local reportJSON="${1}"
+    local resultLine=""
+    local index=""
+    local keyEncoded=""
+    local nameEncoded=""
+    local statusEncoded=""
+    local messageEncoded=""
+    local rawValueEncoded=""
+    local remediationEncoded=""
+    local checkedAtEncoded=""
+    local checkedAtEpoch=""
+    local hydratedCount=0
+    local expectedKey=""
+
+    checkTitleByIndex=()
+    checkKeyByIndex=()
+    checkNormalizedStatusByIndex=()
+    checkStatustextByIndex=()
+    checkInspectTextByIndex=()
+    checkMessageByIndex=()
+    checkRemediationByIndex=()
+    checkExecutedByIndex=()
+    checkIndexByTitle=()
+    checkCompletedAtByIndex=()
+    checkCompletedEpochByIndex=()
+
+    while IFS=$'\t' read -r index keyEncoded nameEncoded statusEncoded messageEncoded rawValueEncoded remediationEncoded checkedAtEncoded checkedAtEpoch; do
+        if [[ "${index}" != <-> ]] || (( index < 0 || index >= fullListitemLength )); then
+            warning "Targeted Recheck: merged report contains invalid check index ${index:-empty}."
+            return 1
+        fi
+
+        expectedKey="${fullCheckKeyByIndex[${index}]}"
+        checkKeyByIndex[${index}]="$( decodeReportBase64Value "${keyEncoded}" )"
+        if [[ "${checkKeyByIndex[${index}]}" != "${expectedKey}" ]]; then
+            warning "Targeted Recheck: merged report key/index mapping is invalid for ${checkKeyByIndex[${index}]}."
+            return 1
+        fi
+
+        checkTitleByIndex[${index}]="$( decodeReportBase64Value "${nameEncoded}" )"
+        checkNormalizedStatusByIndex[${index}]="$( decodeReportBase64Value "${statusEncoded}" )"
+        checkMessageByIndex[${index}]="$( decodeReportBase64Value "${messageEncoded}" )"
+        checkStatustextByIndex[${index}]="$( decodeReportBase64Value "${rawValueEncoded}" )"
+        checkInspectTextByIndex[${index}]="${checkStatustextByIndex[${index}]}"
+        checkRemediationByIndex[${index}]="$( decodeReportBase64Value "${remediationEncoded}" )"
+        checkCompletedAtByIndex[${index}]="$( decodeReportBase64Value "${checkedAtEncoded}" )"
+        checkCompletedEpochByIndex[${index}]="${checkedAtEpoch}"
+        checkExecutedByIndex[${index}]="true"
+        checkIndexByTitle[${checkTitleByIndex[${index}]}]="${index}"
+        (( hydratedCount++ ))
+    done < <( printf '%s' "${reportJSON}" | jq -r '.checks[] | [
+        (.index | tostring),
+        (.key | @base64),
+        (.name | @base64),
+        (.status | @base64),
+        ((.message // "") | @base64),
+        ((.rawValue // "") | @base64),
+        ((.remediation // "") | @base64),
+        ((.checkedAt // "") | @base64),
+        ((.checkedAtEpoch // 0) | tostring)
+    ] | @tsv' )
+
+    if (( hydratedCount != fullListitemLength )); then
+        warning "Targeted Recheck: merged report hydrated ${hydratedCount} of ${fullListitemLength} checks."
+        return 1
+    fi
+
+    combinedJSON="${fullCombinedJSON}"
+    listitemLength="${fullListitemLength}"
+    rebuildOverallHealthFromRecordedResults
+    calculateOverallReportStatus
+    return 0
+
+}
+
 function buildFallbackReportJSON() {
 
     local -a reportingErrorItems
@@ -2646,16 +3169,33 @@ function writeSecureJSONFile() {
     local targetPath="${1}"
     local jsonPayload="${2}"
     local previousUmask=""
+    local temporaryPath=""
 
     previousUmask="$( umask )"
     umask 077
-    printf '%s\n' "${jsonPayload}" > "${targetPath}"
+    temporaryPath="$( mktemp "${targetPath}.XXXXXX" )" || {
+        umask "${previousUmask}"
+        return 1
+    }
+
+    if ! printf '%s\n' "${jsonPayload}" > "${temporaryPath}"; then
+        rm -f "${temporaryPath}"
+        umask "${previousUmask}"
+        return 1
+    fi
     umask "${previousUmask}"
 
-    chmod 600 "${targetPath}" 2>/dev/null
+    chmod 600 "${temporaryPath}" 2>/dev/null
     if [[ $(id -u) -eq 0 ]]; then
-        chown root:wheel "${targetPath}" 2>/dev/null
+        chown root:wheel "${temporaryPath}" 2>/dev/null
     fi
+
+    if ! mv -f "${temporaryPath}" "${targetPath}"; then
+        rm -f "${temporaryPath}"
+        return 1
+    fi
+
+    return 0
 
 }
 
@@ -2780,6 +3320,7 @@ function sendSplunkHECPayload() {
 function generateAndSendSplunkReport() {
 
     local reportJSON=""
+    local targetedRunJSON=""
 
     notice "Generating Splunk JSON report …"
 
@@ -2787,12 +3328,54 @@ function generateAndSendSplunkReport() {
     calculateOverallReportStatus
     generateReportTimestamp
 
+    if [[ "${targetedRecheckMode}" == "true" ]]; then
+        reportRunScope="targeted"
+        reportFullRunTimestamp="${targetedBaseFullRunTimestamp}"
+        reportFullRunTimestampEpoch="${targetedBaseFullRunTimestampEpoch}"
+    else
+        reportRunScope="full"
+        reportFullRunTimestamp="${reportTimestamp}"
+        reportFullRunTimestampEpoch="${reportTimestampEpoch}"
+        reportBaseTimestamp=""
+        targetedCheckKeys=()
+    fi
+
     reportJSON="$( buildMacHealthReportJSON )"
 
     if ! validateJson "${reportJSON}"; then
+        if [[ "${targetedRecheckMode}" == "true" ]]; then
+            addReportingError "Generated targeted report JSON failed validation; preserving previous canonical report."
+            reportOverallStatus="error"
+            reportTransmissionStatus="failed"
+            exitCode="1"
+            dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+            return 1
+        fi
         addReportingError "Generated report JSON failed validation; writing fallback error report."
         reportOverallStatus="error"
         reportJSON="$( buildFallbackReportJSON )"
+    fi
+
+    if [[ "${targetedRecheckMode}" == "true" ]]; then
+        targetedRunJSON="${reportJSON}"
+        reportJSON="$( mergeTargetedReportJSON "${targetedBaseReportJSON}" "${targetedRunJSON}" )"
+        if [[ -z "${reportJSON}" ]] || ! validateJson "${reportJSON}"; then
+            addReportingError "Targeted report merge failed validation; preserving previous canonical report."
+            reportOverallStatus="error"
+            reportTransmissionStatus="failed"
+            exitCode="1"
+            dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+            return 1
+        fi
+
+        if ! hydrateRecordedResultsFromReportJSON "${reportJSON}"; then
+            addReportingError "Targeted report could not hydrate merged full-state results; preserving previous canonical report."
+            reportOverallStatus="error"
+            reportTransmissionStatus="failed"
+            exitCode="1"
+            dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+            return 1
+        fi
     fi
 
     if [[ "${splunkPrettyPrintJSON}" == "true" ]]; then
@@ -2803,8 +3386,7 @@ function generateAndSendSplunkReport() {
 
     reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${reportJSON}" )" )" )"
 
-    writeSecureJSONFile "${splunkJSONReportPath}" "${reportFilePayload}"
-    if [[ -f "${splunkJSONReportPath}" ]]; then
+    if writeSecureJSONFile "${splunkJSONReportPath}" "${reportFilePayload}"; then
         reportGenerated="true"
         notice "Splunk Reporting: local report written to ${splunkJSONReportPath}"
     else
@@ -3227,12 +3809,23 @@ function getInspectResultsTimestampText() {
 function getInspectTimestampAndReplayMessage() {
 
     local inspectDisplayTimestamp=""
+    local inspectFullRunDisplayTimestamp=""
     local replayMinutes=$(( inspectReplayMaximumAgeSeconds / 60 ))
 
     if [[ -n "${reportTimestamp}" ]]; then
         inspectDisplayTimestamp="$( formatInspectTimestampForDisplay "${reportTimestamp}" )"
     else
         inspectDisplayTimestamp="$( date '+%A, %B %d at %I:%M %p %Z' )"
+    fi
+
+    if [[ "${targetedRecheckMode}" == "true" ]]; then
+        inspectFullRunDisplayTimestamp="$( formatInspectTimestampForDisplay "${targetedBaseFullRunTimestamp}" )"
+        echo "**${#targetedCheckKeys[@]} selected check(s) were rechecked as of ${inspectDisplayTimestamp}.**
+
+Remaining results came from the full health check completed ${inspectFullRunDisplayTimestamp}.
+
+These cached results may be reused for up to ${replayMinutes} minutes."
+        return
     fi
 
     echo "Results as of: **${inspectDisplayTimestamp}**.
@@ -5189,6 +5782,7 @@ function quitScript() {
     local warningCheckCount=0
     local failureCheckCount=0
     local inspectSummaryLaunched="false"
+    local reportGenerationSucceeded="true"
     local timeMachineSummary="${tmStatus}"
 
     [[ -n "${tmLastBackup}" ]] && timeMachineSummary+=" ${tmLastBackup}"
@@ -5252,6 +5846,9 @@ function quitScript() {
     esac
 
     generateAndSendSplunkReport
+    if [[ "${reportGenerated}" != "true" ]]; then
+        reportGenerationSucceeded="false"
+    fi
 
     if [[ "${suppressNonSplunkConsoleLogging}" == "true" ]]; then
         if (( reportingErrorCount > 0 )); then
@@ -5263,7 +5860,7 @@ function quitScript() {
         fi
     fi
 
-    if inspectSummaryIsEnabled; then
+    if [[ "${reportGenerationSucceeded}" == "true" ]] && inspectSummaryIsEnabled; then
         case "${operationMode}" in
             "Self Service" )
                 if generateInspectSummaryAssets && launchInspectSummary; then
@@ -5639,11 +6236,6 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 preFlight "Complete"
-
-if replayCachedInspectSummaryIfEligible; then
-    quitOut "Replayed cached inspect summary."
-    exit 0
-fi
 
 
 
@@ -9025,13 +9617,31 @@ if ! validateJson "${combinedJSON}"; then
 fi
 
 # Runtime check counters for dock badge updates
+fullCombinedJSON="${combinedJSON}"
 listitemLength=$(get_json_value "${combinedJSON}" "listitem.length")
 if [[ "${listitemLength}" != <-> ]]; then
     listitemLength="0"
 fi
+initializeCheckMetadataFromCombinedJSON
+initializeFullCheckMetadata
+
+prepareTargetedRecheckIfEligible
+
+if [[ "${targetedRecheckEligibilityStatus}" == "healthy" ]]; then
+    if replayCachedInspectSummaryIfEligible; then
+        quitOut "Replayed cached inspect summary."
+        exit 0
+    fi
+    info "Inspect Summary Replay: no eligible cached summary; running full health check."
+fi
+
+if [[ "${targetedRecheckMode}" != "true" ]]; then
+    reportRunScope="full"
+    reportBaseTimestamp=""
+fi
+
 remainingChecks="${listitemLength}"
 completedCheckIndicesCsv=","
-initializeCheckMetadataFromCombinedJSON
 
 echo "$combinedJSON" > "$dialogJSONFile"
 
@@ -9107,6 +9717,10 @@ if [[ "${operationMode}" != "Silent" ]]; then
 
     info "Dialog PID: ${dialogPID}"
     dialogUpdate "progresstext: Initializing …"
+    if [[ "${targetedRecheckMode}" == "true" ]]; then
+        dialogUpdate "title: Rechecking Recent Warnings & Failures <br>${#targetedCheckKeys[@]} selected check(s)"
+        dialogUpdate "progresstext: Preparing targeted verification …"
+    fi
 
     # Band-Aid for macOS 15+ `withAnimation` SwiftUI bug
     dialogUpdate "list: hide"
@@ -9151,322 +9765,322 @@ else
         case ${mdmVendor} in
 
             "Addigy" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkAppAutoPatch
+                runConfiguredHealthCheck "3" checkSIP
+                runConfiguredHealthCheck "4" checkSSV
+                runConfiguredHealthCheck "5" checkFirewall
+                runConfiguredHealthCheck "6" checkFileVault
+                runConfiguredHealthCheck "7" checkGatekeeperXProtect
+                runConfiguredHealthCheck "8" checkTouchID
+                runConfiguredHealthCheck "9" checkVPN
+                runConfiguredHealthCheck "10" checkUptime
+                runConfiguredHealthCheck "11" checkFreeDiskSpace
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "15" checkPasswordHint
+                runConfiguredHealthCheck "16" checkAirDropSettings
+                runConfiguredHealthCheck "17" checkAirPlayReceiver
+                runConfiguredHealthCheck "18" checkBluetoothSharing
+                runConfiguredHealthCheck "19" checkMdmProfile
+                runConfiguredHealthCheck "20" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "21" checkAPNs
+                runConfiguredHealthCheck "22" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "27" checkInternal "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                runConfiguredHealthCheck "28" checkHomebrewStatus
+                runConfiguredHealthCheck "29" checkElectronCornerMask
+                runConfiguredHealthCheck "30" checkWiFiStrength
+                runConfiguredHealthCheck "31" checkNetworkQuality
                 ;;
 
             "Filewave" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkHomebrewStatus "27"
-                checkElectronCornerMask "28"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkAppAutoPatch
+                runConfiguredHealthCheck "3" checkSIP
+                runConfiguredHealthCheck "4" checkSSV
+                runConfiguredHealthCheck "5" checkFirewall
+                runConfiguredHealthCheck "6" checkFileVault
+                runConfiguredHealthCheck "7" checkGatekeeperXProtect
+                runConfiguredHealthCheck "8" checkTouchID
+                runConfiguredHealthCheck "9" checkVPN
+                runConfiguredHealthCheck "10" checkUptime
+                runConfiguredHealthCheck "11" checkFreeDiskSpace
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "15" checkPasswordHint
+                runConfiguredHealthCheck "16" checkAirDropSettings
+                runConfiguredHealthCheck "17" checkAirPlayReceiver
+                runConfiguredHealthCheck "18" checkBluetoothSharing
+                runConfiguredHealthCheck "19" checkMdmProfile
+                runConfiguredHealthCheck "20" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "21" checkAPNs
+                runConfiguredHealthCheck "22" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "27" checkHomebrewStatus
+                runConfiguredHealthCheck "28" checkElectronCornerMask
+                runConfiguredHealthCheck "29" checkWiFiStrength
+                runConfiguredHealthCheck "30" checkNetworkQuality
                 ;;
 
             "Fleet" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkAppAutoPatch
+                runConfiguredHealthCheck "3" checkSIP
+                runConfiguredHealthCheck "4" checkSSV
+                runConfiguredHealthCheck "5" checkFirewall
+                runConfiguredHealthCheck "6" checkFileVault
+                runConfiguredHealthCheck "7" checkGatekeeperXProtect
+                runConfiguredHealthCheck "8" checkTouchID
+                runConfiguredHealthCheck "9" checkVPN
+                runConfiguredHealthCheck "10" checkUptime
+                runConfiguredHealthCheck "11" checkFreeDiskSpace
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "15" checkPasswordHint
+                runConfiguredHealthCheck "16" checkAirDropSettings
+                runConfiguredHealthCheck "17" checkAirPlayReceiver
+                runConfiguredHealthCheck "18" checkBluetoothSharing
+                runConfiguredHealthCheck "19" checkMdmProfile
+                runConfiguredHealthCheck "20" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "21" checkAPNs
+                runConfiguredHealthCheck "22" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "27" checkInternal "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"
+                runConfiguredHealthCheck "28" checkHomebrewStatus
+                runConfiguredHealthCheck "29" checkElectronCornerMask
+                runConfiguredHealthCheck "30" checkWiFiStrength
+                runConfiguredHealthCheck "31" checkNetworkQuality
                 ;;
 
             "Jamf Pro" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkSIP "2"
-                checkSSV "3"
-                checkFirewall "4"
-                checkFileVault "5"
-                checkGatekeeperXProtect "6"
-                checkTouchID "7"
-                checkAirDropSettings "8"
-                checkAirPlayReceiver "9"
-                checkBluetoothSharing "10"
-                checkVPN "11"
-                checkUptime "12"
-                checkFreeDiskSpace "13"
-                checkUserDirectorySizeItems "14" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "15" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "16" ".Trash" "trash.fill" "Trash"
-                checkMdmProfile "17"
-                checkEntraIDRegistration "18"
-                checkMdmCertificateExpiration "19"
-                checkAPNs "20"
-                checkJamfProCheckIn "21"
-                checkJamfProInventory "22"
-                checkClockSkew "23"
-                checkNetworkHosts  "24" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts  "25" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts  "26" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts  "27" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts  "28" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkNetworkHosts  "29" "Jamf Hosts"                            "${jamfHosts[@]}"
-                checkAppAutoPatch "30"
-                checkHomebrewStatus "31"
-                checkElectronCornerMask "32"
-                checkInternal "33" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkExternalJamfPro "34" "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
-                checkExternalJamfPro "35" "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
-                checkExternalJamfPro "36" "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
-                checkExternalJamfPro "37" "symvGlobalProtect"          "/Applications/GlobalProtect.app"
-                checkWiFiStrength "38"
-                checkNetworkQuality "39"
-                updateComputerInventory "40"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkSIP
+                runConfiguredHealthCheck "3" checkSSV
+                runConfiguredHealthCheck "4" checkFirewall
+                runConfiguredHealthCheck "5" checkFileVault
+                runConfiguredHealthCheck "6" checkGatekeeperXProtect
+                runConfiguredHealthCheck "7" checkTouchID
+                runConfiguredHealthCheck "8" checkAirDropSettings
+                runConfiguredHealthCheck "9" checkAirPlayReceiver
+                runConfiguredHealthCheck "10" checkBluetoothSharing
+                runConfiguredHealthCheck "11" checkVPN
+                runConfiguredHealthCheck "12" checkUptime
+                runConfiguredHealthCheck "13" checkFreeDiskSpace
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "15" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "16" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "17" checkMdmProfile
+                runConfiguredHealthCheck "18" checkEntraIDRegistration
+                runConfiguredHealthCheck "19" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "20" checkAPNs
+                runConfiguredHealthCheck "21" checkJamfProCheckIn
+                runConfiguredHealthCheck "22" checkJamfProInventory
+                runConfiguredHealthCheck "23" checkClockSkew
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "27" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "28" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "29" checkNetworkHosts "Jamf Hosts"                            "${jamfHosts[@]}"
+                runConfiguredHealthCheck "30" checkAppAutoPatch
+                runConfiguredHealthCheck "31" checkHomebrewStatus
+                runConfiguredHealthCheck "32" checkElectronCornerMask
+                runConfiguredHealthCheck "33" checkInternal "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                runConfiguredHealthCheck "34" checkExternalJamfPro "symvBeyondTrustPMfM"        "/Applications/PrivilegeManagement.app"
+                runConfiguredHealthCheck "35" checkExternalJamfPro "symvCiscoUmbrella"          "/Applications/Cisco/Cisco Secure Client.app"
+                runConfiguredHealthCheck "36" checkExternalJamfPro "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
+                runConfiguredHealthCheck "37" checkExternalJamfPro "symvGlobalProtect"          "/Applications/GlobalProtect.app"
+                runConfiguredHealthCheck "38" checkWiFiStrength
+                runConfiguredHealthCheck "39" checkNetworkQuality
+                runConfiguredHealthCheck "40" updateComputerInventory
                 ;;
 
             "JumpCloud" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkAppAutoPatch
+                runConfiguredHealthCheck "3" checkSIP
+                runConfiguredHealthCheck "4" checkSSV
+                runConfiguredHealthCheck "5" checkFirewall
+                runConfiguredHealthCheck "6" checkFileVault
+                runConfiguredHealthCheck "7" checkGatekeeperXProtect
+                runConfiguredHealthCheck "8" checkTouchID
+                runConfiguredHealthCheck "9" checkVPN
+                runConfiguredHealthCheck "10" checkUptime
+                runConfiguredHealthCheck "11" checkFreeDiskSpace
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "15" checkPasswordHint
+                runConfiguredHealthCheck "16" checkAirDropSettings
+                runConfiguredHealthCheck "17" checkAirPlayReceiver
+                runConfiguredHealthCheck "18" checkBluetoothSharing
+                runConfiguredHealthCheck "19" checkMdmProfile
+                runConfiguredHealthCheck "20" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "21" checkAPNs
+                runConfiguredHealthCheck "22" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "27" checkInternal "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                runConfiguredHealthCheck "28" checkHomebrewStatus
+                runConfiguredHealthCheck "29" checkElectronCornerMask
+                runConfiguredHealthCheck "30" checkWiFiStrength
+                runConfiguredHealthCheck "31" checkNetworkQuality
                 ;;
 
             "Kandji" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkSIP "2"
-                checkSSV "3"
-                checkFirewall "4"
-                checkFileVault "5"
-                checkGatekeeperXProtect "6"
-                checkTouchID "7"
-                checkVPN "8"
-                checkUptime "9"
-                checkFreeDiskSpace "10"
-                checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "12" "Downloads" "arrow.down.circle.fill" "Downloads"
-                checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
-                checkBluetoothSharing "14"
-                checkMdmCertificateExpiration "15"
-                checkAPNs "16"
-                checkNetworkHosts "17" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "18" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "19" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "20" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "21" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "22" "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-				checkInternal "23" "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft OneDrive"
-				checkInternal "24" "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
-				checkInternal "25" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
-				checkInternal "26" "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"
-				checkInternal "27" "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"
-				checkInternal "28" "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"
-                checkWiFiStrength "29"
-                checkNetworkQuality "30"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkSIP
+                runConfiguredHealthCheck "3" checkSSV
+                runConfiguredHealthCheck "4" checkFirewall
+                runConfiguredHealthCheck "5" checkFileVault
+                runConfiguredHealthCheck "6" checkGatekeeperXProtect
+                runConfiguredHealthCheck "7" checkTouchID
+                runConfiguredHealthCheck "8" checkVPN
+                runConfiguredHealthCheck "9" checkUptime
+                runConfiguredHealthCheck "10" checkFreeDiskSpace
+                runConfiguredHealthCheck "11" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Downloads" "arrow.down.circle.fill" "Downloads"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "14" checkBluetoothSharing
+                runConfiguredHealthCheck "15" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "16" checkAPNs
+                runConfiguredHealthCheck "17" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "18" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "19" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "20" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "21" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "22" checkInternal "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
+                runConfiguredHealthCheck "23" checkInternal "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft OneDrive"
+                runConfiguredHealthCheck "24" checkInternal "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
+                runConfiguredHealthCheck "25" checkInternal "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
+                runConfiguredHealthCheck "26" checkInternal "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"
+                runConfiguredHealthCheck "27" checkInternal "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"
+                runConfiguredHealthCheck "28" checkInternal "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"
+                runConfiguredHealthCheck "29" checkWiFiStrength
+                runConfiguredHealthCheck "30" checkNetworkQuality
                 ;;
 
             "Microsoft Intune" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkNetworkHosts "22" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "23" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "24" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "25" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "26" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "27" "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"
-                checkHomebrewStatus "28"
-                checkElectronCornerMask "29"
-                checkWiFiStrength "30"
-                checkNetworkQuality "31"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkAppAutoPatch
+                runConfiguredHealthCheck "3" checkSIP
+                runConfiguredHealthCheck "4" checkSSV
+                runConfiguredHealthCheck "5" checkFirewall
+                runConfiguredHealthCheck "6" checkFileVault
+                runConfiguredHealthCheck "7" checkGatekeeperXProtect
+                runConfiguredHealthCheck "8" checkTouchID
+                runConfiguredHealthCheck "9" checkVPN
+                runConfiguredHealthCheck "10" checkUptime
+                runConfiguredHealthCheck "11" checkFreeDiskSpace
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "15" checkPasswordHint
+                runConfiguredHealthCheck "16" checkAirDropSettings
+                runConfiguredHealthCheck "17" checkAirPlayReceiver
+                runConfiguredHealthCheck "18" checkBluetoothSharing
+                runConfiguredHealthCheck "19" checkMdmProfile
+                runConfiguredHealthCheck "20" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "21" checkAPNs
+                runConfiguredHealthCheck "22" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "27" checkInternal "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"
+                runConfiguredHealthCheck "28" checkHomebrewStatus
+                runConfiguredHealthCheck "29" checkElectronCornerMask
+                runConfiguredHealthCheck "30" checkWiFiStrength
+                runConfiguredHealthCheck "31" checkNetworkQuality
                 ;;
 
             "Mosyle" )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkAppAutoPatch "2"
-                checkSIP "3"
-                checkSSV "4"
-                checkFirewall "5"
-                checkFileVault "6"
-                checkGatekeeperXProtect "7"
-                checkTouchID "8"
-                checkVPN "9"
-                checkUptime "10"
-                checkFreeDiskSpace "11"
-                checkUserDirectorySizeItems "12" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "13" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "14" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "15"
-                checkAirDropSettings "16"
-                checkAirPlayReceiver "17"
-                checkBluetoothSharing "18"
-                checkMdmProfile "19"
-                checkMdmCertificateExpiration "20"
-                checkAPNs "21"
-                checkMosyleCheckIn "22"
-                checkNetworkHosts "23" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "24" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "25" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "26" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "27" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkInternal "28" "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
-                checkHomebrewStatus "29"
-                checkElectronCornerMask "30"
-                checkWiFiStrength "31"
-                checkNetworkQuality "32"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkAppAutoPatch
+                runConfiguredHealthCheck "3" checkSIP
+                runConfiguredHealthCheck "4" checkSSV
+                runConfiguredHealthCheck "5" checkFirewall
+                runConfiguredHealthCheck "6" checkFileVault
+                runConfiguredHealthCheck "7" checkGatekeeperXProtect
+                runConfiguredHealthCheck "8" checkTouchID
+                runConfiguredHealthCheck "9" checkVPN
+                runConfiguredHealthCheck "10" checkUptime
+                runConfiguredHealthCheck "11" checkFreeDiskSpace
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "14" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "15" checkPasswordHint
+                runConfiguredHealthCheck "16" checkAirDropSettings
+                runConfiguredHealthCheck "17" checkAirPlayReceiver
+                runConfiguredHealthCheck "18" checkBluetoothSharing
+                runConfiguredHealthCheck "19" checkMdmProfile
+                runConfiguredHealthCheck "20" checkMdmCertificateExpiration
+                runConfiguredHealthCheck "21" checkAPNs
+                runConfiguredHealthCheck "22" checkMosyleCheckIn
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "24" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "25" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "26" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "27" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "28" checkInternal "/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"
+                runConfiguredHealthCheck "29" checkHomebrewStatus
+                runConfiguredHealthCheck "30" checkElectronCornerMask
+                runConfiguredHealthCheck "31" checkWiFiStrength
+                runConfiguredHealthCheck "32" checkNetworkQuality
                 ;;
 
             * )
-                checkOS "0"
-                checkAvailableSoftwareUpdates "1"
-                checkSIP "2"
-                checkSSV "3"
-                checkFirewall "4"
-                checkFileVault "5"
-                checkGatekeeperXProtect "6"
-                checkTouchID "7"
-                checkVPN "8"
-                checkUptime "9"
-                checkFreeDiskSpace "10"
-                checkUserDirectorySizeItems "11" "Desktop" "desktopcomputer.and.macbook" "Desktop"
-                checkUserDirectorySizeItems "12" "Downloads" "folder.fill.badge.plus" "Downloads"
-                checkUserDirectorySizeItems "13" ".Trash" "trash.fill" "Trash"
-                checkPasswordHint "14"
-                checkAirDropSettings "15"
-                checkAirPlayReceiver "16"
-                checkBluetoothSharing "17"
-                checkAPNs "18"
-                checkNetworkHosts "19" "Apple Push Notification Hosts"         "${pushHosts[@]}"
-                checkNetworkHosts "20" "Apple Device Management"               "${deviceMgmtHosts[@]}"
-                checkNetworkHosts "21" "Apple Software and Carrier Updates"    "${updateHosts[@]}"
-                checkNetworkHosts "22" "Apple Certificate Validation"          "${certHosts[@]}"
-                checkNetworkHosts "23" "Apple Identity and Content Services"   "${idAssocHosts[@]}"
-                checkHomebrewStatus "24"
-                checkElectronCornerMask "25"
-                checkWiFiStrength "26"
-                checkNetworkQuality "27"
+                runConfiguredHealthCheck "0" checkOS
+                runConfiguredHealthCheck "1" checkAvailableSoftwareUpdates
+                runConfiguredHealthCheck "2" checkSIP
+                runConfiguredHealthCheck "3" checkSSV
+                runConfiguredHealthCheck "4" checkFirewall
+                runConfiguredHealthCheck "5" checkFileVault
+                runConfiguredHealthCheck "6" checkGatekeeperXProtect
+                runConfiguredHealthCheck "7" checkTouchID
+                runConfiguredHealthCheck "8" checkVPN
+                runConfiguredHealthCheck "9" checkUptime
+                runConfiguredHealthCheck "10" checkFreeDiskSpace
+                runConfiguredHealthCheck "11" checkUserDirectorySizeItems "Desktop" "desktopcomputer.and.macbook" "Desktop"
+                runConfiguredHealthCheck "12" checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"
+                runConfiguredHealthCheck "13" checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"
+                runConfiguredHealthCheck "14" checkPasswordHint
+                runConfiguredHealthCheck "15" checkAirDropSettings
+                runConfiguredHealthCheck "16" checkAirPlayReceiver
+                runConfiguredHealthCheck "17" checkBluetoothSharing
+                runConfiguredHealthCheck "18" checkAPNs
+                runConfiguredHealthCheck "19" checkNetworkHosts "Apple Push Notification Hosts"         "${pushHosts[@]}"
+                runConfiguredHealthCheck "20" checkNetworkHosts "Apple Device Management"               "${deviceMgmtHosts[@]}"
+                runConfiguredHealthCheck "21" checkNetworkHosts "Apple Software and Carrier Updates"    "${updateHosts[@]}"
+                runConfiguredHealthCheck "22" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
+                runConfiguredHealthCheck "23" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
+                runConfiguredHealthCheck "24" checkHomebrewStatus
+                runConfiguredHealthCheck "25" checkElectronCornerMask
+                runConfiguredHealthCheck "26" checkWiFiStrength
+                runConfiguredHealthCheck "27" checkNetworkQuality
                 ;;
         
         esac
