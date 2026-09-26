@@ -31,8 +31,8 @@ graph TB
     end
 
     subgraph Development["🔧 Development"]
-        DV_DESC["Trigger: Manual / MDM policy<br>UI: swiftDialog — single-check dev path<br>Anticipation: 2s between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s auto-close<br>Logging: Full structured log"]
-        DV_USE["Use case:<br>Iterating on current Entra ID<br>registration health check"]
+        DV_DESC["Trigger: Manual / MDM policy<br>UI: swiftDialog — curated two-check path<br>Anticipation: 2s between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s auto-close<br>Logging: Full structured log"]
+        DV_USE["Use case:<br>Iterating on Clock Skew<br>and Memory Pressure checks"]
 
         style DV_DESC fill:#fff4e6
         style DV_USE fill:#ffecb3
@@ -65,7 +65,7 @@ graph TB
 |---|---|---|---|---|---|
 | **Parameter 4 value** | `Self Service` | `Silent` | `Debug` | `Development` | `Test` |
 | **Is default?** | Yes | No | No | No | No |
-| **swiftDialog UI** | Full dialog | None | Full dialog | Single Entra ID Registration check | Full dialog |
+| **swiftDialog UI** | Full dialog | None | Full dialog | Clock Skew and Memory Pressure checks | Full dialog |
 | **Anticipation delay** | 2 seconds | 0 seconds | 2 seconds | 2 seconds | 2 seconds |
 | **Dock badge** | Yes (when enabled) | No | Yes (when enabled) | Yes (when enabled) | Yes (when enabled) |
 | **Completion timer** | 60s on normal full runs | N/A | 60s (configurable) | 60s (configurable) | 60s (configurable) |
@@ -74,7 +74,7 @@ graph TB
 | **Fresh-config replay** | Yes for healthy reports when `inspectSummaryPreset="on"` and cache age is below `inspectReplayMaximumAgeSeconds` | No | No | No | No |
 | **Targeted remediation recheck** | Yes for valid matching non-healthy reports with full baseline under 36 hours | No | No | No | No |
 | **Logging** | Full | Full | Full + `set -x` | Full structured log | Full structured log |
-| **Real check data** | Yes | Yes | Yes | Yes (Entra ID Registration only) | No (simulated pass results) |
+| **Real check data** | Yes | Yes | Yes | Yes (Clock Skew and Memory Pressure) | No (simulated pass results) |
 | **Intended actor** | End user | Automated / Jamf policy | Administrator | Developer | Developer |
 
 ---
@@ -103,9 +103,9 @@ Similar to Self Service, but with `set -x` tracing enabled plus swiftDialog debu
 ---
 
 ### Development
-Runs current development subset of checks in normal non-`Silent` dialog flow. In current release, the subset includes only `checkEntraIDRegistration()`, keeping feedback focused and fast without waiting for a full vendor-specific run.
+Runs current development subset of checks in normal non-`Silent` dialog flow. The subset includes `checkClockSkew()` and `checkMemoryPressure()`, keeping feedback focused without waiting for a full vendor-specific run. Memory Pressure adds a history sample; use an isolated `memoryPressureHistoryPath` when testing fixtures.
 
-**When to use:** Tuning targeted remediation copy, Entra registration reporting, or dialog presentation while keeping the run far shorter than a full production policy.
+**When to use:** Tuning clock-skew or memory-pressure reporting and dialog presentation while keeping the run shorter than a full production policy.
 
 ---
 

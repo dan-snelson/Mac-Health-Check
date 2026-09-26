@@ -1,15 +1,16 @@
 # Mac Health Check: Health Check Reference
 
-This text-only reference documents the key configurable defaults and runtime inventory for Mac Health Check `4.0.0`. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
+This text-only reference documents key configurable defaults and the current runtime inventory. No diagram is included; use [03-health-check-categories.md](03-health-check-categories.md) for a visual overview.
 
 ---
 
-## 4.0.0 Runtime Notes
+## Runtime Notes
 
 - `operationMode` is documented for the `4.0.0` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` and full `Silent` health-check runs now generate readable inspect-summary assets after the canonical report is written. `Self Service` launches a detached moveable swiftDialog Inspect Mode Preset 6 guided summary, separates recorded results into `Unhealthy` and `Healthy` sections, and retains the normal main-dialog completion countdown during full runs; `Silent` writes the assets without launching swiftDialog.
 - Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
-- `Development` mode currently runs only `checkClockSkew()` instead of the full vendor-specific suite.
+- `Development` mode currently runs `checkClockSkew()` and `checkMemoryPressure()` instead of the full vendor-specific suite.
+- `checkMemoryPressure()` adds one observation whenever the check executes, including full runs and targeted rechecks, to root-only history under `organizationDirectory`; cached uploads, healthy Inspect replay, and synthetic `Test` runs do not sample.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
 - Pre-flight targets swiftDialog `3.1.0.4994` or newer and skips redundant production downloads when the installed release already matches the latest production build.
@@ -59,6 +60,10 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 | `anticipationDuration` | `"2"` (or `"0"` in Silent mode) | Pause between checks, in seconds | Any integer string |
 | `previousMinorOS` | `"2"` | Number of older minor macOS releases considered compliant | Integer string (`"0"`–`"5"`) |
 | `allowedMinimumFreeDiskPercentage` | `"10"` | Free disk space below this percentage triggers an error | Integer string |
+| `memoryPressureHistoryPath` | `${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl` | Root-only JSON Lines sample history | Local path in a root-owned directory |
+| `memoryPressureHistoryRetentionDays` | `"14"` | Days of retained memory-pressure samples | Positive integer string, at least the lookback |
+| `memoryPressureLookbackDays` | `"7"` | Rolling window used for pressure-pattern detection | Integer string of at least `2` |
+| `memoryPressureRequiredAdverseDays` | `"2"` | Distinct local days with yellow or red pressure required for warning | Integer string from `2` through `memoryPressureLookbackDays` |
 | `allowedMaximumDirectoryPercentage` | `"5"` | User directory (Desktop/Downloads/Trash) above this percentage of total disk triggers a warning | Integer string |
 | `networkQualityTestMaximumAge` | `"4H"` | Maximum age of a cached network quality result before re-running | `date -v-` suffix: `y`, `m`, `w`, `d`, `H`, `M`, `S` |
 | `allowedUptimeMinutes` | `"10080"` | Uptime above this threshold triggers an alert (10,080 min = 7 days) | Integer string |
@@ -104,6 +109,7 @@ The table below lists every health check function, its human-readable name, and 
 | System | `checkGatekeeperXProtect()` | Gatekeeper / XProtect | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | System | `checkFirewall()` | Firewall | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | System | `checkFileVault()` | FileVault | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| System | `checkMemoryPressure()` | Memory Pressure | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | User | `checkTouchID()` | Touch ID | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | User | `checkAirDropSettings()` | AirDrop | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ |
 | User | `checkAirPlayReceiver()` | AirPlay Receiver | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ |
