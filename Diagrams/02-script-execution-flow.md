@@ -66,7 +66,9 @@ graph TB
         SDCHECK{"swiftDialog<br>≥ 3.1.0.4994?"}
         SDINSTALL["Download & install<br>swiftDialog from GitHub"]
         KILLSD["Kill existing<br>Dialog instances"]
-        REPLAYCHECK{"Self Service + inspectSummaryPreset=on<br>cached inspect config age<br>< inspectReplayMaximumAgeSeconds and valid?"}
+        TARGETCHECK{"Self Service canonical report valid,<br>matching and full baseline < 36h<br>with non-healthy check keys?"}
+        TARGETPREP["Filter dialog to selected keys<br>map original indexes to compact indexes"]
+        REPLAYCHECK{"Healthy canonical report + inspectSummaryPreset=on<br>cached inspect config age<br>< inspectReplayMaximumAgeSeconds and valid?"}
         REPLAYLAUNCH["Launch cached moveable Preset 6 summary<br>skip checks and exit"]
         DOCKBADGE["Prepare Dock launch state<br>and initial badge<br>(non-Silent when enabled)"]
 
@@ -82,7 +84,10 @@ graph TB
         SDCHECK -->|No| SDINSTALL
         SDINSTALL --> KILLSD
         SDCHECK -->|Yes| KILLSD
-        KILLSD --> REPLAYCHECK
+        KILLSD --> TARGETCHECK
+        TARGETCHECK -->|Yes| TARGETPREP
+        TARGETPREP --> DOCKBADGE
+        TARGETCHECK -->|No| REPLAYCHECK
         REPLAYCHECK -->|Yes| REPLAYLAUNCH
         REPLAYCHECK -->|No| DOCKBADGE
 
@@ -96,6 +101,8 @@ graph TB
         style SDCHECK fill:#ffecb3
         style SDINSTALL fill:#fff4e6
         style KILLSD fill:#fff4e6
+        style TARGETCHECK fill:#ffecb3
+        style TARGETPREP fill:#fff4e6
         style REPLAYCHECK fill:#ffecb3
         style REPLAYLAUNCH fill:#c8e6c9
         style DOCKBADGE fill:#e1f5ff
@@ -105,7 +112,7 @@ graph TB
     subgraph MDMDetect["🔍 MDM Vendor Detection"]
         DETECTMDM["Inspect installed profiles<br>Match against known MDM vendors"]
         MDMVENDOR{"MDM Vendor<br>Identified?"}
-        JAMF["Jamf Pro<br>40 checks"]
+        JAMF["Jamf Pro<br>41 checks"]
         KANDJI["Kandji<br>31 checks"]
         INTUNE["Microsoft Intune<br>32 checks"]
         MOSYLE["Mosyle<br>33 checks"]
@@ -148,7 +155,7 @@ graph TB
         MODESWITCH -->|"Silent"| ISSILENT
         MODESWITCH -->|"Development"| ISDEV
         MODESWITCH -->|"Test"| ISTEST
-        MODESWITCH -->|"Self Service" / "Debug"| NORMAL
+        MODESWITCH -->|Self Service / Debug| NORMAL
 
         style MODESWITCH fill:#ffecb3
         style ISSILENT fill:#cfd8dc
@@ -263,13 +270,13 @@ Each health check function returns one of four statuses posted to swiftDialog vi
 If `webhookURL` (Parameter 5) is populated and health issues are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing warning, failed, or errored checks. The payload auto-detects the webhook type from the URL.
 
 ### 10. JSON Report + Splunk Delivery
-At the end of the run, `generateAndSendSplunkReport()` writes the canonical local JSON report and, when `splunkOperationMode=production` plus Parameters 7 and 8 are configured, optionally delivers a Splunk HEC envelope. The exact log line `Splunk Reporting: local report written to /var/tmp/MacHealthCheck-Report.json` is the canonical marker that a full run generated fresh local data. `splunkOperationMode=off` or `test` still generates the report but skips network transmission. The Client-Side Cache LaunchDaemon uses the local client copy with `Silent` + default `splunkOperationMode=test`, refreshing the report without storing HEC secrets on disk. The daemon does not use `RunAtLoad`; scheduled runs set `launchDaemonRun=true`, the client script uses that marker to apply deterministic hardware-derived jitter only for daemon-triggered runs, and daemon stdout/stderr route to `/dev/null` so MHC-prefixed log writes remain single entries. In field logs this typically produces an overnight fresh-write event from the LaunchDaemon or another full `Silent` run, followed later by a Jamf-driven cached upload that reuses the already-written JSON when the cache remains valid unless operators force a fresh run through Parameter 11 or the trigger file.
+At the end of the run, `generateAndSendSplunkReport()` writes the canonical local JSON report and, when `splunkOperationMode=production` plus Parameters 7 and 8 are configured, optionally delivers a Splunk HEC envelope. Full runs write all checks with `metadata.runScope=full`, a full-run timestamp and per-check completion timestamps. Targeted `Self Service` runs replace selected results by stable key, preserve untouched results, recompute the full summary, retain the original full-run baseline age, and send only that merged full-state document to Splunk. Writes validate first, use a shared lock, and atomically replace the root-only report. If the report changes during targeted verification, the merge rebases onto the compatible current report; incompatible changes preserve the current report and ask for a full run. `splunkOperationMode=off` or `test` still generates the report but skips network transmission. Client-Side Cache freshness uses `metadata.fullRunTimestampEpoch` for targeted reports so repeated verification cannot extend an old baseline indefinitely.
 
 ### 11. Inspect Summary Assets
-In `Self Service` and full `Silent` health-check runs, the script uses finalized in-memory results to generate `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`. `Self Service` then tries to launch a detached, moveable swiftDialog Inspect Mode Preset 6 guided summary; `Silent` writes the assets without launching swiftDialog. That summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when that bucket is empty. On a normal `Self Service` run, the existing `completionTimer` countdown remains on the main dialog whether the detached summary launches or not. Set `inspectSummaryPreset="off"` to skip asset generation, detached launch and cached replay.
+In `Self Service` and full `Silent` health-check runs, the script uses finalized results to generate `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`. Targeted runs hydrate the result collector from the merged full-state report before generating these assets, so Inspect still shows all checks and distinguishes the recent rechecks from the older full baseline. `Self Service` launches the detached, moveable swiftDialog Inspect Mode Preset 6 guided summary; `Silent` writes the assets without launching swiftDialog. Set `inspectSummaryPreset="off"` to skip asset generation, detached launch and cached replay.
 
-### 12. Self Service Cached Replay
-If `/var/tmp/MacHealthCheck-Inspect-Config.json` is younger than `inspectReplayMaximumAgeSeconds` and the cached inspect JSON still validates, a rerun in `Self Service` skips the health-check loop, launches the cached moveable Preset 6 guided summary after pre-flight/client-side installation, and exits without showing the main dialog countdown. Setting `inspectSummaryPreset="off"` disables this replay path.
+### 12. Self Service Targeted Recheck and Cached Replay
+After building the current vendor list, `Self Service` validates `/var/tmp/MacHealthCheck-Report.json`. A matching report with a full-run baseline less than 36 hours old and non-healthy keys filters the main dialog and reruns only those checks. Force Fresh Run, incompatible state, stale data, reporting-only errors or unmapped keys force all checks. Cached Inspect replay is considered only when the validated canonical report is healthy; unresolved findings always take precedence and are rechecked.
 
 ### 13. Final Health State
 When health issues are detected, non-`Silent` runs update the main dialog to either `Computer Needs Attention` for warning-only results or `Computer Unhealthy` for failures and errors, then continue through report generation, webhook delivery when configured, and the existing completion flow. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue detail surface.
@@ -284,7 +291,8 @@ When health issues are detected, non-`Silent` runs update the main dialog to eit
 | Client-Side Cache upload | Matching client/server version and fresh cached JSON in Jamf `Silent` + Splunk production | Yes |
 | Normal: Silent | All checks complete, no UI | Yes |
 | Normal: Self Service | Detached moveable Preset 6 guided summary launches after report generation and the main dialog still completes its normal countdown | Yes |
-| Replay: Self Service cached summary | Fresh inspect config launches cached moveable Preset 6 guided summary and skips the health-check loop | Yes |
+| Targeted: Self Service remediation verification | Valid recent non-healthy report reruns selected stable keys, merges full-state results and launches refreshed Inspect summary | Yes |
+| Replay: Self Service healthy cached summary | Healthy canonical report plus fresh inspect config launches cached moveable Preset 6 guided summary and skips the health-check loop | Yes |
 | Normal: Test | Current vendor list items simulated as success | Yes |
 | Normal: Unhealthy non-`Silent` run | Main dialog ends unhealthy; `Self Service` can still launch detached inspect summary | Yes |
 | Normal: With webhook | Failed run posts webhook before report generation and final UI cleanup | Yes |

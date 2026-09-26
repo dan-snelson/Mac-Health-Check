@@ -44,7 +44,7 @@ graph TB
         TRIGGER["Policy Trigger<br>User via Self Service<br>or scheduled run"]
         PREFLIGHT["Pre-flight Checks<br>• Running as root?<br>• jq available?<br>• swiftDialog ≥ 3.1.0.4994 installed?<br>• Kill existing Dialog instances"]
         MDMDETECT["MDM Vendor Detection<br>Auto-detect from installed profiles:<br>Jamf Pro / Kandji / Intune / Mosyle<br>JumpCloud / Addigy / Filewave / Fleet"]
-        CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(28–40 checks)"]
+        CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(28–41 checks)"]
 
         POLICY -->|Executes script| TRIGGER
         SILENT -.->|Executes script| TRIGGER
@@ -134,7 +134,7 @@ Mac Health Check is MDM-agnostic and has been tested with eight MDM platforms. T
 - **Parameter 4 (`operationMode`)** — Intended production default is `Self Service`; other supported modes are `Silent`, `Debug`, `Development`, and `Test`
 - **Parameter 5 (`webhookURL`)** — Optional Microsoft Teams or Slack webhook URL used when runs with health issues need to post an issue summary
 - **Parameters 6-10** — Optional Splunk reporting inputs for reporting mode, HEC URL, HEC token, HEC index, and HEC sourcetype
-- **Parameter 11 (`forceFreshRun`)** — Optional one-shot Jamf override that bypasses cached Splunk upload shortcut and forces a complete fresh `Silent` health-check run
+- **Parameter 11 (`forceFreshRun`)** — Optional one-shot override that bypasses `Self Service` targeted verification / replay and Jamf `Silent` cached Splunk upload, forcing a complete fresh health-check run
 
 ---
 
@@ -148,13 +148,13 @@ The script validates its environment before running any health checks:
 4. Kills any existing swiftDialog instances
 
 **MDM Vendor Detection**
-The script inspects installed configuration profiles to identify the MDM vendor, then selects the appropriate health check set (28–40 checks depending on vendor capabilities).
+The script inspects installed configuration profiles to identify the MDM vendor, then selects the appropriate health check set (28–41 checks depending on vendor capabilities).
 
 ---
 
 ### Runtime Execution
 
-Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`) in non-`Silent` modes and captured into a structured per-check result collector for final reporting. When Dock integration is enabled, non-`Silent` runs also show a Dock icon with a decreasing badge count. After all checks complete, the main dialog updates to its final healthy / needs attention / unhealthy state and writes a final JSON health report before cleanup. `Self Service` and full `Silent` health-check runs generate Inspect Mode config assets from the finalized in-memory results. In `Self Service`, a normal run also launches a detached, moveable Inspect Mode Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections while the main dialog retains its standard countdown, and reruns can replay that cached summary without re-running checks when `inspectSummaryPreset="on"` and the handoff file is still younger than `inspectReplayMaximumAgeSeconds`. Client-Side Cache adds a client-side script and LaunchDaemon that refresh `/var/tmp/MacHealthCheck-Report.json` nightly, letting Jamf Pro upload a fresh cached report without repeating the checks when versions match unless operators explicitly force a full refresh.
+Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`) in non-`Silent` modes and captured with a stable key plus completion timestamp. `Self Service` validates the canonical report after constructing the current vendor list. Matching reports with a full-run baseline under 36 hours and non-healthy keys produce a compact targeted dialog and rerun only those checks; all ambiguous, stale or incompatible state falls back to the full list. Targeted results merge into the previous full-state report, preserving untouched checks and the original full-baseline age. If another run updates the canonical report during targeted verification, the final merge rebases onto that compatible current report or preserves it and asks for a full run. `Self Service` and full `Silent` runs generate Inspect assets from finalized full-state results. Healthy `Self Service` reports can replay a cached summary while the handoff remains younger than `inspectReplayMaximumAgeSeconds`; unresolved findings take precedence and are verified instead.
 
 ---
 
@@ -162,11 +162,11 @@ Health checks execute sequentially, with each result posted to the swiftDialog d
 
 **Client Log** — Every run writes structured log entries to `/var/log/org.churchofjesuschrist.log` using prefixed log levels (`[PRE-FLIGHT]`, `[NOTICE]`, `[INFO]`, `[WARNING]`, `[ERROR]`, `[FATAL ERROR]`). Logs include computer name, serial number, user, OS version, and all check results.
 
-**JSON Report** — Every run writes the canonical report artifact to `/var/tmp/MacHealthCheck-Report.json` with root-only permissions. Optional Splunk HEC delivery wraps that same finalized report data rather than generating a second source of truth.
+**JSON Report** — Every run writes the canonical report artifact to `/var/tmp/MacHealthCheck-Report.json` with root-only permissions. Full reports record `metadata.runScope=full`, full-run baseline fields and per-check timestamps. Targeted reports use a shared lock, atomically replace selected checks by stable key, recompute the full summary, record `summary.recheckedCount`, and retain the original full-run timestamp so verification cannot prolong stale baseline data. Optional Splunk HEC delivery wraps only this validated full-state report.
 
 **Client-Side Cache** — Non-`Silent` and full Jamf production runs install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `/Library/LaunchDaemons/org.churchofjesuschrist.MHC.plist`. The script validates the generated plist, loads it as a root LaunchDaemon without `RunAtLoad`, routes daemon stdout/stderr to `/dev/null`, and sets `launchDaemonRun=true` for scheduled executions. The LaunchDaemon starts at 00:53; the client-side copy applies deterministic hardware-derived jitter so runs land in the 00:53-01:53 window centered on 1:23 a.m. It runs in `Silent` mode with `splunkOperationMode=test`, refreshing the JSON report without storing Splunk secrets locally. If no GUI user is active during a LaunchDaemon refresh, user-scoped checks fall back to loginwindow `lastUserName`. Jamf `Silent` + `splunkOperationMode=production` normally uploads that cached JSON when the client/server versions match and the report is younger than 36 hours, but operators can bypass that shortcut with Parameter 11 `forceFreshRun=true` or `/var/tmp/MacHealthCheck-Force-Fresh-Run` to force a complete fresh run and overwrite the local report before Splunk delivery.
 
-**Inspect Summary** — `Self Service` and full `Silent` health-check runs generate readable handoff files at `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`. `Self Service` launches the detached, moveable Inspect Mode Preset 6 guided summary during the retained main-dialog countdown and can replay on rerun when `inspectSummaryPreset="on"` plus the cached handoff file remains younger than `inspectReplayMaximumAgeSeconds`. `Silent` writes the assets without launching swiftDialog. The summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when no checks were recorded in that bucket. Set the toggle to `off` to disable asset generation, launch and replay.
+**Inspect Summary** — `Self Service` and full `Silent` health-check runs generate readable handoff files at `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`. Targeted runs hydrate these assets from the merged full-state report and identify the recent recheck versus older full baseline. `Self Service` launches the detached, moveable Preset 6 summary during the retained main-dialog countdown and replays it only when the canonical report is healthy and the handoff is younger than `inspectReplayMaximumAgeSeconds`. `Silent` writes assets without launching swiftDialog.
 
 **Webhook** — When configured, a summary of warning, failed, or errored checks is posted to Microsoft Teams or Slack at the end of each run with health issues. Jamf Pro deployments include a direct link to the computer record.
 

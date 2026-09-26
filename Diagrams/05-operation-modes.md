@@ -7,7 +7,7 @@ graph TB
     ENTRY(["Mac-Health-Check.zsh<br>Parameter 4: operationMode"])
 
     subgraph SelfService["🖥️ Self Service (Default)"]
-        SS_DESC["Trigger: User via MDM Self Service<br>UI: Full swiftDialog dialog + detached moveable Preset 6 guided summary with split Unhealthy/Healthy sections<br>Anticipation: 2s between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s main-dialog countdown<br>Logging: Full structured log"]
+        SS_DESC["Trigger: User via MDM Self Service<br>UI: Full or targeted swiftDialog dialog + detached moveable Preset 6 guided summary<br>Targeted rerun: Non-healthy keys from matching full baseline < 36h<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s main-dialog countdown<br>Logging: Full structured log"]
         SS_USE["Use case:<br>End-user–initiated health check<br>on-demand via Self Service"]
 
         style SS_DESC fill:#e1f5ff
@@ -71,7 +71,8 @@ graph TB
 | **Completion timer** | 60s on normal full runs | N/A | 60s (configurable) | 60s (configurable) | 60s (configurable) |
 | **Inspect config assets** | Yes when `inspectSummaryPreset="on"` | Yes on full health-check runs when `inspectSummaryPreset="on"` | No | No | No |
 | **Detached inspect summary** | Yes when `inspectSummaryPreset="on"` (moveable Preset 6) | No | No | No | No |
-| **Fresh-config replay** | Yes when `inspectSummaryPreset="on"` and cache age is below `inspectReplayMaximumAgeSeconds` | No | No | No | No |
+| **Fresh-config replay** | Yes for healthy reports when `inspectSummaryPreset="on"` and cache age is below `inspectReplayMaximumAgeSeconds` | No | No | No | No |
+| **Targeted remediation recheck** | Yes for valid matching non-healthy reports with full baseline under 36 hours | No | No | No | No |
 | **Logging** | Full | Full | Full + `set -x` | Full structured log | Full structured log |
 | **Real check data** | Yes | Yes | Yes | Yes (Entra ID Registration only) | No (simulated pass results) |
 | **Intended actor** | End user | Automated / Jamf policy | Administrator | Developer | Developer |
@@ -81,7 +82,7 @@ graph TB
 ## Mode Details
 
 ### Self Service (Default)
-The primary end-user-facing mode. Launched by a user clicking the Mac Health Check policy in MDM Self Service. Displays the full swiftDialog progress dialog with real-time status updates as each check runs. When Dock integration is enabled, the Dock badge counts down remaining checks. After report generation, normal runs launch a detached, moveable Inspect Mode Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections while the main dialog still completes its existing `completionTimer` countdown. If the inspect config from a recent `Self Service` run is still valid and younger than `inspectReplayMaximumAgeSeconds`, rerunning the script replays the cached inspect summary after pre-flight/client-side installation and skips the health-check run plus the main dialog countdown. Set `inspectSummaryPreset="on"` to keep those Preset 6 behaviors enabled, or `off` to keep the standard completion flow only.
+The primary end-user-facing mode. Launched by a user clicking the Mac Health Check policy in MDM Self Service. Before opening the progress dialog, it validates the canonical report against current hardware, MDM vendor, script version, complete check set and 36-hour full-baseline limit. A valid report with non-healthy keys automatically filters the dialog and reruns only those checks. Results merge by stable key into the prior full-state report, untouched checks keep their timestamps, and Inspect is generated from the merged state. Parameter 11 `forceFreshRun=true` or `/var/tmp/MacHealthCheck-Force-Fresh-Run` bypasses targeting and replay. Cached Inspect replay remains available only when the validated report is healthy and the config is younger than `inspectReplayMaximumAgeSeconds`. Missing, stale, malformed or incompatible state falls back to all checks.
 
 **When to use:** Standard deployment for user-initiated compliance checks.
 
