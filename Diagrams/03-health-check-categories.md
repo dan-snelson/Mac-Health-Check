@@ -1,6 +1,6 @@
 # Mac Health Check: Health Check Categories
 
-This diagram shows the `4.0.0` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
+This diagram shows the current Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
 
 ```mermaid
 graph LR
@@ -14,6 +14,7 @@ graph LR
         S5["checkGatekeeperXProtect()<br>Gatekeeper / XProtect"]
         S6["checkFirewall()<br>Firewall"]
         S7["checkFileVault()<br>FileVault"]
+        S8["checkMemoryPressure()<br>Memory Pressure"]
 
         style S1 fill:#e1f5ff
         style S2 fill:#e1f5ff
@@ -22,6 +23,7 @@ graph LR
         style S5 fill:#e1f5ff
         style S6 fill:#e1f5ff
         style S7 fill:#e1f5ff
+        style S8 fill:#e1f5ff
     end
 
     subgraph User["👤 User"]
@@ -143,7 +145,7 @@ graph LR
 ## Category Descriptions
 
 ### System
-Core macOS security and compliance checks that every deployment should include. These checks verify OS version compliance, pending software updates, kernel-level security features (SIP, SSV), application security controls (Gatekeeper, XProtect), network firewall status, and disk encryption.
+Core macOS security, compliance, and health checks that every deployment should include. These checks verify OS version compliance, pending software updates, kernel-level security features (SIP, SSV), application security controls (Gatekeeper, XProtect), network firewall status, disk encryption, and recurring memory pressure.
 
 | Function | Human-Readable Name | Notes |
 |---|---|---|
@@ -154,6 +156,7 @@ Core macOS security and compliance checks that every deployment should include. 
 | `checkGatekeeperXProtect()` | Gatekeeper / XProtect | Validates Gatekeeper status and XProtect version/date |
 | `checkFirewall()` | Firewall | Supports `socketfilterfw` (default) or `pf` via `organizationFirewall` |
 | `checkFileVault()` | FileVault | Checks FileVault encryption status |
+| `checkMemoryPressure()` | Memory Pressure | Warns after yellow or red pressure on two distinct days in the previous seven; full runs retain root-only history for 14 days by default |
 
 ### User
 Per-user settings and behavior checks. Some checks (e.g., `checkPasswordHint()`) are MDM vendor–specific and may not appear in all deployments.

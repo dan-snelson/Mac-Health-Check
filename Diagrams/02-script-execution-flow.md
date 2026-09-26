@@ -141,7 +141,7 @@ graph TB
     subgraph ModeCheck2["🎛️ Operation Mode Branch"]
         MODESWITCH{"operationMode?"}
         ISSILENT["Silent Mode<br>Skip main dialog — log only"]
-        ISDEV["Development Mode<br>Run current dev subset<br>(Entra ID Registration only)"]
+        ISDEV["Development Mode<br>Run current dev subset<br>(Clock Skew and Memory Pressure)"]
         ISTEST["Test Mode<br>Simulate current vendor list items<br>without running real checks"]
         NORMAL["Self Service / Debug<br>Full interactive run"]
 
@@ -265,6 +265,8 @@ Each health check function returns one of four statuses posted to swiftDialog vi
 - `warning` — Check found a non-critical condition
 - `error` — Check found a compliance failure
 - `skipped` — Check not applicable (e.g., VPN vendor set to `none`)
+
+`checkMemoryPressure()` runs in each full vendor check set, the curated Development subset, and targeted rechecks when its prior result was non-healthy. It records a root-only local history sample, then reports a warning only after adverse pressure on two distinct local days within the seven-day lookback. Insufficient valid history is neutral. Cached Splunk uploads, healthy Inspect replay, and simulated `Test` mode skip sampling.
 
 ### 9. Webhook Delivery
 If `webhookURL` (Parameter 5) is populated and health issues are detected, `quitScript()` posts a JSON payload to Microsoft Teams or Slack summarizing warning, failed, or errored checks. The payload auto-detects the webhook type from the URL.

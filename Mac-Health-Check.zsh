@@ -153,6 +153,7 @@ reverseDomainNameNotation="org.churchofjesuschrist"
 # Organization's Directory (i.e., where client-side scripts reside)
 organizationDirectory="/Library/Management/${reverseDomainNameNotation}"
 clientSideScriptPath="${organizationDirectory}/${organizationScriptName}.zsh"
+memoryPressureHistoryPath="${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl"
 
 # LaunchDaemon Name & Path
 launchDaemonLabel="${reverseDomainNameNotation}.${organizationScriptName}"
@@ -389,6 +390,11 @@ previousMinorOS="2"
 
 # Allowed minimum percentage of free disk space
 allowedMinimumFreeDiskPercentage="10"
+
+# Memory pressure history and pattern defaults
+memoryPressureHistoryRetentionDays="14"
+memoryPressureLookbackDays="7"
+memoryPressureRequiredAdverseDays="2"
 
 # Allowed maximum percentage of disk space for user directories (i.e., Desktop, Downloads, Trash)
 allowedMaximumDirectoryPercentage="5"
@@ -1444,7 +1450,8 @@ addigyMdmListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 # Validate addigyMdmListitemJSON is valid JSON
@@ -1492,7 +1499,8 @@ filewaveMdmListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 # Validate filewaveMdmListitemJSON is valid JSON
@@ -1541,7 +1549,8 @@ fleetMdmListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 # Validate fleetMdmListitemJSON is valid JSON
@@ -1589,7 +1598,8 @@ kandjiMdmListitemJSON='
     {"title" : "Cortex", "subtitle" : "Cortex Security Software.", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},    
     {"title" : "Netskope", "subtitle" : "Netskope Connection Software.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},        
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}]
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}]
 '
 # Validate kandjiMdmListitemJSON is valid JSON
 if ! validateJson "${kandjiMdmListitemJSON}"; then
@@ -1645,8 +1655,9 @@ jamfProListitemJSON='
     {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=37.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Palo Alto GlobalProtect", "subtitle" : "Virtual Private Network (VPN) connection to Church headquarters", "icon" : "SF=38.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=39.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=40.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=41.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=40.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=41.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=42.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -1696,7 +1707,8 @@ jumpcloudMdmListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -1746,7 +1758,8 @@ microsoftMdmListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -1797,7 +1810,8 @@ mosyleListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=33.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=34.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -1843,7 +1857,8 @@ genericMdmListitemJSON='
     {"title" : "Homebrew Status", "subtitle" : "If installed, compares the latest Homebrew release and any outdated packages", "icon" : "SF=25.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Electron Corner Mask", "subtitle" : "Detects susceptible Electron apps that may cause GPU slowdowns on macOS 26 Tahoe", "icon" : "SF=26.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=27.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+    {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=28.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ]
 '
 
@@ -2376,6 +2391,7 @@ function initializeCheckMetadataFromCombinedJSON() {
         [[ -z "${title}" ]] && title="Check ${i}"
         checkTitleByIndex[${i}]="${title}"
         checkKeyByIndex[${i}]="$( sanitizeCheckKey "${title}" )"
+        [[ "${title}" == "Memory Pressure" ]] && checkKeyByIndex[${i}]="memoryPressure"
         checkIndexByTitle[${title}]="${i}"
     done
 
@@ -4310,6 +4326,10 @@ function getInspectExpectedComparisonTextByIndex() {
             echo "Offset within 5 minutes"
             return
             ;;
+        "Memory Pressure" )
+            echo "No repeated warning or critical pressure over ${memoryPressureLookbackDays} days"
+            return
+            ;;
         *"Check-In" )
             echo "Checked in recently"
             return
@@ -4446,6 +4466,13 @@ function getInspectDetailExplanationByIndex() {
             printf '%s' "This Mac's local clock differs too much from ${trustedTimeServer:-time.apple.com}. Clock skew can prevent Jamf Pro inventory submission and other time-sensitive services from working correctly."
             if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
                 printf '\n\n%s' "**Detected skew:** ${rawValue}"
+            fi
+            return
+            ;;
+        "memoryPressure" )
+            printf '%s' "Memory pressure reached warning or critical levels on at least two distinct days within the last ${memoryPressureLookbackDays} days."
+            if [[ -n "${rawValue}" ]] && [[ "${rawValue}" != "Result unavailable" ]]; then
+                printf '\n\n%s' "**Recent pattern:** ${rawValue}"
             fi
             return
             ;;
@@ -4688,6 +4715,9 @@ function getInspectCheckSymbolByIndex() {
             ;;
         *reboot* )
             echo "power.circle"
+            ;;
+        *memory*pressure* )
+            echo "memorychip"
             ;;
         *disk*space*|*storage* )
             echo "internaldrive"
@@ -7729,6 +7759,204 @@ function checkFreeDiskSpace() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check Memory Pressure
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function persistMemoryPressureSample() {
+
+    local sampleJSON="${1}"
+    local sampleEpoch="${2}"
+    local historyDirectory="${memoryPressureHistoryPath:h}"
+    local historyLockPath="${memoryPressureHistoryPath}.lock"
+    local historyLockFd=""
+    local temporaryHistoryPath=""
+    local historyDirectoryMode=""
+    local retentionCutoff=$(( sampleEpoch - ( memoryPressureHistoryRetentionDays * 86400 ) ))
+    local writeSucceeded="true"
+
+    if [[ "${memoryPressureHistoryPath}" != /* ]] \
+       || ! mkdir -p -m 700 "${historyDirectory}" 2>/dev/null || [[ -L "${historyDirectory}" ]] \
+       || [[ "$( stat -f %u "${historyDirectory}" 2>/dev/null )" != "0" ]] \
+       || [[ -L "${memoryPressureHistoryPath}" ]] || [[ -L "${historyLockPath}" ]] \
+       || { [[ -e "${memoryPressureHistoryPath}" ]] && [[ ! -f "${memoryPressureHistoryPath}" ]]; }; then
+        return 1
+    fi
+    historyDirectoryMode="$( stat -f %Lp "${historyDirectory}" 2>/dev/null )"
+    if [[ "${historyDirectoryMode}" != <-> ]] || (( ( 8#${historyDirectoryMode} & 8#022 ) != 0 )); then
+        return 1
+    fi
+
+    (
+        umask 077
+        : >> "${historyLockPath}" || exit 1
+        chmod 600 "${historyLockPath}" && chown root:wheel "${historyLockPath}" || exit 1
+        zmodload zsh/system || exit 1
+        zsystem flock -f historyLockFd -t 5 "${historyLockPath}" || exit 1
+
+        temporaryHistoryPath="$( mktemp "${memoryPressureHistoryPath}.XXXXXX" )" || exit 1
+        if [[ -f "${memoryPressureHistoryPath}" ]]; then
+            jq -Rc --argjson cutoff "${retentionCutoff}" --argjson now "${sampleEpoch}" \
+                'fromjson? | select(type == "object" and (.timestampEpoch | type) == "number" and .timestampEpoch >= $cutoff and .timestampEpoch <= $now)' \
+                "${memoryPressureHistoryPath}" > "${temporaryHistoryPath}" || writeSucceeded="false"
+        fi
+
+        if [[ "${writeSucceeded}" == "true" ]]; then
+            printf '%s\n' "${sampleJSON}" >> "${temporaryHistoryPath}" || writeSucceeded="false"
+        fi
+        if [[ "${writeSucceeded}" == "true" ]]; then
+            chmod 600 "${temporaryHistoryPath}" && chown root:wheel "${temporaryHistoryPath}" \
+                && mv -f "${temporaryHistoryPath}" "${memoryPressureHistoryPath}" || writeSucceeded="false"
+        fi
+        [[ -e "${temporaryHistoryPath}" ]] && rm -f "${temporaryHistoryPath}"
+        zsystem flock -u "${historyLockFd}" >/dev/null 2>&1
+        [[ "${writeSucceeded}" == "true" ]]
+    )
+
+}
+
+function getMemoryPressureHistoryCounts() {
+
+    local sampleEpoch="${1}"
+    local lookbackCutoff=$(( sampleEpoch - ( memoryPressureLookbackDays * 86400 ) ))
+
+    jq -Rs --argjson cutoff "${lookbackCutoff}" --argjson now "${sampleEpoch}" '
+        [split("\n")[] | fromjson? | select(type == "object")
+         | select((.timestampEpoch | type) == "number" and .timestampEpoch >= $cutoff and .timestampEpoch <= $now)
+         | select((.sampleDate | type) == "string" and (.pressureLevel == "green" or .pressureLevel == "yellow" or .pressureLevel == "red"))]
+        | "\(map(.sampleDate) | unique | length) \(map(select(.pressureLevel == "yellow" or .pressureLevel == "red") | .sampleDate) | unique | length)"
+    ' "${memoryPressureHistoryPath}" | tr -d '"\n'
+
+}
+
+function checkMemoryPressure() {
+
+    local humanReadableCheckName="Memory Pressure"
+    local sampleEpoch="$( date +%s )"
+    local sampleTimestamp="$( date '+%Y-%m-%dT%H:%M:%S%z' | sed -E 's/(..)$/:\1/' )"
+    local sampleDate="$( date '+%Y-%m-%d' )"
+    local sampleHostname="$( hostname )"
+    local pressureOutput=""
+    local pressureLine=""
+    local pressureRaw=""
+    local pressureLevel="unknown"
+    local freePercentage=""
+    local swapRaw=""
+    local swapUsedHuman=""
+    local swapUsedBytes=""
+    local sampleJSON=""
+    local historyCounts=""
+    local validDays="0"
+    local adverseDays="0"
+    local resultText="Insufficient data"
+    local resultSubtitle="More daily readings needed to assess memory pressure"
+    local resultStatus="success"
+    local resultColor="${statusColorSuccess}"
+
+    notice "Check ${humanReadableCheckName} …"
+    dialogUpdate "icon: SF=memorychip,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Reviewing ${humanReadableCheckName} history …"
+
+    if [[ "${memoryPressureLookbackDays}" != <-> ]] || (( memoryPressureLookbackDays < 2 )); then
+        warning "${humanReadableCheckName}: invalid lookback; using 7 days."
+        memoryPressureLookbackDays="7"
+    fi
+    if [[ "${memoryPressureHistoryRetentionDays}" != <-> ]] || (( memoryPressureHistoryRetentionDays < memoryPressureLookbackDays )); then
+        warning "${humanReadableCheckName}: invalid retention; using at least 14 days."
+        memoryPressureHistoryRetentionDays=$(( memoryPressureLookbackDays > 14 ? memoryPressureLookbackDays : 14 ))
+    fi
+    if [[ "${memoryPressureRequiredAdverseDays}" != <-> ]] \
+       || (( memoryPressureRequiredAdverseDays < 2 || memoryPressureRequiredAdverseDays > memoryPressureLookbackDays )); then
+        warning "${humanReadableCheckName}: invalid adverse-day threshold; using 2 days."
+        memoryPressureRequiredAdverseDays="2"
+    fi
+
+    if pressureOutput="$( captureCommandOutputWithTimeout 5 /usr/bin/memory_pressure )"; then
+        freePercentage="$( printf '%s\n' "${pressureOutput}" | sed -nE 's/^System-wide memory free percentage:[[:space:]]*([0-9]{1,3})%.*/\1/p' | head -n 1 )"
+        if [[ "${freePercentage}" != <-> ]] || (( freePercentage > 100 )); then
+            freePercentage=""
+        fi
+        pressureLine="$( printf '%s\n' "${pressureOutput}" | grep -Ei 'pressure (level|status)' | head -n 1 )"
+    else
+        warning "${humanReadableCheckName}: memory_pressure collection failed or timed out."
+    fi
+
+    pressureRaw="$( /usr/sbin/sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null )"
+    case "${pressureRaw:l}" in
+        "1" | "normal" | "green" ) pressureLevel="green" ;;
+        "2" | "warning" | "warn" | "yellow" ) pressureLevel="yellow" ;;
+        "4" | "critical" | "red" ) pressureLevel="red" ;;
+    esac
+    if [[ "${pressureLevel}" == "unknown" ]]; then
+        case "${pressureLine:l}" in
+            *critical* | *red* ) pressureLevel="red" ;;
+            *warning* | *warn* | *yellow* ) pressureLevel="yellow" ;;
+            *normal* | *green* ) pressureLevel="green" ;;
+        esac
+    fi
+    [[ "${pressureLevel}" == "unknown" ]] && warning "${humanReadableCheckName}: pressure level unavailable; current sample cannot count toward pattern."
+
+    swapRaw="$( /usr/sbin/sysctl -n vm.swapusage 2>/dev/null )"
+    swapUsedHuman="$( printf '%s\n' "${swapRaw}" | sed -nE 's/.*used = ([0-9]+([.][0-9]+)?[KMGT]).*/\1/p' )"
+    if [[ -n "${swapUsedHuman}" ]]; then
+        swapUsedBytes="$( awk -v value="${swapUsedHuman}" 'BEGIN {
+            unit = substr(value, length(value), 1)
+            amount = substr(value, 1, length(value) - 1) + 0
+            scale = (unit == "K" ? 1024 : unit == "M" ? 1048576 : unit == "G" ? 1073741824 : 1099511627776)
+            printf "%.0f", amount * scale
+        }' )"
+    fi
+
+    sampleJSON="$( jq -cn \
+        --arg timestamp "${sampleTimestamp}" --argjson timestampEpoch "${sampleEpoch}" \
+        --arg sampleDate "${sampleDate}" --arg hostname "${sampleHostname}" \
+        --arg scriptVersion "${scriptVersion}" --arg pressureLevel "${pressureLevel}" \
+        --argjson freeMemoryPercentage "${freePercentage:-null}" \
+        --arg swapUsedHuman "${swapUsedHuman}" --argjson swapUsedBytes "${swapUsedBytes:-null}" \
+        '{timestamp: $timestamp, timestampEpoch: $timestampEpoch, sampleDate: $sampleDate,
+          hostname: $hostname, scriptVersion: $scriptVersion, pressureLevel: $pressureLevel,
+          freeMemoryPercentage: $freeMemoryPercentage,
+          swapUsedHuman: (if $swapUsedHuman == "" then null else $swapUsedHuman end), swapUsedBytes: $swapUsedBytes}' )"
+
+    if [[ -z "${sampleJSON}" ]] || ! persistMemoryPressureSample "${sampleJSON}" "${sampleEpoch}"; then
+        warning "${humanReadableCheckName}: unable to write secure history at ${memoryPressureHistoryPath}."
+    elif [[ "${pressureLevel}" == "unknown" ]]; then
+        info "${humanReadableCheckName}: current pressure level unavailable; result is insufficient data."
+    else
+        historyCounts="$( getMemoryPressureHistoryCounts "${sampleEpoch}" )"
+        if [[ "${historyCounts}" == <->\ <-> ]]; then
+            validDays="${historyCounts%% *}"
+            adverseDays="${historyCounts##* }"
+            if (( validDays >= memoryPressureRequiredAdverseDays )); then
+                if (( adverseDays >= memoryPressureRequiredAdverseDays )); then
+                    resultStatus="error"
+                    resultColor="${statusColorError}"
+                    resultText="Elevated on ${adverseDays} of last ${memoryPressureLookbackDays} days"
+                    resultSubtitle="Close unused apps; check Activity Monitor > Memory; restart if slowdowns persist"
+                    warning "${humanReadableCheckName}: ${adverseDays} adverse days in last ${memoryPressureLookbackDays}; current level ${pressureLevel}."
+                else
+                    resultText="No recurring pressure"
+                    resultSubtitle="Memory pressure history shows no repeated warning"
+                    info "${humanReadableCheckName}: ${adverseDays} adverse days across ${validDays} observed days."
+                fi
+            else
+                info "${humanReadableCheckName}: insufficient history (${validDays} valid days)."
+            fi
+        else
+            warning "${humanReadableCheckName}: unable to evaluate history."
+        fi
+    fi
+
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${resultColor}, iconalpha: 0.9, subtitle: ${resultSubtitle}, status: ${resultStatus}, statustext: ${resultText}"
+    checkInspectTextByIndex[${1}]="${resultText}"
+    dialogUpdate "icon: SF=memorychip,weight=semibold,colour=${resultColor}"
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check User Directory Size and Item Count — Parameter 2: Target Directory; Parameter 3: Icon; Parameter 4: Display Name
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -9891,7 +10119,8 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -10060,6 +10289,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     set -x
     checkClockSkew "0"
     set +x
+    checkMemoryPressure "1"
 
 else
 
@@ -10107,7 +10337,8 @@ else
                 runConfiguredHealthCheck "28" checkHomebrewStatus
                 runConfiguredHealthCheck "29" checkElectronCornerMask
                 runConfiguredHealthCheck "30" checkWiFiStrength
-                runConfiguredHealthCheck "31" checkNetworkQuality
+                runConfiguredHealthCheck "31" checkMemoryPressure
+                runConfiguredHealthCheck "32" checkNetworkQuality
                 ;;
 
             "Filewave" )
@@ -10141,7 +10372,8 @@ else
                 runConfiguredHealthCheck "27" checkHomebrewStatus
                 runConfiguredHealthCheck "28" checkElectronCornerMask
                 runConfiguredHealthCheck "29" checkWiFiStrength
-                runConfiguredHealthCheck "30" checkNetworkQuality
+                runConfiguredHealthCheck "30" checkMemoryPressure
+                runConfiguredHealthCheck "31" checkNetworkQuality
                 ;;
 
             "Fleet" )
@@ -10176,7 +10408,8 @@ else
                 runConfiguredHealthCheck "28" checkHomebrewStatus
                 runConfiguredHealthCheck "29" checkElectronCornerMask
                 runConfiguredHealthCheck "30" checkWiFiStrength
-                runConfiguredHealthCheck "31" checkNetworkQuality
+                runConfiguredHealthCheck "31" checkMemoryPressure
+                runConfiguredHealthCheck "32" checkNetworkQuality
                 ;;
 
             "Jamf Pro" )
@@ -10219,8 +10452,9 @@ else
                 runConfiguredHealthCheck "36" checkExternalJamfPro "symvCrowdStrikeFalcon"      "/Applications/Falcon.app"
                 runConfiguredHealthCheck "37" checkExternalJamfPro "symvGlobalProtect"          "/Applications/GlobalProtect.app"
                 runConfiguredHealthCheck "38" checkWiFiStrength
-                runConfiguredHealthCheck "39" checkNetworkQuality
-                runConfiguredHealthCheck "40" updateComputerInventory
+                runConfiguredHealthCheck "39" checkMemoryPressure
+                runConfiguredHealthCheck "40" checkNetworkQuality
+                runConfiguredHealthCheck "41" updateComputerInventory
                 ;;
 
             "JumpCloud" )
@@ -10255,7 +10489,8 @@ else
                 runConfiguredHealthCheck "28" checkHomebrewStatus
                 runConfiguredHealthCheck "29" checkElectronCornerMask
                 runConfiguredHealthCheck "30" checkWiFiStrength
-                runConfiguredHealthCheck "31" checkNetworkQuality
+                runConfiguredHealthCheck "31" checkMemoryPressure
+                runConfiguredHealthCheck "32" checkNetworkQuality
                 ;;
 
             "Kandji" )
@@ -10289,7 +10524,8 @@ else
                 runConfiguredHealthCheck "27" checkInternal "/Applications/Cortex XDR.app" "/Applications/Cortex XDR.app" "Cortex"
                 runConfiguredHealthCheck "28" checkInternal "/Applications/Netskope Client.app" "/Applications/Netskope Client.app" "Netskope"
                 runConfiguredHealthCheck "29" checkWiFiStrength
-                runConfiguredHealthCheck "30" checkNetworkQuality
+                runConfiguredHealthCheck "30" checkMemoryPressure
+                runConfiguredHealthCheck "31" checkNetworkQuality
                 ;;
 
             "Microsoft Intune" )
@@ -10324,7 +10560,8 @@ else
                 runConfiguredHealthCheck "28" checkHomebrewStatus
                 runConfiguredHealthCheck "29" checkElectronCornerMask
                 runConfiguredHealthCheck "30" checkWiFiStrength
-                runConfiguredHealthCheck "31" checkNetworkQuality
+                runConfiguredHealthCheck "31" checkMemoryPressure
+                runConfiguredHealthCheck "32" checkNetworkQuality
                 ;;
 
             "Mosyle" )
@@ -10360,7 +10597,8 @@ else
                 runConfiguredHealthCheck "29" checkHomebrewStatus
                 runConfiguredHealthCheck "30" checkElectronCornerMask
                 runConfiguredHealthCheck "31" checkWiFiStrength
-                runConfiguredHealthCheck "32" checkNetworkQuality
+                runConfiguredHealthCheck "32" checkMemoryPressure
+                runConfiguredHealthCheck "33" checkNetworkQuality
                 ;;
 
             * )
@@ -10391,7 +10629,8 @@ else
                 runConfiguredHealthCheck "24" checkHomebrewStatus
                 runConfiguredHealthCheck "25" checkElectronCornerMask
                 runConfiguredHealthCheck "26" checkWiFiStrength
-                runConfiguredHealthCheck "27" checkNetworkQuality
+                runConfiguredHealthCheck "27" checkMemoryPressure
+                runConfiguredHealthCheck "28" checkNetworkQuality
                 ;;
         
         esac
