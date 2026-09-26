@@ -134,7 +134,7 @@ Mac Health Check is MDM-agnostic and has been tested with eight MDM platforms. T
 - **Parameter 4 (`operationMode`)** — Intended production default is `Self Service`; other supported modes are `Silent`, `Debug`, `Development`, and `Test`
 - **Parameter 5 (`webhookURL`)** — Optional Microsoft Teams or Slack webhook URL used when runs with health issues need to post an issue summary
 - **Parameters 6-10** — Optional Splunk reporting inputs for reporting mode, HEC URL, HEC token, HEC index, and HEC sourcetype
-- **Parameter 11 (`forceFreshRun`)** — Optional one-shot Jamf override that bypasses cached Splunk upload shortcut and forces a complete fresh `Silent` health-check run
+- **Parameter 11 (`forceFreshRun`)** — Optional one-shot override that bypasses `Self Service` targeted verification / replay and Jamf `Silent` cached Splunk upload, forcing a complete fresh health-check run
 
 ---
 
@@ -154,7 +154,7 @@ The script inspects installed configuration profiles to identify the MDM vendor,
 
 ### Runtime Execution
 
-Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`) in non-`Silent` modes and captured with a stable key plus completion timestamp. `Self Service` validates the canonical report after constructing the current vendor list. Matching reports with a full-run baseline under 36 hours and non-healthy keys produce a compact targeted dialog and rerun only those checks; all ambiguous, stale or incompatible state falls back to the full list. Targeted results merge into the previous full-state report, preserving untouched checks and the original full-baseline age. `Self Service` and full `Silent` runs generate Inspect assets from finalized full-state results. Healthy `Self Service` reports can replay a cached summary while the handoff remains younger than `inspectReplayMaximumAgeSeconds`; unresolved findings take precedence and are verified instead.
+Health checks execute sequentially, with each result posted to the swiftDialog dialog via a named pipe (`dialogUpdate`) in non-`Silent` modes and captured with a stable key plus completion timestamp. `Self Service` validates the canonical report after constructing the current vendor list. Matching reports with a full-run baseline under 36 hours and non-healthy keys produce a compact targeted dialog and rerun only those checks; all ambiguous, stale or incompatible state falls back to the full list. Targeted results merge into the previous full-state report, preserving untouched checks and the original full-baseline age. If another run updates the canonical report during targeted verification, the final merge rebases onto that compatible current report or preserves it and asks for a full run. `Self Service` and full `Silent` runs generate Inspect assets from finalized full-state results. Healthy `Self Service` reports can replay a cached summary while the handoff remains younger than `inspectReplayMaximumAgeSeconds`; unresolved findings take precedence and are verified instead.
 
 ---
 
@@ -162,7 +162,7 @@ Health checks execute sequentially, with each result posted to the swiftDialog d
 
 **Client Log** — Every run writes structured log entries to `/var/log/org.churchofjesuschrist.log` using prefixed log levels (`[PRE-FLIGHT]`, `[NOTICE]`, `[INFO]`, `[WARNING]`, `[ERROR]`, `[FATAL ERROR]`). Logs include computer name, serial number, user, OS version, and all check results.
 
-**JSON Report** — Every run writes the canonical report artifact to `/var/tmp/MacHealthCheck-Report.json` with root-only permissions. Full reports record `metadata.runScope=full`, full-run baseline fields and per-check timestamps. Targeted reports atomically replace selected checks by stable key, recompute the full summary, record `summary.recheckedCount`, and retain the original full-run timestamp so verification cannot prolong stale baseline data. Optional Splunk HEC delivery wraps only this validated full-state report.
+**JSON Report** — Every run writes the canonical report artifact to `/var/tmp/MacHealthCheck-Report.json` with root-only permissions. Full reports record `metadata.runScope=full`, full-run baseline fields and per-check timestamps. Targeted reports use a shared lock, atomically replace selected checks by stable key, recompute the full summary, record `summary.recheckedCount`, and retain the original full-run timestamp so verification cannot prolong stale baseline data. Optional Splunk HEC delivery wraps only this validated full-state report.
 
 **Memory Pressure History** — Full health-check runs and targeted memory-pressure rechecks append a root-only observation to `${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl`, retaining 14 days by default. Two distinct local days with yellow or red pressure within seven days produce a warning-only `memoryPressure` check result. Cached Splunk uploads and healthy Inspect replay use existing observations without sampling.
 

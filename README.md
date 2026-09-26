@@ -48,7 +48,7 @@ The tool logs results for review, writes a structured JSON health report locally
 - Structured JSON health report generated at the end of every run
 - Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
 - Optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
-- Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run
+- Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run by bypassing `Self Service` targeting/replay or Jamf `Silent` cached upload
 - `splunkOperationMode=off` disables HEC delivery explicitly while still preserving local JSON report generation
 - `splunkOperationMode=test` preserves local report generation while intentionally skipping network transmission
 - Beginning in `4.0.0`, non-`Silent` runs and full Jamf production runs install a client-side copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus a `org.churchofjesuschrist.MHC` LaunchDaemon that refreshes the local report across a deterministic 00:53-01:53 window centered on 1:23 a.m.
@@ -247,6 +247,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - `Self Service` automatically rechecks non-healthy `.checks[].key` values when the canonical report has a matching device, MDM vendor, script version and full-run baseline less than 36 hours old
 - Targeted dialogs display contiguous check numbers immediately, while Inspect presents the authoritative Mac Health Check status separately from swiftDialog's weighted `Compliance Score`
 - Targeted results replace only matching check records, preserve untouched results, add `checkedAt` / `checkedAtEpoch`, and expose `metadata.runScope`, full-run baseline fields and `summary.recheckedCount`
+- Targeted writes use a shared report lock and rebase onto compatible concurrent report updates so newer full-report data is not overwritten
 - Targeted writes cannot extend the 36-hour age of their underlying full-run baseline; missing, stale, malformed or incompatible reports fall back to all checks
 - Parameter 11 `forceFreshRun=true` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` bypass targeted verification and cached replay for a full `Self Service` run
 - `Silent`, `Debug`, `Development` and `Test` retain their existing execution behavior; targeted selection is confined to `Self Service`
