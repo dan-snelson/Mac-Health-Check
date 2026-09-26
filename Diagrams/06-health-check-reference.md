@@ -18,7 +18,7 @@ This text-only reference documents the key configurable defaults and runtime inv
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, routes stdout/stderr to `/dev/null`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
 - LaunchDaemon-triggered refreshes use loginwindow `lastUserName` for user-scoped checks when no GUI user is active.
 - Jamf Pro `Silent` + `splunkOperationMode=production` uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check and installs or refreshes the Client-Side Cache assets.
-- Parameter 11 `forceFreshRun` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` provide explicit cache-bypass controls for the next eligible Jamf `Silent` + `production` run.
+- Parameter 11 `forceFreshRun` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` provide explicit fresh-run controls for bypassing `Self Service` targeted verification/replay and Jamf `Silent` + `production` cached upload.
 - `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling.
 - `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
 - `checkWiFiStrength()` uses `wdutil info` when available, falls back to the legacy `airport` binary, and treats Wi-Fi-inactive / Ethernet-primary systems as a non-failure skip.
@@ -196,6 +196,6 @@ Each external check policy writes results to `organizationDefaultsDomain` using 
 | 8 | `splunkHECToken` | (blank) | Splunk HEC token; never logged by the script |
 | 9 | `splunkHECIndex` | (blank) | Optional Splunk HEC index value included in the transmission wrapper payload |
 | 10 | `splunkHECSourcetype` | (blank) | Optional Splunk HEC sourcetype value included in the transmission wrapper payload |
-| 11 | `forceFreshRun` | `false` | One-shot Jamf override for `Silent` + `splunkOperationMode=production`; bypasses cached upload and forces a full fresh run |
+| 11 | `forceFreshRun` | `false` | One-shot fresh-run override; bypasses `Self Service` targeted verification/replay and Jamf `Silent` + `splunkOperationMode=production` cached upload |
 
 `reportDebug` remains a source-level variable with default `false`; it is no longer supplied as an MDM runtime parameter.

@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b4 22-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b5 26-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.2.0b4"
+scriptVersion="4.2.0b5"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -166,6 +166,7 @@ forceFreshRunSource="not_requested"
 
 # Splunk and JSON reporting defaults
 splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
+splunkJSONReportLockDirectory="/var/tmp/MacHealthCheck-Report.lock"
 cachedReportJSON=""
 cachedReportModificationEpoch="0"
 cachedReportAgeSeconds="0"
@@ -455,6 +456,7 @@ reportBaseTimestamp=""
 targetedRecheckMode="false"
 targetedRecheckEligibilityStatus="not_checked"
 targetedBaseReportJSON=""
+targetedBaseReportIdentity=""
 targetedBaseFullRunTimestamp=""
 targetedBaseFullRunTimestampEpoch=""
 fullCombinedJSON=""
@@ -1195,6 +1197,68 @@ function prettyPrintJson() {
     local jsonPayload="${1}"
 
     printf '%s' "${jsonPayload}" | jq .
+
+}
+
+function getReportFileIdentity() {
+
+    local targetPath="${1}"
+    local statIdentity=""
+    local hashIdentity=""
+
+    if [[ ! -f "${targetPath}" ]]; then
+        printf '%s' "missing"
+        return 1
+    fi
+
+    statIdentity="$( stat -f '%i:%m:%z' "${targetPath}" 2>/dev/null )" || {
+        printf '%s' "unreadable"
+        return 1
+    }
+
+    if command -v shasum >/dev/null 2>&1; then
+        hashIdentity="$( shasum -a 256 "${targetPath}" 2>/dev/null | awk '{ print $1 }' )"
+    fi
+
+    printf '%s' "${statIdentity}:${hashIdentity}"
+
+}
+
+function acquireCanonicalReportLock() {
+
+    local timeoutSeconds="${1:-30}"
+    local waitedSeconds=0
+    local lockEpoch=""
+    local lockAgeSeconds=0
+    local staleLockMaximumAgeSeconds=600
+
+    while ! mkdir "${splunkJSONReportLockDirectory}" 2>/dev/null; do
+        lockEpoch="$( stat -f %m "${splunkJSONReportLockDirectory}" 2>/dev/null )"
+        if [[ "${lockEpoch}" == <-> ]]; then
+            lockAgeSeconds=$(( $( date +%s ) - lockEpoch ))
+            if (( lockAgeSeconds > staleLockMaximumAgeSeconds )); then
+                warning "Splunk Reporting: removing stale canonical report lock (${lockAgeSeconds}s old)."
+                rm -rf "${splunkJSONReportLockDirectory}" 2>/dev/null
+                continue
+            fi
+        fi
+
+        if (( waitedSeconds >= timeoutSeconds )); then
+            return 1
+        fi
+
+        sleep 1
+        (( waitedSeconds++ ))
+    done
+
+    printf '%s\n' "$$" > "${splunkJSONReportLockDirectory}/pid" 2>/dev/null
+    return 0
+
+}
+
+function releaseCanonicalReportLock() {
+
+    rm -rf "${splunkJSONReportLockDirectory}" 2>/dev/null
 
 }
 
@@ -2382,6 +2446,7 @@ function prepareTargetedRecheckIfEligible() {
     local baseReportOverallStatus=""
     local baseReportHasReportingErrors="false"
     local baseReportAgeSeconds="0"
+    local baseReportIdentityBefore=""
     local baseCheckKeysJSON=""
     local currentCheckKeysJSON=""
     local targetIndicesJSON="["
@@ -2416,7 +2481,15 @@ function prepareTargetedRecheckIfEligible() {
         return 1
     fi
 
+    baseReportIdentityBefore="$( getReportFileIdentity "${splunkJSONReportPath}" )"
     targetedBaseReportJSON="$( < "${splunkJSONReportPath}" )"
+    targetedBaseReportIdentity="$( getReportFileIdentity "${splunkJSONReportPath}" )"
+    if [[ "${baseReportIdentityBefore}" != "${targetedBaseReportIdentity}" ]]; then
+        targetedRecheckEligibilityStatus="changed_during_read"
+        warning "Targeted Recheck: canonical report changed while it was being read; running full health check."
+        return 1
+    fi
+
     if ! printf '%s' "${targetedBaseReportJSON}" | jq -e '
         (.metadata | type == "object") and
         (.summary | type == "object") and
@@ -2577,6 +2650,121 @@ function prepareTargetedRecheckIfEligible() {
     reportFullRunTimestampEpoch="${targetedBaseFullRunTimestampEpoch}"
     reportBaseTimestamp="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.timestamp // empty' )"
     notice "Targeted Recheck: rechecking ${#targetedCheckKeys[@]} recent warning(s), failure(s) or error(s): ${(j:, :)targetedCheckKeys}."
+    return 0
+
+}
+
+function validateTargetedMergeBaseReportJSON() {
+
+    local reportJSON="${1}"
+    local mergeReportScriptVersion=""
+    local mergeReportHardwareUUID=""
+    local mergeReportSerialNumber=""
+    local mergeReportMdmVendor=""
+    local mergeReportRunScope=""
+    local mergeReportFullRunEpoch=""
+    local mergeReportAgeSeconds=0
+    local currentCheckKeysJSON=""
+    local mergeCheckKeysJSON=""
+    local candidateKey=""
+    local -a currentCheckKeys
+
+    if ! printf '%s' "${reportJSON}" | jq -e '
+        (.metadata | type == "object") and
+        (.summary | type == "object") and
+        (.checks | type == "array") and
+        ((.metadata.timestamp // "") | type == "string" and length > 0) and
+        ((.metadata.scriptVersion // "") | type == "string" and length > 0) and
+        ((.summary.overallStatus // "") | type == "string" and length > 0) and
+        ((.summary.errorCount // 0) | type == "number") and
+        ((.summary.reportingErrors // []) | type == "array") and
+        (all(.checks[]; (.key | type == "string") and (.key | length > 0) and (.status | type == "string"))) and
+        (([.checks[].key] | length) == ([.checks[].key] | unique | length))
+    ' >/dev/null 2>&1; then
+        warning "Targeted Recheck: current canonical report structure is invalid; preserving current report."
+        return 1
+    fi
+
+    mergeReportScriptVersion="$( printf '%s' "${reportJSON}" | jq -r '.metadata.scriptVersion // empty' )"
+    mergeReportHardwareUUID="$( printf '%s' "${reportJSON}" | jq -r '.metadata.hardwareUUID // empty' )"
+    mergeReportSerialNumber="$( printf '%s' "${reportJSON}" | jq -r '.metadata.serialNumber // empty' )"
+    mergeReportMdmVendor="$( printf '%s' "${reportJSON}" | jq -r '.mdm.vendor // empty' )"
+    mergeReportRunScope="$( printf '%s' "${reportJSON}" | jq -r '.metadata.runScope // "legacy"' )"
+    mergeReportFullRunEpoch="$( printf '%s' "${reportJSON}" | jq -r '.metadata.fullRunTimestampEpoch // empty' )"
+
+    if [[ "${mergeReportScriptVersion}" != "${scriptVersion}" ]]; then
+        warning "Targeted Recheck: current report version ${mergeReportScriptVersion:-unknown} does not match ${scriptVersion}; preserving current report."
+        return 1
+    fi
+
+    if [[ "${mergeReportMdmVendor}" != "${mdmVendor}" ]]; then
+        warning "Targeted Recheck: current report MDM ${mergeReportMdmVendor:-unknown} does not match ${mdmVendor}; preserving current report."
+        return 1
+    fi
+
+    if { [[ -z "${mergeReportHardwareUUID}" ]] || [[ "${mergeReportHardwareUUID}" != "${hardwareUUID}" ]]; } && \
+       { [[ -z "${mergeReportSerialNumber}" ]] || [[ "${mergeReportSerialNumber}" != "${serialNumber}" ]]; }; then
+        warning "Targeted Recheck: current canonical report belongs to another Mac; preserving current report."
+        return 1
+    fi
+
+    if [[ "${mergeReportRunScope}" != "full" ]] && [[ "${mergeReportRunScope}" != "targeted" ]]; then
+        warning "Targeted Recheck: current report run scope ${mergeReportRunScope:-empty} is not recognized; preserving current report."
+        return 1
+    fi
+
+    if [[ "${mergeReportFullRunEpoch}" != <-> ]] || (( mergeReportFullRunEpoch <= 0 )); then
+        warning "Targeted Recheck: current report lacks a valid full-run baseline; preserving current report."
+        return 1
+    fi
+
+    mergeReportAgeSeconds=$(( $( date +%s ) - mergeReportFullRunEpoch ))
+    if (( mergeReportAgeSeconds < 0 || mergeReportAgeSeconds >= targetedRecheckMaximumAgeSeconds )); then
+        warning "Targeted Recheck: current report full-run baseline is ${mergeReportAgeSeconds}s old; preserving current report."
+        return 1
+    fi
+
+    currentCheckKeys=()
+    for (( i=0; i<fullListitemLength; i++ )); do
+        currentCheckKeys+=( "${fullCheckKeyByIndex[${i}]}" )
+    done
+    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | jq -c 'sort' )"
+    mergeCheckKeysJSON="$( printf '%s' "${reportJSON}" | jq -c '[.checks[].key] | sort' )"
+    if [[ "${mergeCheckKeysJSON}" != "${currentCheckKeysJSON}" ]]; then
+        warning "Targeted Recheck: current report check set does not match current ${mdmVendor} configuration; preserving current report."
+        return 1
+    fi
+
+    for candidateKey in "${targetedCheckKeys[@]}"; do
+        if ! printf '%s' "${reportJSON}" | jq -e --arg key "${candidateKey}" 'any(.checks[]; .key == $key)' >/dev/null 2>&1; then
+            warning "Targeted Recheck: current report does not contain targeted key ${candidateKey}; preserving current report."
+            return 1
+        fi
+    done
+
+    return 0
+
+}
+
+function refreshTargetedBaseMetadataFromReportJSON() {
+
+    local reportJSON="${1}"
+    local mergeReportRunScope=""
+
+    mergeReportRunScope="$( printf '%s' "${reportJSON}" | jq -r '.metadata.runScope // "legacy"' )"
+    targetedBaseFullRunTimestamp="$( printf '%s' "${reportJSON}" | jq -r '.metadata.fullRunTimestamp // empty' )"
+    targetedBaseFullRunTimestampEpoch="$( printf '%s' "${reportJSON}" | jq -r '.metadata.fullRunTimestampEpoch // empty' )"
+
+    if [[ "${mergeReportRunScope}" == "full" ]] && [[ -z "${targetedBaseFullRunTimestamp}" ]]; then
+        targetedBaseFullRunTimestamp="$( printf '%s' "${reportJSON}" | jq -r '.metadata.timestamp // empty' )"
+    fi
+
+    if [[ -z "${targetedBaseFullRunTimestamp}" ]] || [[ "${targetedBaseFullRunTimestampEpoch}" != <-> ]] || (( targetedBaseFullRunTimestampEpoch <= 0 )); then
+        warning "Targeted Recheck: unable to refresh full-run baseline metadata from current report."
+        return 1
+    fi
+
+    reportBaseTimestamp="$( printf '%s' "${reportJSON}" | jq -r '.metadata.timestamp // empty' )"
     return 0
 
 }
@@ -2994,7 +3182,9 @@ function mergeTargetedReportJSON() {
         | ($base.checks | map(
             . as $old
             | replacement($old.key) as $new
-            | (if $new == null then
+            | (($old.checkedAtEpoch // $base.metadata.timestampEpoch // $fullRunTimestampEpoch // 0) | tonumber? // 0) as $oldEpoch
+            | (($new.checkedAtEpoch // 0) | tonumber? // 0) as $newEpoch
+            | (if ($new == null or $newEpoch < $oldEpoch) then
                 $old + {
                     checkedAt: ($old.checkedAt // $base.metadata.timestamp),
                     checkedAtEpoch: ($old.checkedAtEpoch // $base.metadata.timestampEpoch // $fullRunTimestampEpoch)
@@ -3344,6 +3534,10 @@ function generateAndSendSplunkReport() {
 
     local reportJSON=""
     local targetedRunJSON=""
+    local mergeBaseReportJSON=""
+    local currentReportIdentity=""
+    local currentReportIdentityAfter=""
+    local canonicalReportLockHeld="false"
 
     notice "Generating Splunk JSON report …"
 
@@ -3381,13 +3575,71 @@ function generateAndSendSplunkReport() {
 
     if [[ "${targetedRecheckMode}" == "true" ]]; then
         targetedRunJSON="${reportJSON}"
-        reportJSON="$( mergeTargetedReportJSON "${targetedBaseReportJSON}" "${targetedRunJSON}" )"
+
+        if ! acquireCanonicalReportLock; then
+            addReportingError "Unable to acquire canonical report lock; preserving previous canonical report."
+            reportOverallStatus="error"
+            reportTransmissionStatus="failed"
+            exitCode="1"
+            dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+            return 1
+        fi
+        canonicalReportLockHeld="true"
+
+        mergeBaseReportJSON="${targetedBaseReportJSON}"
+        currentReportIdentity="$( getReportFileIdentity "${splunkJSONReportPath}" )"
+        if [[ -z "${targetedBaseReportIdentity}" ]] || [[ "${currentReportIdentity}" != "${targetedBaseReportIdentity}" ]]; then
+            warning "Targeted Recheck: canonical report changed during verification; rebasing onto current report."
+
+            if [[ ! -r "${splunkJSONReportPath}" ]]; then
+                addReportingError "Canonical report changed during targeted verification and is no longer readable; preserving current report."
+                reportOverallStatus="error"
+                reportTransmissionStatus="failed"
+                exitCode="1"
+                dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+                releaseCanonicalReportLock
+                canonicalReportLockHeld="false"
+                return 1
+            fi
+
+            mergeBaseReportJSON="$( < "${splunkJSONReportPath}" )"
+            currentReportIdentityAfter="$( getReportFileIdentity "${splunkJSONReportPath}" )"
+            if [[ "${currentReportIdentity}" != "${currentReportIdentityAfter}" ]]; then
+                addReportingError "Canonical report changed while rebasing targeted results; preserving current report."
+                reportOverallStatus="error"
+                reportTransmissionStatus="failed"
+                exitCode="1"
+                dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+                releaseCanonicalReportLock
+                canonicalReportLockHeld="false"
+                return 1
+            fi
+
+            if ! validateTargetedMergeBaseReportJSON "${mergeBaseReportJSON}" || ! refreshTargetedBaseMetadataFromReportJSON "${mergeBaseReportJSON}"; then
+                addReportingError "Current canonical report is not compatible with targeted result rebase; preserving current report."
+                reportOverallStatus="error"
+                reportTransmissionStatus="failed"
+                exitCode="1"
+                dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+                releaseCanonicalReportLock
+                canonicalReportLockHeld="false"
+                return 1
+            fi
+
+            reportRunScope="targeted"
+            reportFullRunTimestamp="${targetedBaseFullRunTimestamp}"
+            reportFullRunTimestampEpoch="${targetedBaseFullRunTimestampEpoch}"
+        fi
+
+        reportJSON="$( mergeTargetedReportJSON "${mergeBaseReportJSON}" "${targetedRunJSON}" )"
         if [[ -z "${reportJSON}" ]] || ! validateJson "${reportJSON}"; then
             addReportingError "Targeted report merge failed validation; preserving previous canonical report."
             reportOverallStatus="error"
             reportTransmissionStatus="failed"
             exitCode="1"
             dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+            releaseCanonicalReportLock
+            canonicalReportLockHeld="false"
             return 1
         fi
 
@@ -3397,6 +3649,8 @@ function generateAndSendSplunkReport() {
             reportTransmissionStatus="failed"
             exitCode="1"
             dialogUpdate "title: Verification Report Error <br>Please run a full Mac Health Check"
+            releaseCanonicalReportLock
+            canonicalReportLockHeld="false"
             return 1
         fi
     fi
@@ -3409,12 +3663,25 @@ function generateAndSendSplunkReport() {
 
     reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${reportJSON}" )" )" )"
 
-    if writeSecureJSONFile "${splunkJSONReportPath}" "${reportFilePayload}"; then
+    if [[ "${canonicalReportLockHeld}" != "true" ]]; then
+        if acquireCanonicalReportLock; then
+            canonicalReportLockHeld="true"
+        else
+            addReportingError "Unable to acquire canonical report lock; local report was not written."
+        fi
+    fi
+
+    if [[ "${canonicalReportLockHeld}" == "true" ]] && writeSecureJSONFile "${splunkJSONReportPath}" "${reportFilePayload}"; then
         reportGenerated="true"
         notice "Splunk Reporting: local report written to ${splunkJSONReportPath}"
     else
         addReportingError "Failed to write local JSON report to ${splunkJSONReportPath}"
         warning "Splunk Reporting: failed to write local report to ${splunkJSONReportPath}"
+    fi
+
+    if [[ "${canonicalReportLockHeld}" == "true" ]]; then
+        releaseCanonicalReportLock
+        canonicalReportLockHeld="false"
     fi
 
     if [[ "${splunkOperationMode}" == "off" ]]; then

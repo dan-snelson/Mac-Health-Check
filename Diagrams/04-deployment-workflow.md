@@ -213,7 +213,7 @@ If your organization uses BeyondTrust, Cisco Umbrella, CrowdStrike, or GlobalPro
    - **Parameter 4** — Operation mode (start with `Debug` for initial testing)
    - **Parameter 5** — Webhook URL (optional)
    - **Parameters 6-10** — Splunk reporting mode, HEC URL, HEC token, HEC index, and HEC sourcetype
-   - **Parameter 11** — `forceFreshRun` one-shot override for Jamf `Silent` + `production` cache bypass when you need next eligible run to recollect data instead of re-uploading cached JSON
+   - **Parameter 11** — `forceFreshRun` one-shot override for bypassing `Self Service` targeted verification/replay or Jamf `Silent` + `production` cached upload when you need a complete fresh run
 
 ---
 
