@@ -12,6 +12,7 @@
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Refactored `checkClockSkew()` for macOS 27 to query one DNS record with a 3-second SNTP timeout while preserving the existing 5-second outer timeout and keeping Development and Debug tracing out of captured command output
 - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4996`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
+- Added AI-agnostic `Skills/mac-health-check-selector` skill (Agent Experience) that asks for the MDM first, walks Mac Admins through a categorized check checklist and presets, and emits copy-paste list-item JSON plus matching `runConfiguredHealthCheck` order without editing production files
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27

@@ -12,7 +12,7 @@ macOS health and compliance reporting tool. Primary artifact: `Mac-Health-Check.
 
 ## Key Commands
 - Validate syntax after **every** script edit: `zsh -n Mac-Health-Check.zsh`
-- Fast iteration: `./Mac-Health-Check.zsh --mode Development`
+- Fast iteration: `sudo zsh ./Mac-Health-Check.zsh "" "" "" "Development"` (Parameter 4 sets `operationMode`; no `--mode` flag)
 - Full regression before release work or cross-mode changes: test `Self Service`, `Silent`, `Debug`, `Development`, and `Test`
 - View canonical version: `cat VERSION.txt`
 
@@ -50,6 +50,11 @@ Invoke relevant skill name during planning.
 2. Update only files explicitly in scope.
 3. Run full regression across all five modes.
 4. Do not modify `Resources/` artifacts unless task is packaging refresh.
+
+### Mac Health Check Selector Skill
+1. Use `Skills/mac-health-check-selector/SKILL.md` when admin wants to choose, enable, or disable checks; ask MDM first.
+2. Emit copy-paste list-item JSON and matching `runConfiguredHealthCheck` order only; never edit script unless asked.
+3. Keep `Skills/mac-health-check-selector/references/health-checks.md` synchronized when checks, titles, arguments, or MDM order change.
 
 ## Boundaries
 **Always allowed without asking**

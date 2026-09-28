@@ -23,7 +23,7 @@ applyTo: "**/*.{zsh,md,yml,yaml}"
 After any code change, you **must** validate the following in **both Self Service and Silent modes**:
 
 1. Syntax check: `zsh -n Mac-Health-Check.zsh` (zero errors + review warnings)
-2. Development mode test: `./Mac-Health-Check.zsh --mode Development`
+2. Development mode test: `sudo zsh ./Mac-Health-Check.zsh "" "" "" "Development"` (Parameter 4 sets `operationMode`; no `--mode` flag)
 3. Self Service mode: Full run with UI, verify all health checks complete successfully
 4. Silent mode: Full run with no UI, verify JSON report + Inspect Summary artifacts are generated correctly
 5. Cache replay test (if applicable): Confirm `inspectReplayMaximumAgeSeconds` behavior works as expected

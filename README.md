@@ -394,6 +394,10 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 <a href="https://snelson.us/mhc" target="_blank">Continue reading …</a>
 
+### :new: Choosing Health Checks with an AI Assistant
+
+[`Skills/mac-health-check-selector`](Skills/mac-health-check-selector/SKILL.md) is an AI-agnostic skill for choosing which checks to enable. It asks which MDM you use, presents a categorized checklist with presets (Full Self Service, Silent, Development, Minimal triage, Custom), and returns copy-paste list-item JSON with matching `runConfiguredHealthCheck` order. It never edits `Mac-Health-Check.zsh` for you.
+
 
 
 ## Operation Mode: Development
