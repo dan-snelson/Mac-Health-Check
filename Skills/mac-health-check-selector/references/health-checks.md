@@ -38,6 +38,42 @@ Notes:
 - Addigy ships with `mdmVendorUuid=""`; the MDM Profile check needs a UUID or identifier to pass.
 - The generic branch omits MDM Profile and MDM Certificate Expiration because no vendor profile or certificate name is known.
 
+## Artifact anchors per MDM
+
+Used by `references/artifact-procedure.md`.
+
+- **Region A** runs from the array start line (column 1) through the next line that is exactly `'`.
+- **Region B** runs from the branch label line (12 spaces) through the next `                ;;`. It sits inside the first `        case ${mdmVendor} in` after the header `# Generate Health Checks based on Operation Mode and MDM Vendor`.
+- Line numbers are approximate as of `5.0.0b1` and are for orientation only. Always anchor on the text.
+
+| Slug | Region A start line | Region B label line | ~Region A | ~Region B |
+|---|---|---|---|---|
+| `addigy` | `addigyMdmListitemJSON='` | `"Addigy" )` | 1420–1456 | 10309–10343 |
+| `filewave` | `filewaveMdmListitemJSON='` | `"Filewave" )` | 1470–1505 | 10345–10378 |
+| `fleet` | `fleetMdmListitemJSON='` | `"Fleet" )` | 1519–1555 | 10380–10414 |
+| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` | 1569–1603 | 10497–10530 |
+| `jamf-pro` | `jamfProListitemJSON='` | `"Jamf Pro" )` | 1617–1662 | 10416–10459 |
+| `jumpcloud` | `jumpcloudMdmListitemJSON='` | `"JumpCloud" )` | 1677–1713 | 10461–10495 |
+| `microsoft-intune` | `microsoftMdmListitemJSON='` | `"Microsoft Intune" )` | 1728–1764 | 10532–10566 |
+| `mosyle` | `mosyleListitemJSON='` | `"Mosyle" )` | 1779–1816 | 10568–10603 |
+| `generic` | `genericMdmListitemJSON='` | `* )` | 1831–1863 | 10605–10635 |
+
+Pitfalls:
+
+- Array names are inconsistent. Most end in `MdmListitemJSON`, but Jamf Pro is `jamfProListitemJSON` and Mosyle is `mosyleListitemJSON`.
+- The Kandji array closes `]` on its last row. Replacements always put `]` on its own line.
+- Vendor labels also appear in other `case` blocks: configuration (~L611), help message (~L1362), report JSON (~L3056), webhooks (~L5954), `quitScript` (~L6142), MDM certificate names (~L8582), and dialog JSON merging (~L10140). Never anchor on the label alone.
+
+Development (`_development` artifacts):
+
+- **Region A′:** `    developmentListitemJSON='` through the next `    '` (~L10121–10126), after `# Generate dialogJSONFile based on Operation Mode and MDM Vendor`.
+- **Region B′:** the lines strictly between `    # set -x` and `    # set +x` (~L10291–10292), inside the Development `if` after the Generate Health Checks header.
+
+Client-Side Cache constraint:
+
+- `installClientSideScript` removes the `Computer Inventory` row and strips a trailing comma only from the `Network Quality Test` row.
+- M15 must therefore be the last row, or sit directly before F1. Otherwise the cached nightly copy has invalid JSON.
+
 ## Master check table
 
 Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` = needs a known `mdmVendor`; `Ext` = needs an external-check script plus a Jamf Pro policy trigger.
@@ -175,6 +211,12 @@ A4  {"title" : "Microsoft Teams", "subtitle" : "The hub for teamwork in Microsof
 A5  {"title" : "Fleet Desktop", "subtitle" : "Visibility into the security posture of your Mac.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 A5  {"title" : "Microsoft Company Portal", "subtitle" : "Securely access and manage corporate apps, resources, and devices via Intune.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 A5  {"title" : "'${mdmVendor}' Self-Service", "subtitle" : "Your one-stop shop for all things '${mdmVendor}'.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+A5  {"title" : "Microsoft One Drive", "subtitle" : "Microsoft cloud storage for your important files.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+A5  {"title" : "Microsoft Outlook", "subtitle" : "Email and Calendar from Microsoft.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+A5  {"title" : "Company Portal", "subtitle" : "Required for Platform Single Sign-On.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+A5  {"title" : "Zoom", "subtitle" : "Web Conferencing Tool.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+A5  {"title" : "Cortex", "subtitle" : "Cortex Security Software.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+A5  {"title" : "Netskope", "subtitle" : "Netskope Connection Software.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 A6  {"title" : "BeyondTrust Privilege Management", "subtitle" : "Privilege Management for Mac pairs powerful least-privilege management and application control", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 A7  {"title" : "Cisco Umbrella", "subtitle" : "Cisco Umbrella combines multiple security functions so you can extend data protection anywhere.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 A8  {"title" : "CrowdStrike Falcon", "subtitle" : "Technology, intelligence, and expertise come together in CrowdStrike Falcon to deliver security that works.", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
@@ -183,7 +225,9 @@ A10 {"title" : "<Display Name>", "subtitle" : "<One short, action-oriented sente
 F1  {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ```
 
-The shipped A9 subtitle names one organization's network; the template uses a placeholder instead.
+The shipped A9 subtitle names one organization's network; the template uses a placeholder instead. The Kandji A5 rows are the Kandji app set (OneDrive, Outlook, Company Portal, Zoom, Cortex, Netskope). For Kandji, `checkUserDirectorySizeItems "Downloads"` uses the icon `arrow.down.circle.fill`.
+
+When building an artifact, copy rows verbatim from the chosen MDM's array in the source first. Use these templates only as a fallback.
 
 ## Shipped default order per MDM
 

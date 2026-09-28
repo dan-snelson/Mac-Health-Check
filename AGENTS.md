@@ -53,8 +53,8 @@ Invoke relevant skill name during planning.
 
 ### Mac Health Check Selector Skill
 1. Use `Skills/mac-health-check-selector/SKILL.md` when admin wants to choose, enable, or disable checks; ask MDM first.
-2. Emit copy-paste list-item JSON and matching `runConfiguredHealthCheck` order only; never edit script unless asked.
-3. Keep `Skills/mac-health-check-selector/references/health-checks.md` synchronized when checks, titles, arguments, or MDM order change.
+2. Write MDM-specific, date-stamped copy plus sidecar `.md` to git-ignored `Artifacts/` per `references/artifact-procedure.md`; never edit source script.
+3. Keep `references/health-checks.md` and `references/artifact-procedure.md` synchronized when checks, titles, arguments, MDM order, anchors, or Client-Side Cache sanitizer change.
 
 ## Boundaries
 **Always allowed without asking**

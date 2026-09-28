@@ -33,3 +33,9 @@ Icon?
 ### Project temp
 .deploy*
 VERSION.txt
+
+
+
+### Selector skill artifacts
+Artifacts/*
+!Artifacts/README.md

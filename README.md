@@ -396,7 +396,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 ### :new: Choosing Health Checks with an AI Assistant
 
-[`Skills/mac-health-check-selector`](Skills/mac-health-check-selector/SKILL.md) is an AI-agnostic skill for choosing which checks to enable. It asks which MDM you use, presents a categorized checklist with presets (Full Self Service, Silent, Development, Minimal triage, Custom), and returns copy-paste list-item JSON with matching `runConfiguredHealthCheck` order. It never edits `Mac-Health-Check.zsh` for you.
+[`Skills/mac-health-check-selector`](Skills/mac-health-check-selector/SKILL.md) is an AI-agnostic skill for choosing which checks to enable. It asks which MDM you use, presents a categorized checklist with presets (Full Self Service, Silent, Development, Minimal triage, Custom), and, after you confirm, writes an edited, MDM-specific, date-stamped copy to `Artifacts/Mac-Health-Check_<mdm-slug>_<YYYY-MM-DD-HHMMSS>.zsh`, with a sidecar `.md` that records the selection. Only the MDM's list-item array and its matching `runConfiguredHealthCheck` branch change (for Development, `developmentListitemJSON` and its direct calls). The skill validates each artifact with `zsh -n`, `jq`, a row-to-call alignment check, a diff-scope check, and a Client-Side Cache simulation. Before deploying, test the artifact on one Mac in all five modes. `Mac-Health-Check.zsh` itself is never modified, and `Artifacts/` is git-ignored (see [`Artifacts/README.md`](Artifacts/README.md)).
 
 
 
