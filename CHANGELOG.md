@@ -34,6 +34,15 @@
     - writes the complete sidecar, with derived Disabled reasons and dependency notes tagged `[all]`, `[C8]`, `[C13]`, `[generic]`, `[Jamf]`, and so on.
   - Documented that a generic test on an unenrolled Mac fails M4 as expected, and that C8 errors on Macs without Touch ID hardware
 - Added step-by-step `README.md` instructions for loading and running the `Skills/mac-health-check-selector` skill, from opening the repository in an AI assistant through artifact validation, five-mode testing, and deployment (Agent Experience)
+- Hardened runtime state against local tampering (Security):
+  - Moved the canonical report and lock, Inspect config and compliance plist, SOFA cache, and `networkQuality` cache from world-writable `/var/tmp` into root-owned `organizationDirectory` (`/Library/Management/org.churchofjesuschrist`), which pre-flight now validates as a root-owned, non-group/world-writable directory before any state is read or written; this closes a symlink-based local privilege escalation and prevents users from planting forged cached reports or SOFA data
+  - Inspect config and compliance plist now stay `root:wheel 0644` and are written atomically; root no longer `chown`s files to the logged-in user. swiftDialog's trigger, readiness, result, and launch-log files move into a per-user `organizationDirectory/Inspect/<user>` directory that root creates but never writes inside, and cached replay is skipped when the config was generated for a different user context
+  - Cached reports (Client-Side Cache and targeted `Self Service` verification) and replayed Inspect configs are trusted only when they are root-owned regular files
+  - Downloaded dock/overlay icons and the Kerberos `app-sso` plist now use a per-run `mktemp -d` directory removed on exit; SOFA downloads use `--fail`, a timeout, and same-directory temporary files promoted only when valid JSON
+  - Root-owned, non-symlink pre-`5.0.0` leftovers at the old fixed `/var/tmp` paths are removed automatically; `/var/tmp/MacHealthCheck-Force-Fresh-Run` is unchanged
+  - Splunk HEC token and webhook URL are passed to `curl` via `--config -` on stdin instead of argv, `Debug` mode's `set -x` now starts after parameter parsing, and secret-handling functions disable xtrace locally
+  - Webhook payload values are JSON-escaped and the payload is validated before sending; the full payload is logged only in `Debug`
+  - The client-side log is now `root:admin 0640`
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27

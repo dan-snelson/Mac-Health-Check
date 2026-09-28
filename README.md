@@ -46,7 +46,9 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `5.0.0b1` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.1.4996` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
 
 - Structured JSON health report generated at the end of every run
-- Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
+- Local report saved to `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` by default with `600` permissions
+- Beginning in `5.0.0b1`, persistent runtime state (canonical report and lock, Inspect config and compliance plist, SOFA and `networkQuality` caches) lives in root-owned `/Library/Management/org.churchofjesuschrist` instead of world-writable `/var/tmp`; cached reports are trusted only when they are root-owned regular files, and root-owned pre-`5.0.0` leftovers in `/var/tmp` are removed automatically
+- Splunk HEC tokens and webhook URLs are passed to `curl` through `--config -` on stdin, so they no longer appear in the process list, and `Debug` mode's `set -x` tracing starts after parameter parsing and is suppressed inside secret-handling functions
 - Optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
 - Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run by bypassing `Self Service` targeting/replay or Jamf `Silent` cached upload
 - `splunkOperationMode=off` disables HEC delivery explicitly while still preserving local JSON report generation
@@ -54,7 +56,7 @@ The tool logs results for review, writes a structured JSON health report locally
 - Beginning in `4.0.0`, non-`Silent` runs and full Jamf production runs install a client-side copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus a `org.churchofjesuschrist.MHC` LaunchDaemon that refreshes the local report across a deterministic 00:53-01:53 window centered on 1:23 a.m.
 - The LaunchDaemon sets `launchDaemonRun=true`; the client-side script then derives a stable per-Mac jitter from hardware UUID, logs the jitter through MHC-prefixed logging, and routes daemon stdout/stderr to `/dev/null` to avoid duplicate client-log lines.
 - When a LaunchDaemon-triggered refresh runs with no active GUI user, Mac Health Check falls back to `/Library/Preferences/com.apple.loginwindow.plist` `lastUserName` for user-scoped checks.
-- Jamf Pro `Silent` + `splunkOperationMode=production` runs upload the cached report without re-running checks when the client-side script version matches and `/var/tmp/MacHealthCheck-Report.json` is valid and less than 36 hours old
+- Jamf Pro `Silent` + `splunkOperationMode=production` runs upload the cached report without re-running checks when the client-side script version matches and `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` is valid and less than 36 hours old
 
 <img src="images/MHC_4_Splunk_Dashboard.png" alt="Splunk Dashboard" width="800"/>
 
@@ -69,7 +71,7 @@ The current `5.0.0b1` release targets swiftDialog `3.1.1.4996` or newer so `Self
 User-facing report:
 
 ```zsh
-dialog --inspect-mode --inspect-config /var/tmp/MacHealthCheck-Inspect-Config.json
+dialog --inspect-mode --inspect-config /Library/Management/org.churchofjesuschrist/MacHealthCheck-Inspect-Config.json
 ```
 
 Terminal summary of most recent health issues:
@@ -88,7 +90,7 @@ sudo jq -r '
 | select(.status != "healthy")
 | "- \(.name): \(if (.rawValue? | type) != "string" or .rawValue == "" then .message else .rawValue end)"),
 ""
-' /var/tmp/MacHealthCheck-Report.json
+' /Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json
 ```
 
 ### Step Zero for Tier 1
@@ -110,10 +112,10 @@ sudo jq -r '
 - No dialog is presented to the end-user
 - Ideal for background compliance reporting
 - Complements existing MDM compliance frameworks
-- Full `Silent` health-check runs generate `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist` without launching swiftDialog
+- Full `Silent` health-check runs generate `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Inspect-Config.json` and `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Inspect-Compliance.plist` without launching swiftDialog
 - When combined with `splunkOperationMode=production`, suppresses non-Splunk stdout/stderr noise in Jamf policy logs while continuing to write the full run to `${scriptLog}`
 - In that same `Silent` + `splunkOperationMode=production` combination, `updateComputerInventory()` logs a skip message and does not run `jamf recon`
-- Client-Side Cache uses a local LaunchDaemon copy to refresh `/var/tmp/MacHealthCheck-Report.json` nightly without storing Splunk HEC secrets client-side
+- Client-Side Cache uses a local LaunchDaemon copy to refresh `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` nightly without storing Splunk HEC secrets client-side
 - LaunchDaemon-triggered refreshes use the active console user when present, and otherwise fall back to loginwindow `lastUserName` for user-scoped checks
 - Jamf Pro can then run `Silent` + `splunkOperationMode=production` to upload the cached report only when the client and server script versions match
 
@@ -135,9 +137,13 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 # Also removes root-only Memory Pressure history and its lock file.
 /bin/rm -rfv "${organizationDirectory}"
 
-# Optional cached/report artifacts:
+# (The report, Inspect assets, per-user Inspect control files, SOFA cache and
+# networkQuality cache all live under "${organizationDirectory}" and are removed above.)
+
+# Optional pre-5.0.0 cached/report artifacts:
 /bin/rm -fv /var/tmp/MacHealthCheck-Report.json
 /bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Config.json
+/bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Compliance.plist
 /bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Summary.log
 
 # Optional log removal:
@@ -224,8 +230,8 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 
 #### JSON / Splunk Reporting
 - Generates a structured JSON health report at the end of every run
-- Saves the report locally to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
-- Keeps `/var/tmp/MacHealthCheck-Report.json` as the canonical root-only report artifact
+- Saves the report locally to `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` by default with `600` permissions
+- Keeps `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` as the canonical root-only report artifact
 - Adds `identity.entraIDRegistration` with `status`, `method`, `lastUser`, `lastUserHome`, and `details`
 - Supports optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
 - Wraps the finalized report as `{sourcetype, index, event}` when posting to Splunk HEC
@@ -239,9 +245,9 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - Includes copy/paste Splunk SPL, Simple XML, and Dashboard Studio starter examples in [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md)
 
 #### Inspect Mode Summary
-- `Self Service` and full `Silent` health-check runs now generate `/var/tmp/MacHealthCheck-Inspect-Config.json` directly from finalized in-memory results
-- `Self Service` and full `Silent` health-check runs also generate `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
-- The generated config includes `/var/tmp/MacHealthCheck-Inspect.trigger`, `/var/tmp/MacHealthCheck-Inspect.ready` and `/var/tmp/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
+- `Self Service` and full `Silent` health-check runs now generate `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Inspect-Config.json` directly from finalized in-memory results
+- `Self Service` and full `Silent` health-check runs also generate `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
+- The generated config includes `/Library/Management/org.churchofjesuschrist/Inspect/<user>/MacHealthCheck-Inspect.trigger`, `/Library/Management/org.churchofjesuschrist/Inspect/<user>/MacHealthCheck-Inspect.ready` and `/Library/Management/org.churchofjesuschrist/Inspect/<user>/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
 - `Self Service` automatically rechecks non-healthy `.checks[].key` values when the canonical report has a matching device, MDM vendor, script version and full-run baseline less than 36 hours old
 - Targeted dialogs display contiguous check numbers immediately, while Inspect presents the authoritative Mac Health Check status separately from swiftDialog's weighted `Compliance Score`
 - Targeted results replace only matching check records, preserve untouched results, add `checkedAt` / `checkedAtEpoch`, and expose `metadata.runScope`, full-run baseline fields and `summary.recheckedCount`

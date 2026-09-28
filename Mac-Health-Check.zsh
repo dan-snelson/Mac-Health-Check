@@ -59,9 +59,6 @@ SECONDS="0"
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
 operationMode="${4:-"Self Service"}"
 
-    # Enable `set -x` if operation mode is "Debug" to help identify issues
-    [[ "${operationMode}" == "Debug" ]] && set -x
-
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
 
@@ -131,6 +128,18 @@ splunkHECSourcetype="${10:-""}"
 # Parameter 11: Force fresh run [ true | false ]
 forceFreshRun="${11:-"false"}"
 
+# Secret-free configuration flags (evaluated before `set -x` so secrets never reach xtrace output)
+webhookConfigured="false"
+webhookService="teams"
+[[ -n "${webhookURL}" ]] && webhookConfigured="true"
+[[ "${webhookURL}" == *"slack"* ]] && webhookService="slack"
+splunkHECTokenConfigured="false"
+[[ -n "${splunkHECToken}" ]] && splunkHECTokenConfigured="true"
+
+    # Enable `set -x` if operation mode is "Debug" to help identify issues
+    # (Enabled after parameter parsing so the webhook URL and Splunk HEC token are not traced)
+    [[ "${operationMode}" == "Debug" ]] && set -x
+
 # Reporting debug mode [ true | false ]
 reportDebug="false"
 
@@ -165,9 +174,20 @@ forceFreshRunTriggerFilePath="/var/tmp/MacHealthCheck-Force-Fresh-Run"
 forceFreshRunDetected="false"
 forceFreshRunSource="not_requested"
 
+# Per-run, root-owned temporary directory for downloaded icons and other transient files
+# (`mktemp -d` creates a unique directory that local users cannot pre-plant or redirect)
+runtimeTemporaryDirectory="$( mktemp -d "/var/tmp/${organizationScriptName}.XXXXXX" 2>/dev/null )"
+if [[ -z "${runtimeTemporaryDirectory}" ]] || [[ ! -d "${runtimeTemporaryDirectory}" ]]; then
+    echo "Error: Unable to create a per-run temporary directory; exiting."
+    exit 1
+fi
+chmod 755 "${runtimeTemporaryDirectory}" 2>/dev/null
+trap 'rm -rf -- "${runtimeTemporaryDirectory}"' EXIT
+
 # Splunk and JSON reporting defaults
-splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
-splunkJSONReportLockDirectory="/var/tmp/MacHealthCheck-Report.lock"
+# (Persistent root-written state lives in the root-owned `organizationDirectory`, never in world-writable `/var/tmp`)
+splunkJSONReportPath="${organizationDirectory}/MacHealthCheck-Report.json"
+splunkJSONReportLockDirectory="${organizationDirectory}/MacHealthCheck-Report.lock"
 cachedReportJSON=""
 cachedReportModificationEpoch="0"
 cachedReportAgeSeconds="0"
@@ -182,7 +202,14 @@ function validateCachedSplunkReport() {
     cachedReportAgeSeconds="0"
     cachedReportValidationStatus="missing"
 
-    if [[ ! -f "${cachedReportPath}" ]]; then
+    if [[ ! -f "${cachedReportPath}" ]] && [[ ! -L "${cachedReportPath}" ]]; then
+        return 1
+    fi
+
+    # Only trust a root-owned regular file (never a symlink or a file a local user could have planted)
+    if [[ -L "${cachedReportPath}" ]] || [[ ! -f "${cachedReportPath}" ]] \
+        || [[ "$( stat -f %u "${cachedReportPath}" 2>/dev/null )" != "0" ]]; then
+        cachedReportValidationStatus="untrusted_owner"
         return 1
     fi
 
@@ -428,12 +455,17 @@ completionTimer="60"
 # Inspect Mode Defaults
 # Toggle detached inspect summary generation and cached replay [ on | off ]
 inspectSummaryPreset="on"
-inspectConfigPath="/var/tmp/MacHealthCheck-Inspect-Config.json"
-inspectCompliancePlistPath="/var/tmp/MacHealthCheck-Inspect-Compliance.plist"
-inspectTriggerFilePath="/var/tmp/MacHealthCheck-Inspect.trigger"
-inspectReadinessFilePath="/var/tmp/MacHealthCheck-Inspect.ready"
-inspectResultFilePath="/var/tmp/MacHealthCheck-Inspect-Result.json"
-inspectLaunchLogPath="/var/tmp/MacHealthCheck-Inspect-Summary.log"
+# Root-written, user-readable (root:wheel 0644) Inspect assets
+inspectConfigPath="${organizationDirectory}/MacHealthCheck-Inspect-Config.json"
+inspectCompliancePlistPath="${organizationDirectory}/MacHealthCheck-Inspect-Compliance.plist"
+# User-writable Inspect control files live in a per-user directory root never writes into
+# (trigger, readiness, result and launch-log paths are set after the logged-in user is determined)
+inspectUserRootDirectory="${organizationDirectory}/Inspect"
+inspectUserDirectory=""
+inspectTriggerFilePath=""
+inspectReadinessFilePath=""
+inspectResultFilePath=""
+inspectLaunchLogPath=""
 inspectReplayMaximumAgeSeconds="900" # 15 minutes
 targetedRecheckMaximumAgeSeconds="129600" # 36 hours
 # swiftDialog PR #684 uses a renderer-owned 12pt spacing scale: 6pt intra, 12pt inner,
@@ -746,6 +778,17 @@ else
     loggedInUserHomeDirectory=""
 fi
 
+# Per-user Inspect control-file paths (directory is created and owned by the user; root never writes inside it)
+if [[ -n "${loggedInUserID}" ]]; then
+    inspectUserDirectory="${inspectUserRootDirectory}/${loggedInUser}"
+else
+    inspectUserDirectory="${inspectUserRootDirectory}/loginwindow"
+fi
+inspectTriggerFilePath="${inspectUserDirectory}/MacHealthCheck-Inspect.trigger"
+inspectReadinessFilePath="${inspectUserDirectory}/MacHealthCheck-Inspect.ready"
+inspectResultFilePath="${inspectUserDirectory}/MacHealthCheck-Inspect-Result.json"
+inspectLaunchLogPath="${inspectUserDirectory}/MacHealthCheck-Inspect-Summary.log"
+
 if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WARNING: '$loggedInUser' IS A MEMBER OF 'admin'; "; fi
 
 # Volume Owners
@@ -787,13 +830,14 @@ kerberosSSOeResult="Not configured"
 
 # Kerberos Single Sign-on Extension
 if [[ -n "${kerberosRealm}" ]]; then
-    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > /var/tmp/app-sso.plist 2>/dev/null
-    if [[ -f /var/tmp/app-sso.plist ]] && xmllint --noout /var/tmp/app-sso.plist >/dev/null 2>&1; then
-        ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
+    appSSOPlistPath="${runtimeTemporaryDirectory}/app-sso.plist"
+    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > "${appSSOPlistPath}" 2>/dev/null
+    if [[ -f "${appSSOPlistPath}" ]] && xmllint --noout "${appSSOPlistPath}" >/dev/null 2>&1; then
+        ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" "${appSSOPlistPath}" 2>&1 )
         if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
             kerberosSSOeResult="${loggedInUser} NOT logged in"
         else
-            username=$( /usr/libexec/PlistBuddy -c "Print:upn" /var/tmp/app-sso.plist 2>/dev/null | awk -F@ '{print $1}' )
+            username=$( /usr/libexec/PlistBuddy -c "Print:upn" "${appSSOPlistPath}" 2>/dev/null | awk -F@ '{print $1}' )
             if [[ -n "${username}" ]]; then
                 kerberosSSOeResult="${username}"
                 inventoryEndUsername="${username}"
@@ -805,7 +849,7 @@ if [[ -n "${kerberosRealm}" ]]; then
     else
         kerberosSSOeResult="Kerberos SSO not configured"
     fi
-    rm -f /var/tmp/app-sso.plist 2>/dev/null
+    rm -f "${appSSOPlistPath}" 2>/dev/null
 fi
 
 # Platform Single Sign-on Extension
@@ -1079,8 +1123,8 @@ dialogBinaryDebugArgs=()
 dialogDockNamedApp="/Library/Application Support/Dialog/${humanReadableScriptName}.app"
 dialogLaunchBinary="${dialogBinary}"
 dialogDockIcon="default"
-dialogDockIconFile="/var/tmp/dockicon.png"
-dialogOverlayIconFile="/var/tmp/overlayicon_${organizationScriptName}_$$.png"
+dialogDockIconFile="${runtimeTemporaryDirectory}/dockicon.png"
+dialogOverlayIconFile="${runtimeTemporaryDirectory}/overlayicon.png"
 listitemLength="0"
 remainingChecks="0"
 completedCheckIndicesCsv=","
@@ -2498,6 +2542,12 @@ function prepareTargetedRecheckIfEligible() {
         return 1
     fi
 
+    if ! isTrustedRootFile "${splunkJSONReportPath}"; then
+        targetedRecheckEligibilityStatus="untrusted_owner"
+        warning "Targeted Recheck: canonical report is not a root-owned regular file; running full health check."
+        return 1
+    fi
+
     baseReportIdentityBefore="$( getReportFileIdentity "${splunkJSONReportPath}" )"
     targetedBaseReportJSON="$( < "${splunkJSONReportPath}" )"
     targetedBaseReportIdentity="$( getReportFileIdentity "${splunkJSONReportPath}" )"
@@ -3394,6 +3444,93 @@ function buildFallbackReportJSON() {
 
 }
 
+function ensureSecureRootDirectory() {
+
+    local targetDirectory="${1}"
+    local targetMode="${2:-755}"
+    local targetDirectoryMode=""
+
+    if [[ "${targetDirectory}" != /* ]] || [[ -L "${targetDirectory}" ]]; then
+        return 1
+    fi
+
+    if [[ ! -d "${targetDirectory}" ]]; then
+        mkdir -p -m "${targetMode}" "${targetDirectory}" 2>/dev/null || return 1
+    fi
+
+    if [[ -L "${targetDirectory}" ]] || [[ ! -d "${targetDirectory}" ]]; then
+        return 1
+    fi
+
+    chown root:wheel "${targetDirectory}" 2>/dev/null
+    chmod "${targetMode}" "${targetDirectory}" 2>/dev/null
+
+    if [[ "$( stat -f %u "${targetDirectory}" 2>/dev/null )" != "0" ]]; then
+        return 1
+    fi
+
+    targetDirectoryMode="$( stat -f %Lp "${targetDirectory}" 2>/dev/null )"
+    if [[ "${targetDirectoryMode}" != <-> ]] || (( ( 8#${targetDirectoryMode} & 8#022 ) != 0 )); then
+        return 1
+    fi
+
+    return 0
+
+}
+
+function removeLegacyTemporaryArtifacts() {
+
+    # Pre-5.0.0 builds kept state at fixed `/var/tmp` paths; remove only root-owned, non-symlink leftovers
+    # (user-owned or symlinked leftovers are ignored, since nothing reads them any longer)
+    local legacyArtifactPath=""
+    local legacyArtifactPaths=(
+        "/var/tmp/MacHealthCheck-Report.json"
+        "/var/tmp/MacHealthCheck-Report.lock"
+        "/var/tmp/MacHealthCheck-Inspect-Config.json"
+        "/var/tmp/MacHealthCheck-Inspect-Compliance.plist"
+        "/var/tmp/MacHealthCheck-Inspect.trigger"
+        "/var/tmp/MacHealthCheck-Inspect_final.trigger"
+        "/var/tmp/MacHealthCheck-Inspect.ready"
+        "/var/tmp/MacHealthCheck-Inspect-Result.json"
+        "/var/tmp/MacHealthCheck-Inspect-Summary.log"
+        "/var/tmp/networkQualityTest"
+        "/var/tmp/dockicon.png"
+        "/var/tmp/sofa"
+    )
+
+    for legacyArtifactPath in "${legacyArtifactPaths[@]}"; do
+        if [[ -e "${legacyArtifactPath}" ]] && [[ ! -L "${legacyArtifactPath}" ]] \
+            && [[ "$( stat -f %u "${legacyArtifactPath}" 2>/dev/null )" == "0" ]]; then
+            if rm -rf -- "${legacyArtifactPath}" 2>/dev/null; then
+                info "Removed legacy temporary artifact: ${legacyArtifactPath}"
+            fi
+        fi
+    done
+
+}
+
+function isTrustedRootFile() {
+
+    local targetPath="${1}"
+
+    [[ -f "${targetPath}" ]] && [[ ! -L "${targetPath}" ]] \
+        && [[ "$( stat -f %u "${targetPath}" 2>/dev/null )" == "0" ]]
+
+}
+
+function curlConfigQuote() {
+
+    local configValue="${1}"
+
+    configValue="${configValue//\\/\\\\}"
+    configValue="${configValue//\"/\\\"}"
+    configValue="${configValue//$'\n'/}"
+    configValue="${configValue//$'\r'/}"
+
+    printf '"%s"' "${configValue}"
+
+}
+
 function writeSecureJSONFile() {
 
     local targetPath="${1}"
@@ -3434,16 +3571,34 @@ function writeReadableTextFile() {
     local targetPath="${1}"
     local filePayload="${2}"
     local previousUmask=""
+    local temporaryPath=""
 
     previousUmask="$( umask )"
-    umask 022
-    printf '%s\n' "${filePayload}" > "${targetPath}"
+    umask 077
+    temporaryPath="$( mktemp "${targetPath}.XXXXXX" )" || {
+        umask "${previousUmask}"
+        return 1
+    }
+
+    if ! printf '%s\n' "${filePayload}" > "${temporaryPath}"; then
+        rm -f "${temporaryPath}"
+        umask "${previousUmask}"
+        return 1
+    fi
     umask "${previousUmask}"
 
-    chmod 644 "${targetPath}" 2>/dev/null
+    chmod 644 "${temporaryPath}" 2>/dev/null
     if [[ $(id -u) -eq 0 ]]; then
-        chown root:wheel "${targetPath}" 2>/dev/null
+        chown root:wheel "${temporaryPath}" 2>/dev/null
     fi
+
+    # `mv` replaces (never follows) any pre-existing symlink at the target path
+    if ! mv -f "${temporaryPath}" "${targetPath}"; then
+        rm -f "${temporaryPath}"
+        return 1
+    fi
+
+    return 0
 
 }
 
@@ -3490,8 +3645,13 @@ function sendSplunkHECPayload() {
     local curlExitCode=0
     local retryDelay=1
     local curlArgs=()
+    local authorizationHeaderConfig=""
+
+    # Keep the Splunk HEC token out of `set -x` output and the process list
+    setopt localoptions noxtrace
 
     sanitizedURL="$( sanitizeSplunkURLForLog "${splunkHECURL}" )"
+    authorizationHeaderConfig="header = $( curlConfigQuote "Authorization: Splunk ${splunkHECToken}" )"
     payloadFile="$( mktemp /var/tmp/mhc-splunk-payload.XXXXXX )"
     responseFile="$( mktemp /var/tmp/mhc-splunk-response.XXXXXX )"
 
@@ -3507,8 +3667,8 @@ function sendSplunkHECPayload() {
         info "Splunk Reporting: POST attempt ${attempt} to ${sanitizedURL}"
 
         httpCode="$(
-            curl --silent --fail-with-body --max-time 15 \
-                --header "Authorization: Splunk ${splunkHECToken}" \
+            printf '%s\n' "${authorizationHeaderConfig}" | curl --config - \
+                --silent --fail-with-body --max-time 15 \
                 --header "Content-Type: application/json" \
                 --data-binary "@${payloadFile}" \
                 --output "${responseFile}" \
@@ -3713,7 +3873,7 @@ function generateAndSendSplunkReport() {
         return 0
     fi
 
-    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+    if [[ -z "${splunkHECURL}" || "${splunkHECTokenConfigured}" != "true" ]]; then
         reportTransmissionStatus="not_configured"
         info "Splunk Reporting: HEC URL or token not configured; local report only."
         return 0
@@ -3746,7 +3906,7 @@ function sendCachedSplunkReport() {
         return 1
     fi
 
-    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+    if [[ -z "${splunkHECURL}" || "${splunkHECTokenConfigured}" != "true" ]]; then
         reportTransmissionStatus="not_configured"
         warning "Client-Side Cache: HEC URL or token not configured; unable to upload cached report."
         return 1
@@ -5700,35 +5860,19 @@ function validateInspectConfigFile() {
 
 }
 
-function prepareInspectConfigForUser() {
+function prepareInspectRootReadableFile() {
 
-    local inspectConfigToPrepare="${1:-${inspectConfigPath}}"
+    local inspectFileToPrepare="${1}"
+    local inspectFileDescription="${2:-Inspect file}"
 
-    if [[ ! -e "${inspectConfigToPrepare}" ]]; then
-        warning "Inspect Summary: config file is unavailable at ${inspectConfigToPrepare}."
+    if [[ -L "${inspectFileToPrepare}" ]] || [[ ! -f "${inspectFileToPrepare}" ]]; then
+        warning "Inspect Summary: ${inspectFileDescription} is unavailable or not a regular file at ${inspectFileToPrepare}."
         return 1
     fi
 
-    if [[ -z "${loggedInUser}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
-        if [[ "${operationMode}" == "Silent" ]]; then
-            if ! chmod 644 "${inspectConfigToPrepare}" 2>/dev/null; then
-                warning "Inspect Summary: failed to set readable permissions on ${inspectConfigToPrepare} for Silent mode."
-                return 1
-            fi
-            notice "Inspect Summary: no valid GUI user found; leaving ${inspectConfigToPrepare} root-owned and readable for Silent mode."
-            return 0
-        fi
-        warning "Inspect Summary: no valid logged-in user available for ${inspectConfigToPrepare}."
-        return 1
-    fi
-
-    if ! chown "${loggedInUser}" "${inspectConfigToPrepare}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set ownership on ${inspectConfigToPrepare} for ${loggedInUser}."
-        return 1
-    fi
-
-    if ! chmod 600 "${inspectConfigToPrepare}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set permissions on ${inspectConfigToPrepare} for ${loggedInUser}."
+    # Keep root-written Inspect assets root-owned; swiftDialog (as the logged-in user) only needs read access
+    if ! chown root:wheel "${inspectFileToPrepare}" 2>/dev/null || ! chmod 644 "${inspectFileToPrepare}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set root-owned, readable permissions on ${inspectFileToPrepare}."
         return 1
     fi
 
@@ -5736,20 +5880,39 @@ function prepareInspectConfigForUser() {
 
 }
 
-function prepareInspectLaunchLogForUser() {
+function prepareInspectConfigForUser() {
 
-    if ! : > "${inspectLaunchLogPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to create ${inspectLaunchLogPath}."
+    prepareInspectRootReadableFile "${1:-${inspectConfigPath}}" "config file"
+
+}
+
+function prepareInspectUserDirectory() {
+
+    if [[ -z "${loggedInUser}" ]] || [[ -z "${loggedInUserID}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
+        warning "Inspect Summary: no valid logged-in user available for ${inspectUserDirectory}."
         return 1
     fi
 
-    if ! chown "${loggedInUser}" "${inspectLaunchLogPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set ownership on ${inspectLaunchLogPath} for ${loggedInUser}."
+    if ! ensureSecureRootDirectory "${inspectUserRootDirectory}" 755; then
+        warning "Inspect Summary: unable to secure ${inspectUserRootDirectory}."
         return 1
     fi
 
-    if ! chmod 600 "${inspectLaunchLogPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set permissions on ${inspectLaunchLogPath} for ${loggedInUser}."
+    if [[ -L "${inspectUserDirectory}" ]]; then
+        warning "Inspect Summary: refusing symbolic link at ${inspectUserDirectory}."
+        return 1
+    fi
+
+    if [[ ! -d "${inspectUserDirectory}" ]]; then
+        if ! mkdir -m 700 "${inspectUserDirectory}" 2>/dev/null; then
+            warning "Inspect Summary: failed to create ${inspectUserDirectory}."
+            return 1
+        fi
+    fi
+
+    # Only the directory itself is handed to the user; root never writes inside it
+    if ! chown "${loggedInUser}" "${inspectUserDirectory}" 2>/dev/null || ! chmod 700 "${inspectUserDirectory}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set ownership on ${inspectUserDirectory} for ${loggedInUser}."
         return 1
     fi
 
@@ -5759,35 +5922,7 @@ function prepareInspectLaunchLogForUser() {
 
 function prepareInspectCompliancePlistForUser() {
 
-    if [[ ! -e "${inspectCompliancePlistPath}" ]]; then
-        warning "Inspect Summary: compliance plist is unavailable at ${inspectCompliancePlistPath}."
-        return 1
-    fi
-
-    if [[ -z "${loggedInUser}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
-        if [[ "${operationMode}" == "Silent" ]]; then
-            if ! chmod 644 "${inspectCompliancePlistPath}" 2>/dev/null; then
-                warning "Inspect Summary: failed to set readable permissions on ${inspectCompliancePlistPath} for Silent mode."
-                return 1
-            fi
-            notice "Inspect Summary: no valid GUI user found; leaving ${inspectCompliancePlistPath} root-owned and readable for Silent mode."
-            return 0
-        fi
-        warning "Inspect Summary: no valid logged-in user available for ${inspectCompliancePlistPath}."
-        return 1
-    fi
-
-    if ! chown "${loggedInUser}" "${inspectCompliancePlistPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set ownership on ${inspectCompliancePlistPath} for ${loggedInUser}."
-        return 1
-    fi
-
-    if ! chmod 600 "${inspectCompliancePlistPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set permissions on ${inspectCompliancePlistPath}."
-        return 1
-    fi
-
-    return 0
+    prepareInspectRootReadableFile "${inspectCompliancePlistPath}" "compliance plist"
 
 }
 
@@ -5796,7 +5931,10 @@ function generateInspectCompliancePlist() {
     local inspectCompliancePlistXML=""
 
     inspectCompliancePlistXML="$( buildInspectCompliancePlistXML )"
-    writeReadableTextFile "${inspectCompliancePlistPath}" "${inspectCompliancePlistXML}"
+    if ! writeReadableTextFile "${inspectCompliancePlistPath}" "${inspectCompliancePlistXML}"; then
+        warning "Inspect Summary: failed to write ${inspectCompliancePlistPath}."
+        return 1
+    fi
 
     if ! /usr/bin/plutil -lint "${inspectCompliancePlistPath}" >/dev/null 2>&1; then
         warning "Inspect Summary: generated compliance plist failed validation at ${inspectCompliancePlistPath}."
@@ -5831,7 +5969,10 @@ function generateInspectSummaryAssets() {
         return 1
     fi
 
-    writeReadableTextFile "${inspectConfigPath}" "${inspectConfigJSON}"
+    if ! writeReadableTextFile "${inspectConfigPath}" "${inspectConfigJSON}"; then
+        warning "Inspect Summary: failed to write ${inspectConfigPath}."
+        return 1
+    fi
     if ! validateInspectConfigFile "${inspectConfigPath}"; then
         warning "Inspect Summary: failed to validate ${inspectConfigPath}."
         return 1
@@ -5874,7 +6015,7 @@ function launchInspectSummary() {
         return 1
     fi
 
-    if ! prepareInspectLaunchLogForUser; then
+    if ! prepareInspectUserDirectory; then
         return 1
     fi
 
@@ -5896,6 +6037,7 @@ function replayCachedInspectSummaryIfEligible() {
     local configJSON=""
     local configFileEpoch=""
     local configFileAgeSeconds="0"
+    local configResultFilePath=""
 
     if ! inspectSummaryIsEnabled; then
         return 1
@@ -5906,6 +6048,11 @@ function replayCachedInspectSummaryIfEligible() {
     fi
 
     if [[ ! -r "${inspectConfigPath}" ]]; then
+        return 1
+    fi
+
+    if ! isTrustedRootFile "${inspectConfigPath}"; then
+        warning "Inspect Summary Replay: cached config is not a root-owned regular file; running full health check."
         return 1
     fi
 
@@ -5932,6 +6079,12 @@ function replayCachedInspectSummaryIfEligible() {
         return 1
     fi
 
+    configResultFilePath="$( printf '%s' "${configJSON}" | jq -r '.resultFile // empty' 2>/dev/null )"
+    if [[ "${configResultFilePath:h}" != "${inspectUserDirectory}" ]]; then
+        info "Inspect Summary Replay: cached config was generated for a different user context; running full health check."
+        return 1
+    fi
+
     notice "Inspect Summary Replay: launching cached Preset 6 summary from the last ${inspectReplayMaximumAgeSeconds} seconds."
     if launchInspectSummary "${inspectConfigPath}"; then
         return 0
@@ -5950,6 +6103,19 @@ function replayCachedInspectSummaryIfEligible() {
 
 function webHookMessage() {
 
+    local webhookDeliveryConfig=""
+    local webhookStatusJSON=""
+    local webhookComputerNameJSON=""
+    local webhookSerialNumberJSON=""
+    local webhookTimestampJSON=""
+    local webhookUserJSON=""
+    local webhookOSJSON=""
+    local webhookHealthIssuesJSON=""
+    local webhookMdmURLJSON=""
+
+    # Keep the webhook URL (a bearer credential) out of `set -x` output and the process list
+    setopt localoptions noxtrace
+
     # Generate MDM-specific `computerMdmURL`
     case "${mdmVendor}" in
         "Jamf Pro" )
@@ -5965,7 +6131,18 @@ function webHookMessage() {
             ;;
     esac
 
-    if [[ $webhookURL == *"slack"* ]]; then
+    # JSON-escape every interpolated value so names containing quotes or backslashes keep the payload valid
+    webhookStatusJSON="$( jsonEscape "${webhookStatus}" )"
+    webhookComputerNameJSON="$( jsonEscape "$( scutil --get ComputerName )" )"
+    webhookSerialNumberJSON="$( jsonEscape "${serialNumber}" )"
+    webhookTimestampJSON="$( jsonEscape "${timestamp}" )"
+    webhookUserJSON="$( jsonEscape "${loggedInUser}" )"
+    webhookOSJSON="$( jsonEscape "${osVersion} (${osBuild})" )"
+    webhookHealthIssuesJSON="$( jsonEscape "${overallHealth%%; }" )"
+    webhookMdmURLJSON="$( jsonEscape "${computerMdmURL}" )"
+    webhookDeliveryConfig="url = $( curlConfigQuote "${webhookURL}" )"
+
+    if [[ "${webhookService}" == "slack" ]]; then
         
         info "Generating Slack Message …"
         
@@ -5976,19 +6153,19 @@ function webHookMessage() {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": "Mac Health Check: '${webhookStatus}'",
+                        "text": "Mac Health Check: '${webhookStatusJSON}'",
                         "emoji": true
                     }
                 },
                 {
                     "type": "section",
                     "fields": [
-                        { "type": "mrkdwn", "text": "*Computer Name:*\n$( scutil --get ComputerName )" },
-                        { "type": "mrkdwn", "text": "*Serial:*\n${serialNumber}" },
-                        { "type": "mrkdwn", "text": "*Timestamp:*\n${timestamp}" },
-                        { "type": "mrkdwn", "text": "*User:*\n${loggedInUser}" },
-                        { "type": "mrkdwn", "text": "*OS Version:*\n${osVersion} (${osBuild})" },
-                        { "type": "mrkdwn", "text": "*Health Issues:*\n${overallHealth%%; }" }
+                        { "type": "mrkdwn", "text": "*Computer Name:*\n${webhookComputerNameJSON}" },
+                        { "type": "mrkdwn", "text": "*Serial:*\n${webhookSerialNumberJSON}" },
+                        { "type": "mrkdwn", "text": "*Timestamp:*\n${webhookTimestampJSON}" },
+                        { "type": "mrkdwn", "text": "*User:*\n${webhookUserJSON}" },
+                        { "type": "mrkdwn", "text": "*OS Version:*\n${webhookOSJSON}" },
+                        { "type": "mrkdwn", "text": "*Health Issues:*\n${webhookHealthIssuesJSON}" }
                     ]
                 },
                 {
@@ -6001,7 +6178,7 @@ function webHookMessage() {
                                 "text": "View in Jamf Pro"
                             },
                             "style": "primary",
-                            "url": "${computerMdmURL}"
+                            "url": "${webhookMdmURLJSON}"
                         }
                     ]
                 }
@@ -6010,11 +6187,16 @@ function webHookMessage() {
 EOF
 )
 
+        if ! validateJson "${webHookdata}"; then
+            warning "Slack webhook payload failed JSON validation; message not sent."
+            return 1
+        fi
+
         # Send the message to Slack
         info "Send the message to Slack …"
-        info "${webHookdata}"
+        [[ "${operationMode}" == "Debug" ]] && info "${webHookdata}"
         # Submit the data to Slack
-        curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
+        printf '%s\n' "${webhookDeliveryConfig}" | curl --config - -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" 2>&1
         webhookResult="$?"
         info "Slack Webhook Result: ${webhookResult}"
 
@@ -6036,7 +6218,7 @@ EOF
                                 "type": "TextBlock",
                                 "size": "Large",
                                 "weight": "Bolder",
-                                "text": "Mac Health Check: ${webhookStatus}"
+                                "text": "Mac Health Check: ${webhookStatusJSON}"
                             },
                             {
                                 "type": "ColumnSet",
@@ -6059,13 +6241,13 @@ EOF
                                             {
                                                 "type": "TextBlock",
                                                 "weight": "Bolder",
-                                                "text": "$( scutil --get ComputerName )",
+                                                "text": "${webhookComputerNameJSON}",
                                                 "wrap": true
                                             },
                                             {
                                                 "type": "TextBlock",
                                                 "spacing": "None",
-                                                "text": "${serialNumber}",
+                                                "text": "${webhookSerialNumberJSON}",
                                                 "isSubtle": true,
                                                 "wrap": true
                                             }
@@ -6077,10 +6259,10 @@ EOF
                             {
                                 "type": "FactSet",
                                 "facts": [
-                                    { "title": "Timestamp", "value": "${timestamp}" },
-                                    { "title": "User", "value": "${loggedInUser}" },
-                                    { "title": "Operating System", "value": "${osVersion} (${osBuild})" },
-                                    { "title": "Health Issues", "value": "${overallHealth%%; }" }
+                                    { "title": "Timestamp", "value": "${webhookTimestampJSON}" },
+                                    { "title": "User", "value": "${webhookUserJSON}" },
+                                    { "title": "Operating System", "value": "${webhookOSJSON}" },
+                                    { "title": "Health Issues", "value": "${webhookHealthIssuesJSON}" }
                                 ]
                             }
                         ],
@@ -6088,7 +6270,7 @@ EOF
                             {
                                 "type": "Action.OpenUrl",
                                 "title": "View in Jamf Pro",
-                                "url": "${computerMdmURL}"
+                                "url": "${webhookMdmURLJSON}"
                             }
                         ],
                         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
@@ -6100,11 +6282,16 @@ EOF
 EOF
 )
 
+        if ! validateJson "${webHookdata}"; then
+            warning "Microsoft Teams webhook payload failed JSON validation; message not sent."
+            return 1
+        fi
+
     # Send the message to Microsoft Teams
         info "Send the message to Microsoft Teams …"
-        curl --silent \
+        printf '%s\n' "${webhookDeliveryConfig}" | curl --config - \
+            --silent \
             --request POST \
-            --url "${webhookURL}" \
             --header 'Content-Type: application/json' \
             --data "${webHookdata}" \
             --output /dev/null
@@ -6155,7 +6342,7 @@ function quitScript() {
                 dialogUpdate "icon: SF=exclamationmark.triangle.fill, weight=bold, colour1=${statusColorError}, colour2=${statusColorError}"
                 dialogUpdate "title: Computer Needs Attention <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
             fi
-            if [[ -n "${webhookURL}" ]]; then
+            if [[ "${webhookConfigured}" == "true" ]]; then
                 info "Sending webhook message"
                 webhookStatus="Warnings Detected (${problemCheckCount} issues)"
                 webHookMessage
@@ -6169,7 +6356,7 @@ function quitScript() {
                 dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
                 dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
             fi
-            if [[ -n "${webhookURL}" ]]; then
+            if [[ "${webhookConfigured}" == "true" ]]; then
                 info "Sending webhook message"
                 webhookStatus="Failures Detected (${problemCheckCount} issues)"
                 webHookMessage
@@ -6257,15 +6444,13 @@ function quitScript() {
     rm -f "${dialogJSONFile}"
     rm -f -- /var/tmp/dialogJSONFile_${organizationScriptName}.*(N)
 
-    rm -f "${dialogOverlayIconFile}"
-    rm -f "${dialogDockIconFile}"
+    rm -rf -- "${runtimeTemporaryDirectory}"
 
     # Remove copied Dock-named swiftDialog app bundle (never remove source Dialog.app).
     if [[ -n "${dialogDockNamedApp}" ]] && [[ "${dialogDockNamedApp}" != "${dialogAppBundle}" ]] && [[ -d "${dialogDockNamedApp}" ]]; then
         rm -Rf "${dialogDockNamedApp}"
     fi
 
-    rm -f "/var/tmp/app-sso.plist"
     rm -f /var/tmp/dialog.log
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
@@ -6377,6 +6562,28 @@ preFlight "${loggedInUserFullname} (${loggedInUser}) [${loggedInUserID}]"
 if [[ $(id -u) -ne 0 ]]; then
     fatal "This script must be run as root; exiting."
 fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pre-flight Check: Secure runtime state (organizationDirectory, client-side log and legacy /var/tmp artifacts)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if ! ensureSecureRootDirectory "${organizationDirectory}" 755; then
+    fatal "Unable to secure '${organizationDirectory}' (must be a root-owned directory that is not group- or world-writable); exiting."
+fi
+
+if ! ensureSecureRootDirectory "${inspectUserRootDirectory}" 755; then
+    warning "Unable to secure '${inspectUserRootDirectory}'; Inspect Summary launch will be unavailable."
+fi
+
+# Restrict the client-side log (user, serial, network and admin details) to root and admins
+if [[ -f "${scriptLog}" ]] && [[ ! -L "${scriptLog}" ]]; then
+    chown root:admin "${scriptLog}" 2>/dev/null
+    chmod 640 "${scriptLog}" 2>/dev/null
+fi
+
+removeLegacyTemporaryArtifacts
 
 
 
@@ -6633,13 +6840,13 @@ function checkOS() {
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
         user_agent="Mac-Health-Check-checkOS/3.0.0"
 
-        # local store
-        json_cache_dir="/var/tmp/sofa"
+        # local store (root-owned; never world-writable `/var/tmp`)
+        json_cache_dir="${organizationDirectory}/sofa"
         json_cache="$json_cache_dir/macos_data_feed.json"
         etag_cache="$json_cache_dir/macos_data_feed_etag.txt"
 
         # ensure local cache folder exists
-        mkdir -p "$json_cache_dir"
+        ensureSecureRootDirectory "$json_cache_dir" 755 || warning "Unable to secure SOFA cache directory at $json_cache_dir"
 
         # use cached SOFA data if still fresh; otherwise fall through to ETag check or download
         sofaDataCached="false"
@@ -6652,26 +6859,33 @@ function checkOS() {
             else
                 logComment "Cached SOFA data is stale; removing …"
                 rm -Rf "$json_cache_dir"
-                mkdir -p "$json_cache_dir"
+                ensureSecureRootDirectory "$json_cache_dir" 755 || warning "Unable to secure SOFA cache directory at $json_cache_dir"
             fi
         fi
 
         # check local vs online using etag (skipped if using fresh cache)
         if [[ "${sofaDataCached}" != "true" ]]; then
+            # Download into same-directory temporary files; promote only a valid, non-empty feed via `mv`
+            json_download=$( mktemp "$json_cache_dir/.macos_data_feed.json.XXXXXX" 2>/dev/null )
+            etag_download=$( mktemp "$json_cache_dir/.macos_data_feed_etag.txt.XXXXXX" 2>/dev/null )
             if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
                 logComment "e-tag stored, will download only if e-tag doesn’t match"
-                etag_old=$(cat "$etag_cache")
-                curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
-                etag_new=$(cat "$etag_cache")
-                if [[ "$etag_old" == "$etag_new" ]]; then
-                    logComment "Cached ETag matched online ETag - cached json file is up to date"
-                else
-                    logComment "Cached ETag did not match online ETag, so downloaded new SOFA json file"
-                fi
+                curl --compressed --location --fail --max-time 10 --silent --etag-compare "$etag_cache" --etag-save "$etag_download" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_download"
             else
                 logComment "No e-tag cached, proceeding to download SOFA json file"
-                curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
+                curl --compressed --location --fail --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_download" --output "$json_download"
             fi
+            if [[ -s "$json_download" ]] && jq -e . "$json_download" >/dev/null 2>&1; then
+                chmod 644 "$json_download" "$etag_download" 2>/dev/null
+                mv -f "$json_download" "$json_cache"
+                [[ -s "$etag_download" ]] && mv -f "$etag_download" "$etag_cache"
+                logComment "Downloaded new SOFA json file"
+            elif [[ -f "$json_cache" ]]; then
+                logComment "Cached ETag matched online ETag (or download failed) - keeping cached json file"
+            else
+                logComment "Unable to download a valid SOFA json file"
+            fi
+            rm -f "$json_download" "$etag_download" 2>/dev/null
         fi
 
         # 1. Get model (DeviceID)
@@ -9484,7 +9698,7 @@ function checkNetworkQuality() {
 
     # sleep "${anticipationDuration}"
 
-    networkQualityTestFile="/var/tmp/networkQualityTest"
+    networkQualityTestFile="${organizationDirectory}/MacHealthCheck-NetworkQuality.txt"
 
     if [[ -e "${networkQualityTestFile}" ]]; then
 
