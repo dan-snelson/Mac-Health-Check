@@ -3,46 +3,14 @@
 ## CHANGELOG
 
 ### 5.0.0b1 (28-Sep-2026)
+- Raised the minimum required swiftDialog version to `3.1.1.4996`
+    - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4996`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
-- Added `memoryPressure` to vendor check lists, JSON reports, Inspect summaries, and the curated Development subset without changing default operation mode or exit-code semantics
 - Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails
-- Serialized canonical report writes with a shared lock and rebased targeted results onto any compatible report that changed during verification, preserving newer concurrent report data
-- Corrected targeted-run UI details by assigning compact list-item numbers before dialog launch and separating the authoritative Mac Health Check status from swiftDialog's weighted compliance score
 - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
-- Refactored `checkClockSkew()` for macOS 27 to query one DNS record with a 3-second SNTP timeout while preserving the existing 5-second outer timeout and keeping Development and Debug tracing out of captured command output
-- Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4996`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
-- Added AI-agnostic `Skills/mac-health-check-selector` skill (Agent Experience) that asks for the MDM first, walks Mac Admins through a categorized check checklist, and, after confirmation, writes a validated, date-stamped, MDM-specific copy of `Mac-Health-Check.zsh` plus a sidecar `.md` to git-ignored `Artifacts/`. The copy replaces only the chosen MDM's list-item array and its health-check `case` branch; `operationMode`, `developmentListitemJSON`, and all other settings keep script defaults for manual editing. Validation covers `zsh -n`, `jq`, row-to-call alignment, diff scope, and a Client-Side Cache simulation. The source script is never edited
-- Refactored `Skills/mac-health-check-selector` after a real Microsoft Intune run (Agent Experience):
-  - Added the tested `scripts/build-artifact.zsh` helper. It lists shipped rows per MDM, builds artifacts with zero-based renumbering, and runs validation checks 1–8 with an explicit PASS/FAIL for each. New checks cover M15 order, `scriptVersion`, an unchanged source (SHA-256), and git-ignored output. The helper replays the Client-Side Cache sanitizer extracted live from `installClientSideScript`, lists the report keys each selection removes or adds, and exits non-zero on failure without writing to `Artifacts/`.
-  - Defined the reply grammar: `no …`-only replies subtract from the defaults, ranges, category letters, and the insertion point for additions.
-  - Tightened checklist tailoring: vendor-only items move under "Not available", A5 shows the concrete app name, and Kandji apps get IDs `A5a`–`A5f`.
-  - Fixed the manual validation snippets (silent failures, `&&`/`||` precedence, uninitialized renumber counter).
-  - Dropped drifting line numbers from the references.
-  - Documented that test runs must use a Mac enrolled in the chosen MDM, because `mdmVendor` comes from `serverURL`, and that non-`Silent` test runs replace the Client-Side Cache copy
-- Refined `Skills/mac-health-check-selector` after a generic (Other / MDM-agnostic) run (Agent Experience):
-  - Split Filewave (`8`) from Other / MDM-agnostic (`9`) in the MDM question.
-  - Unified the reply grammar: every reply edits the current selection (bare IDs add, `no` removes, `only` replaces, `defaults` resets), so 4a adjustments like `H7 A4` no longer shrink the list.
-  - Defaulted A4 to Microsoft Teams, shown in 4a.
-  - Replaced `[default]` marks with `[off]` on the smaller, available-but-off group.
-  - Shortened 4a to IDs plus changes against the shipped default.
-  - `scripts/build-artifact.zsh` now:
-    - accepts `--selection -` (stdin here-doc), so no temporary file is left behind;
-    - validates selection IDs against a check-ID map;
-    - prints MDM display names (`Other / MDM-agnostic`, not `None`);
-    - flags rows borrowed from other MDM arrays, and uses the vendor-neutral Clock Skew subtitle outside Jamf Pro;
-    - writes the complete sidecar, with derived Disabled reasons and dependency notes tagged `[all]`, `[C8]`, `[C13]`, `[generic]`, `[Jamf]`, and so on.
-  - Documented that a generic test on an unenrolled Mac fails M4 as expected, and that C8 errors on Macs without Touch ID hardware
-- Added step-by-step `README.md` instructions for loading and running the `Skills/mac-health-check-selector` skill, from opening the repository in an AI assistant through artifact validation, five-mode testing, and deployment (Agent Experience)
-- Hardened runtime state against local tampering (Security):
-  - Moved the canonical report and lock, Inspect config and compliance plist, SOFA cache, and `networkQuality` cache from world-writable `/var/tmp` into root-owned `organizationDirectory` (`/Library/Management/org.churchofjesuschrist`), which pre-flight now validates as a root-owned, non-group/world-writable directory before any state is read or written; this closes a symlink-based local privilege escalation and prevents users from planting forged cached reports or SOFA data
-  - Inspect config and compliance plist now stay `root:wheel 0644` and are written atomically; root no longer `chown`s files to the logged-in user. swiftDialog's trigger, readiness, result, and launch-log files move into a per-user `organizationDirectory/Inspect/<user>` directory that root creates but never writes inside, and cached replay is skipped when the config was generated for a different user context
-  - Cached reports (Client-Side Cache and targeted `Self Service` verification) and replayed Inspect configs are trusted only when they are root-owned regular files
-  - Downloaded dock/overlay icons and the Kerberos `app-sso` plist now use a per-run `mktemp -d` directory removed on exit; SOFA downloads use `--fail`, a timeout, and same-directory temporary files promoted only when valid JSON
-  - Root-owned, non-symlink pre-`5.0.0` leftovers at the old fixed `/var/tmp` paths are removed automatically; `/var/tmp/MacHealthCheck-Force-Fresh-Run` is unchanged
-  - Splunk HEC token and webhook URL are passed to `curl` via `--config -` on stdin instead of argv, `Debug` mode's `set -x` now starts after parameter parsing, and secret-handling functions disable xtrace locally
-  - Webhook payload values are JSON-escaped and the payload is validated before sending; the full payload is logged only in `Debug`
-  - The client-side log is now `root:admin 0640`
+- Introduced a dedicated AI Skill to assist Mac Admins with custom deployment
+- Hardened code based on Monocle findings
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27
@@ -52,7 +20,7 @@
 - Standardized `checkUptime()`
 
 ### 4.0.0 (16-Jul-2026)
-- Raised the minimum required swiftDialog version to `3.1.1.4996` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build
+- Raised the minimum required swiftDialog version to `3.1.0.4994` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build
 - Added JSON health reporting with optional Splunk HTTP Event Collector (HEC) delivery, plus stricter cached-report validation so failed cached uploads no longer look like successful report generation
 - Added the Inspect Mode-flavored end-user report (`inspectSummaryPreset="on"`) for `Self Service`, including cached replay via `inspectReplayMaximumAgeSeconds`, `Next Steps`, `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, and a stronger unhealthy-results hierarchy
 - Updated the generated and detached Preset 6 Inspect configs and demo assets for swiftDialog `3.1.0.4979` compliance findings with live compliance plist sources, trigger/readiness/result control paths, source-level labels, plist-backed detail sheets, non-plist `detailOverlay` support, renderer-owned 6 / 12 / 24 / 36pt spacing, an explicit `12`-point bento-grid gap, and stricter validation for highlight content
