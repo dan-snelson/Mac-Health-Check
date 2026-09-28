@@ -1,6 +1,6 @@
 # Mac Health Check — Health Check Reference
 
-Companion reference for the `mac-health-check-selector` skill. Derived from `Mac-Health-Check.zsh` `5.0.0b1`. When this file and the script disagree, the script wins.
+Companion reference for the `mac-health-check-selector` skill. Derived from `Mac-Health-Check.zsh` `5.0.0b1`. When this file and the script disagree, the script wins. `scripts/build-artifact.zsh --list <slug>` prints the script's current rows and calls for any MDM.
 
 ## How the pieces fit
 
@@ -14,29 +14,33 @@ Rules that keep them aligned:
 - Index `n` in `runConfiguredHealthCheck "n"` is the zero-based position of the matching row in the list-item array.
 - The row icon is `SF=NN.circle`, where `NN` is `n + 1`, zero-padded to two digits (`01`, `02`, … `42`).
 - The last array element has no trailing comma.
-- The row `title` becomes the stable report key through `sanitizeCheckKey` (lowercase, non-alphanumerics → `_`). `Memory Pressure` is special-cased to `memoryPressure`. Renaming a title renames its key.
+- The row `title`, after `'${mdmVendor}'` expands at runtime, becomes the stable report key through `sanitizeCheckKey` (lowercase, non-alphanumerics → `_`, doubled `_` collapsed once, one leading and trailing `_` trimmed). `Memory Pressure` is special-cased to `memoryPressure`. Renaming or dropping a title renames or drops its key.
+  - Examples: `Electron Corner Mask` → `electron_corner_mask`; `Gatekeeper / XProtect` → `gatekeeper__xprotect`; M1 on Intune → `microsoft_intune_mdm_profile`.
+  - `scripts/build-artifact.zsh` loads `sanitizeCheckKey` from the source script and lists the keys removed or added for each artifact.
 - `Development` mode ignores the MDM arrays. It uses `developmentListitemJSON` and calls check functions directly (for example `checkClockSkew "0"`), without `runConfiguredHealthCheck`.
 - `Test` mode uses the MDM array but runs no real checks; it walks every row and marks it compliant.
 
 ## Script-to-selector MDM map
 
-| Selector choice | `mdmVendor` value | List-item array | `serverURL` match | Profile lookup |
-|---|---|---|---|---|
-| Jamf Pro | `Jamf Pro` | `jamfProListitemJSON` | `*jamf*` or `*jss*` | `mdmVendorUuid` |
-| Fleet | `Fleet` | `fleetMdmListitemJSON` | `*fleet*` | `mdmVendorUuid` |
-| JumpCloud | `JumpCloud` | `jumpcloudMdmListitemJSON` | `*jumpcloud*` | `mdmProfileIdentifier` |
-| Microsoft Intune | `Microsoft Intune` | `microsoftMdmListitemJSON` | `*microsoft*` | `mdmVendorUuid` |
-| Mosyle | `Mosyle` | `mosyleListitemJSON` | `*mosyle*` | `mdmProfileIdentifier` |
-| Kandji / Iru | `Kandji` | `kandjiMdmListitemJSON` | `*kandji*` | `mdmProfileIdentifier` |
-| Addigy | `Addigy` | `addigyMdmListitemJSON` | `*addigy*` | `mdmVendorUuid` (blank by default) |
-| Filewave | `Filewave` | `filewaveMdmListitemJSON` | `*filewave*` | `mdmProfileIdentifier` |
-| Other / MDM-agnostic | `None` (falls to `*`) | `genericMdmListitemJSON` | no match | none |
+| # | Selector choice (display name) | `mdmVendor` value | List-item array | `serverURL` match | Profile lookup |
+|---|---|---|---|---|---|
+| 1 | Jamf Pro | `Jamf Pro` | `jamfProListitemJSON` | `*jamf*` or `*jss*` | `mdmVendorUuid` |
+| 2 | Fleet | `Fleet` | `fleetMdmListitemJSON` | `*fleet*` | `mdmVendorUuid` |
+| 3 | JumpCloud | `JumpCloud` | `jumpcloudMdmListitemJSON` | `*jumpcloud*` | `mdmProfileIdentifier` |
+| 4 | Microsoft Intune | `Microsoft Intune` | `microsoftMdmListitemJSON` | `*microsoft*` | `mdmVendorUuid` |
+| 5 | Mosyle | `Mosyle` | `mosyleListitemJSON` | `*mosyle*` | `mdmProfileIdentifier` |
+| 6 | Kandji / Iru | `Kandji` | `kandjiMdmListitemJSON` | `*kandji*` | `mdmProfileIdentifier` |
+| 7 | Addigy | `Addigy` | `addigyMdmListitemJSON` | `*addigy*` | `mdmVendorUuid` (blank by default) |
+| 8 | Filewave | `Filewave` | `filewaveMdmListitemJSON` | `*filewave*` | `mdmProfileIdentifier` |
+| 9 | Other / MDM-agnostic | `None` (falls to `*`) | `genericMdmListitemJSON` | no match, or not enrolled | none |
+
+The display name is what the helper prints and what the sidecar uses; `mdmVendor` is the script value.
 
 Notes:
 
 - An Iru-branded server URL that does not contain `kandji` falls through to the generic branch; add a pattern to the `case "${serverURL}" in` block if needed.
 - Addigy ships with `mdmVendorUuid=""`; the MDM Profile check needs a UUID or identifier to pass.
-- The generic branch omits MDM Profile and MDM Certificate Expiration because no vendor profile or certificate name is known.
+- The generic branch omits MDM Profile and MDM Certificate Expiration because no vendor profile or certificate name is known. It also runs on unenrolled Macs (logged as `Unknown MDM vendor: None`), where M4 Apple Push Notification service fails.
 
 ## Artifact anchors per MDM
 
@@ -44,30 +48,26 @@ Used by `references/artifact-procedure.md`.
 
 - **Region A** runs from the array start line (column 1) through the next line that is exactly `'`.
 - **Region B** runs from the branch label line (12 spaces) through the next `                ;;`. It sits inside the first `        case ${mdmVendor} in` after the header `# Generate Health Checks based on Operation Mode and MDM Vendor`.
-- Line numbers are approximate as of `5.0.0b1` and are for orientation only. Always anchor on the text.
+- This file lists no line numbers because they drift with every release. Always anchor on the text. `zsh scripts/build-artifact.zsh --list <slug>` prints the live ranges.
 
-| Slug | Region A start line | Region B label line | ~Region A | ~Region B |
-|---|---|---|---|---|
-| `addigy` | `addigyMdmListitemJSON='` | `"Addigy" )` | 1420–1456 | 10309–10343 |
-| `filewave` | `filewaveMdmListitemJSON='` | `"Filewave" )` | 1470–1505 | 10345–10378 |
-| `fleet` | `fleetMdmListitemJSON='` | `"Fleet" )` | 1519–1555 | 10380–10414 |
-| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` | 1569–1603 | 10497–10530 |
-| `jamf-pro` | `jamfProListitemJSON='` | `"Jamf Pro" )` | 1617–1662 | 10416–10459 |
-| `jumpcloud` | `jumpcloudMdmListitemJSON='` | `"JumpCloud" )` | 1677–1713 | 10461–10495 |
-| `microsoft-intune` | `microsoftMdmListitemJSON='` | `"Microsoft Intune" )` | 1728–1764 | 10532–10566 |
-| `mosyle` | `mosyleListitemJSON='` | `"Mosyle" )` | 1779–1816 | 10568–10603 |
-| `generic` | `genericMdmListitemJSON='` | `* )` | 1831–1863 | 10605–10635 |
+| Slug | Region A start line | Region B label line |
+|---|---|---|
+| `addigy` | `addigyMdmListitemJSON='` | `"Addigy" )` |
+| `filewave` | `filewaveMdmListitemJSON='` | `"Filewave" )` |
+| `fleet` | `fleetMdmListitemJSON='` | `"Fleet" )` |
+| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` |
+| `jamf-pro` | `jamfProListitemJSON='` | `"Jamf Pro" )` |
+| `jumpcloud` | `jumpcloudMdmListitemJSON='` | `"JumpCloud" )` |
+| `microsoft-intune` | `microsoftMdmListitemJSON='` | `"Microsoft Intune" )` |
+| `mosyle` | `mosyleListitemJSON='` | `"Mosyle" )` |
+| `generic` | `genericMdmListitemJSON='` | `* )` |
 
 Pitfalls:
 
 - Array names are inconsistent. Most end in `MdmListitemJSON`, but Jamf Pro is `jamfProListitemJSON` and Mosyle is `mosyleListitemJSON`.
-- The Kandji array closes `]` on its last row. Replacements always put `]` on its own line.
-- Vendor labels also appear in other `case` blocks: configuration (~L611), help message (~L1362), report JSON (~L3056), webhooks (~L5954), `quitScript` (~L6142), MDM certificate names (~L8582), and dialog JSON merging (~L10140). Never anchor on the label alone.
-
-Development (`_development` artifacts):
-
-- **Region A′:** `    developmentListitemJSON='` through the next `    '` (~L10121–10126), after `# Generate dialogJSONFile based on Operation Mode and MDM Vendor`.
-- **Region B′:** the lines strictly between `    # set -x` and `    # set +x` (~L10291–10292), inside the Development `if` after the Generate Health Checks header.
+- Kandji's Cortex and Netskope rows carry trailing whitespace after `},`. Strip trailing whitespace before handling commas.
+- Vendor labels also appear in other `case` blocks: configuration, help message, report JSON, webhooks, `quitScript`, MDM certificate names, and dialog JSON merging. Never anchor on the label alone.
+- Every shipped MDM region pairs row `i` with call `i` and holds only `runConfiguredHealthCheck` lines; the helper stops with exit `2` if that stops being true.
 
 Client-Side Cache constraint:
 
@@ -77,6 +77,8 @@ Client-Side Cache constraint:
 ## Master check table
 
 Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` = needs a known `mdmVendor`; `Ext` = needs an external-check script plus a Jamf Pro policy trigger.
+
+`scripts/build-artifact.zsh` carries the same ID-to-title map (including Kandji `A5a`–`A5f`) and restricted-availability list; update both when a check, title, or availability changes.
 
 ### Core OS & Security (C)
 
@@ -89,12 +91,12 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 | C5 | Firewall | `checkFirewall` | All | Honors `organizationFirewall` |
 | C6 | FileVault Encryption | `checkFileVault` | All | |
 | C7 | Gatekeeper / XProtect | `checkGatekeeperXProtect` | All | |
-| C8 | Touch ID | `checkTouchID` | All | |
+| C8 | Touch ID | `checkTouchID` | All | Reports `error` when Touch ID hardware is absent (VMs, desktops without a Touch ID keyboard) |
 | C9 | Password Hint | `checkPasswordHint` | All | Not in Jamf Pro or Kandji defaults |
 | C10 | AirDrop | `checkAirDropSettings` | All | Not in Kandji or generic defaults |
 | C11 | AirPlay Receiver | `checkAirPlayReceiver` | All | macOS 27 missing-key aware |
 | C12 | Bluetooth Sharing | `checkBluetoothSharing` | All | macOS 27 missing-domain aware |
-| C13 | VPN Client | `checkVPN` | All | Honors organization VPN settings |
+| C13 | VPN Client | `checkVPN` | All | Honors `vpnClientVendor` (shipped `paloalto`) and `vpnClientDataType`; fails when that client is absent |
 
 ### Maintenance & Hygiene (H)
 
@@ -106,7 +108,7 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 | H4 | Downloads Size and Item Count | `checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"` | All | Kandji default uses icon `arrow.down.circle.fill` |
 | H5 | Trash Size and Item Count | `checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"` | All | User-scoped |
 | H6 | Memory Pressure | `checkMemoryPressure` | All | Warning-only; root-only 14-day JSON Lines history; warns when yellow/red pressure appears on 2 distinct days within 7 days |
-| H7 | Clock Skew | `checkClockSkew` | All (Jamf default) | Flags skew over 5 minutes against `time.apple.com`; hides dialog updates in `Silent` and `Test` |
+| H7 | Clock Skew | `checkClockSkew` | All (Jamf default) | Flags skew over 5 minutes against `time.apple.com`; hides dialog updates in `Silent` and `Test`. Outside Jamf Pro the helper uses the neutral subtitle below |
 
 ### MDM & Connectivity (M)
 
@@ -157,12 +159,21 @@ Scripts shipped in `external-checks/`: BeyondTrust Privileged Access Management,
 
 ### MDM agent apps (A5 and friends)
 
-| MDM | Title | `checkInternal` args |
-|---|---|---|
-| Fleet | Fleet Desktop | `"/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"` |
-| Microsoft Intune | Microsoft Company Portal | `"/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"` |
-| Mosyle | `'${mdmVendor}' Self-Service` | `"/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"` |
-| Kandji / Iru | Microsoft One Drive, Microsoft Outlook, Company Portal, Zoom, Cortex, Netskope | `"/Applications/OneDrive.app" …`, `"/Applications/Microsoft Outlook.app" …`, `"/Applications/Company Portal.app" …`, `"/Applications/zoom.us.app" …`, `"/Applications/Cortex XDR.app" …`, `"/Applications/Netskope Client.app" …` (path repeated as icon, then display name) |
+Show A5 in the checklist with the concrete title for the chosen MDM. Jamf Pro, JumpCloud, Addigy, Filewave, and Other ship no agent app; list A5 under "Not available" and offer an A4-style custom app instead.
+
+| MDM | ID | Title | `checkInternal` args |
+|---|---|---|---|
+| Fleet | A5 | Fleet Desktop | `"/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "/opt/orbit/bin/desktop/macos/stable/Fleet Desktop.app" "Fleet Desktop"` |
+| Microsoft Intune | A5 | Microsoft Company Portal | `"/Applications/Company Portal.app" "/Applications/Company Portal.app" "Microsoft Company Portal"` |
+| Mosyle | A5 | `'${mdmVendor}' Self-Service` | `"/Applications/Self-Service.app" "/Applications/Self-Service.app" "Self-Service"` |
+| Kandji / Iru | A5a | Microsoft One Drive | `"/Applications/OneDrive.app" …` |
+| Kandji / Iru | A5b | Microsoft Outlook | `"/Applications/Microsoft Outlook.app" …` |
+| Kandji / Iru | A5c | Company Portal | `"/Applications/Company Portal.app" …` |
+| Kandji / Iru | A5d | Zoom | `"/Applications/zoom.us.app" …` |
+| Kandji / Iru | A5e | Cortex | `"/Applications/Cortex XDR.app" …` |
+| Kandji / Iru | A5f | Netskope | `"/Applications/Netskope Client.app" …` |
+
+Kandji rows repeat the path as the icon, then the display name. On Kandji, `A5` in a reply means all six.
 
 ## List-item JSON templates
 
@@ -188,7 +199,7 @@ H3  {"title" : "Desktop Size and Item Count", "subtitle" : "Checks the size and 
 H4  {"title" : "Downloads Size and Item Count", "subtitle" : "Checks the size and item count of the Downloads folder", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 H5  {"title" : "Trash Size and Item Count", "subtitle" : "Checks the size and item count of the Trash", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 H6  {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
-H7  {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com before Jamf Pro inventory submission", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+H7  {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 M1  {"title" : "'${mdmVendor}' MDM Profile", "subtitle" : "The presence of the '${mdmVendor}' MDM profile helps ensure your Mac is enrolled", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 M2  {"title" : "Entra ID Registration", "subtitle" : "Checks Microsoft Entra registration for current user context", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 M3  {"title" : "'${mdmVendor}' MDM Certificate Expiration", "subtitle" : "Validate the expiration date of the '${mdmVendor}' MDM certificate", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
@@ -225,20 +236,22 @@ A10 {"title" : "<Display Name>", "subtitle" : "<One short, action-oriented sente
 F1  {"title" : "Computer Inventory", "subtitle" : "The listing of your Mac’s apps and settings", "icon" : "SF=NN.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
 ```
 
-The shipped A9 subtitle names one organization's network; the template uses a placeholder instead. The Kandji A5 rows are the Kandji app set (OneDrive, Outlook, Company Portal, Zoom, Cortex, Netskope). For Kandji, `checkUserDirectorySizeItems "Downloads"` uses the icon `arrow.down.circle.fill`.
+The shipped A9 subtitle names one organization's network; the template uses a placeholder instead. The shipped Jamf Pro H7 subtitle ends "before Jamf Pro inventory submission"; the template and every non-Jamf artifact use the vendor-neutral subtitle (the same one `developmentListitemJSON` uses). The Kandji A5 rows are the Kandji app set (OneDrive, Outlook, Company Portal, Zoom, Cortex, Netskope). For Kandji, `checkUserDirectorySizeItems "Downloads"` uses the icon `arrow.down.circle.fill`.
 
 When building an artifact, copy rows verbatim from the chosen MDM's array in the source first. Use these templates only as a fallback.
 
 ## Shipped default order per MDM
 
-Each list is the shipped order, index `0` first. Use it as the **Full Self Service** preset for that MDM.
+Each list is the shipped order, index `0` first. Use it as the default selection (`defaults`) for that MDM. Verified against `5.0.0b1` with `scripts/build-artifact.zsh --list <slug>`; rerun it each session and trust the script if they differ.
+
+Every list ends with `M14 H6 M15` (plus `F1` for Jamf Pro). Available non-default additions go immediately before the first remaining item of that tail (see **Reply grammar** in `SKILL.md`).
 
 - **Jamf Pro (42):** C1 C2 C3 C4 C5 C6 C7 C8 C10 C11 C12 C13 H1 H2 H3 H4 H5 M1 M2 M3 M4 M5 M6 H7 M8 M9 M10 M11 M12 M13 A1 A2 A3 A4 A6 A7 A8 A9 M14 H6 M15 F1
 - **Fleet (33):** C1 C2 A1 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C9 C10 C11 C12 M1 M3 M4 M8 M9 M10 M11 M12 A5(Fleet Desktop) A2 A3 M14 H6 M15
 - **JumpCloud (33):** C1 C2 A1 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C9 C10 C11 C12 M1 M3 M4 M8 M9 M10 M11 M12 A4 A2 A3 M14 H6 M15
 - **Microsoft Intune (33):** C1 C2 A1 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C9 C10 C11 C12 M1 M3 M4 M8 M9 M10 M11 M12 A5(Microsoft Company Portal) A2 A3 M14 H6 M15
 - **Mosyle (34):** C1 C2 A1 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C9 C10 C11 C12 M1 M3 M4 M7 M8 M9 M10 M11 M12 A5(Self-Service) A2 A3 M14 H6 M15
-- **Kandji / Iru (32):** C1 C2 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C12 M3 M4 M8 M9 M10 M11 M12 A4 then Kandji app set (OneDrive, Outlook, Company Portal, Zoom, Cortex, Netskope) M14 H6 M15
+- **Kandji / Iru (32):** C1 C2 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C12 M3 M4 M8 M9 M10 M11 M12 A4 A5a A5b A5c A5d A5e A5f M14 H6 M15
 - **Addigy (33):** same as JumpCloud
 - **Filewave (32):** same as JumpCloud without A4
 - **Generic / Other (29):** C1 C2 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C9 C10 C11 C12 M4 M8 M9 M10 M11 M12 A2 A3 M14 H6 M15
@@ -263,4 +276,4 @@ Matching calls:
     checkMemoryPressure "1"
 ```
 
-Development is for fast iteration on the checks being changed, not a representative run.
+Development is for fast iteration on the checks being changed, not a representative run. Artifacts leave this subset untouched; admins edit it manually.

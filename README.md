@@ -41,7 +41,7 @@ Administrators can customize the user interface using swiftDialog’s visual cap
 
 Mac Health Check is particularly valuable in IT support workflows, serving as an initial triage point for Tier 1 support by confirming network access, credentials, and MDM connectivity, while also acting as a verification tool for Tier 2 teams both during and after remediation efforts.
 
-### :new: Enterprise Reporting
+### Enterprise Reporting
 
 The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `5.0.0b1` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.1.4996` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
 
@@ -60,7 +60,7 @@ The tool logs results for review, writes a structured JSON health report locally
 
 See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md) for copy/paste Splunk SPL, Simple XML, and Dashboard Studio starter examples.
 
-### :new: End-user Reporting
+### End-user Reporting
 
 The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables healthy-result cached replay; `off` disables asset generation, launch, and replay. Unresolved findings take precedence over replay and trigger targeted verification when the canonical report is eligible.
 
@@ -155,16 +155,14 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 ## Features
 The following health checks and information reporting are included in version `5.0.0b1`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
 
-> :new: Mac Health Check version `5.0.0b1` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.1.4996` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
+> Mac Health Check version `5.0.0b1` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.1.4996` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
 
 
 
 ### Health Checks
 
-:tada: Improved in version `5.0.0b1`
-
 1. macOS Version
-1. :tada: Available Updates (including deferred, staged, and DDM-enforced updates)
+1. Available Updates (including deferred, staged, and DDM-enforced updates)
 1. System Integrity Protection
 1. Signed System Volume (SSV)
 1. Firewall
@@ -174,9 +172,9 @@ The following health checks and information reporting are included in version `5
 1. Password Hint
 1. AirDrop
 1. AirPlay Receiver
-1. :tada: Bluetooth Sharing
+1. Bluetooth Sharing
 1. VPN Client
-1. :tada: Last Reboot
+1. Last Reboot
 1. Free Disk Space
 1. User's Directory Size and Item Count
     - Desktop
@@ -205,7 +203,7 @@ The following health checks and information reporting are included in version `5
 1. Cisco Umbrella*
 1. CrowdStrike Falcon*
 1. Palo Alto GlobalProtect*
-1. Memory Pressure
+1. :new: Memory Pressure
 1. Network Quality Test
 1. Update Computer Inventory**
 
@@ -224,7 +222,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 
 <img src="images/MHC_3.2.0_Helpmessage.png" alt="In progress" width="800"/>
 
-#### :new: JSON / Splunk Reporting
+#### JSON / Splunk Reporting
 - Generates a structured JSON health report at the end of every run
 - Saves the report locally to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
 - Keeps `/var/tmp/MacHealthCheck-Report.json` as the canonical root-only report artifact
@@ -240,7 +238,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - Requires `jq` for JSON validation and formatting, with local report generation and Splunk payload assembly stopping at pre-flight if `jq` is unavailable
 - Includes copy/paste Splunk SPL, Simple XML, and Dashboard Studio starter examples in [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md)
 
-#### :new: Inspect Mode Summary
+#### Inspect Mode Summary
 - `Self Service` and full `Silent` health-check runs now generate `/var/tmp/MacHealthCheck-Inspect-Config.json` directly from finalized in-memory results
 - `Self Service` and full `Silent` health-check runs also generate `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
 - The generated config includes `/var/tmp/MacHealthCheck-Inspect.trigger`, `/var/tmp/MacHealthCheck-Inspect.ready` and `/var/tmp/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
@@ -396,7 +394,23 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 ### :new: Choosing Health Checks with an AI Assistant
 
-[`Skills/mac-health-check-selector`](Skills/mac-health-check-selector/SKILL.md) is an AI-agnostic skill for choosing which checks to enable. It asks which MDM you use, presents a categorized checklist with presets (Full Self Service, Silent, Development, Minimal triage, Custom), and, after you confirm, writes an edited, MDM-specific, date-stamped copy to `Artifacts/Mac-Health-Check_<mdm-slug>_<YYYY-MM-DD-HHMMSS>.zsh`, with a sidecar `.md` that records the selection. Only the MDM's list-item array and its matching `runConfiguredHealthCheck` branch change (for Development, `developmentListitemJSON` and its direct calls). The skill validates each artifact with `zsh -n`, `jq`, a row-to-call alignment check, a diff-scope check, and a Client-Side Cache simulation. Before deploying, test the artifact on one Mac in all five modes. `Mac-Health-Check.zsh` itself is never modified, and `Artifacts/` is git-ignored (see [`Artifacts/README.md`](Artifacts/README.md)).
+[`Skills/mac-health-check-selector`](Skills/mac-health-check-selector/SKILL.md) is an AI-agnostic skill for choosing which checks to enable. It asks which MDM you use, presents a categorized checklist, and, after you confirm, writes an edited, MDM-specific, date-stamped copy to `Artifacts/Mac-Health-Check_<mdm-slug>_<YYYY-MM-DD-HHMMSS>.zsh`, with a sidecar `.md` that records the selection. Only the MDM's list-item array and its matching `runConfiguredHealthCheck` branch change; `operationMode`, `developmentListitemJSON`, and every other setting keep their `Mac-Health-Check.zsh` defaults, so edit the artifact manually to change them. The skill builds and validates each artifact with its tested helper, `Skills/mac-health-check-selector/scripts/build-artifact.zsh`. The helper prints an explicit PASS or FAIL for `zsh -n`, `jq`, row-to-call alignment (including M15 and F1 order), diff scope, a Client-Side Cache simulation, `scriptVersion`, an unchanged source, and git-ignored output. It exits non-zero on any failure, and a failed build never lands in `Artifacts/`. Before deploying, test the artifact in all five modes on one Mac enrolled in the chosen MDM. `Mac-Health-Check.zsh` itself is never modified, and `Artifacts/` is git-ignored (see [`Artifacts/README.md`](Artifacts/README.md)).
+
+#### Step-by-step
+
+1. **Get the repository.** Clone `dan-snelson/Mac-Health-Check` or download a `5.0.0b1`+ release. The skill reads `Mac-Health-Check.zsh` from the same folder tree.
+1. **Open the repository root in an AI assistant that can read and write local files and run shell commands** (for example, Claude Code, Codex CLI, Cursor, or GitHub Copilot agent mode). Without file access, the skill prints the artifact and sidecar as code blocks for you to save under `Artifacts/` yourself.
+1. **Load the skill.** Prompt: `Read Skills/mac-health-check-selector/SKILL.md and follow it to help me choose Mac Health Check checks.` Assistants that honor `AGENTS.md` pick it up automatically.
+   - Claude Code (optional): `mkdir -pv .claude/skills && ln -s ../../Skills/mac-health-check-selector .claude/skills/mac-health-check-selector`, then run `/mac-health-check-selector`.
+1. **Answer the MDM question** (`1`–`9`; Filewave is `8`, Other / MDM-agnostic is `9`). Kandji / Iru admins: confirm your server URL, because only URLs containing `kandji` are detected.
+1. **Pick checks** from the categorized checklist with IDs, ranges, or categories. Every reply changes the current list: `H7 A4` adds, `no A3` removes, `only C, H1-H6, M4` picks exactly those, and `defaults` resets. Unmarked checks are on by default, `[off]` checks are available but off, and `*` marks external checks (Jamf Pro only). A4 uses Microsoft Teams unless you name another app.
+1. **Review the confirmation summary** (MDM, enabled check IDs, changes against the shipped default, artifact name), then reply `yes`, or adjust with the same grammar. Nothing is written before you confirm.
+1. **Check the results.** The assistant reports the artifact path, the sidecar `.md` path, PASS/FAIL for validation checks 1–8, and the report keys the change removes or adds (for example, `electron_corner_mask`). The helper writes the complete sidecar, including every disabled check with its reason and the dependency notes that apply. Only passing artifacts are written to `Artifacts/`.
+1. **Adjust other settings manually** (for example, `operationMode` or external-check triggers) in the artifact if needed, then re-run `zsh -n` on it.
+1. **Test on one Mac enrolled in the chosen MDM** in all five modes:
+   `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not your selection. The script picks its MDM branch from the enrolled server URL, so a Mac enrolled in a different MDM runs that MDM's unedited checks. Non-`Silent` test runs also replace the Mac's Client-Side Cache copy and LaunchDaemon; re-run your production policy afterwards.
+1. **Deploy** the artifact as your MDM script. Keep `Debug` and `Development` out of production policies, and expect the first Self Service run to be a full run (`check_set_mismatch`).
+1. **Keep artifacts out of version control** (`Artifacts/` is git-ignored), and build a fresh artifact after each Mac Health Check upgrade or for each additional MDM.
 
 
 

@@ -12,7 +12,28 @@
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Refactored `checkClockSkew()` for macOS 27 to query one DNS record with a 3-second SNTP timeout while preserving the existing 5-second outer timeout and keeping Development and Debug tracing out of captured command output
 - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4996`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
-- Added AI-agnostic `Skills/mac-health-check-selector` skill (Agent Experience) that asks for the MDM first, walks Mac Admins through a categorized check checklist and presets, and, after confirmation, writes a validated, date-stamped, MDM-specific copy of `Mac-Health-Check.zsh` plus a sidecar `.md` to git-ignored `Artifacts/`. The copy replaces only the chosen MDM's list-item array and its health-check `case` branch. Validation covers `zsh -n`, `jq`, row-to-call alignment, diff scope, and a Client-Side Cache simulation. The source script is never edited
+- Added AI-agnostic `Skills/mac-health-check-selector` skill (Agent Experience) that asks for the MDM first, walks Mac Admins through a categorized check checklist, and, after confirmation, writes a validated, date-stamped, MDM-specific copy of `Mac-Health-Check.zsh` plus a sidecar `.md` to git-ignored `Artifacts/`. The copy replaces only the chosen MDM's list-item array and its health-check `case` branch; `operationMode`, `developmentListitemJSON`, and all other settings keep script defaults for manual editing. Validation covers `zsh -n`, `jq`, row-to-call alignment, diff scope, and a Client-Side Cache simulation. The source script is never edited
+- Refactored `Skills/mac-health-check-selector` after a real Microsoft Intune run (Agent Experience):
+  - Added the tested `scripts/build-artifact.zsh` helper. It lists shipped rows per MDM, builds artifacts with zero-based renumbering, and runs validation checks 1–8 with an explicit PASS/FAIL for each. New checks cover M15 order, `scriptVersion`, an unchanged source (SHA-256), and git-ignored output. The helper replays the Client-Side Cache sanitizer extracted live from `installClientSideScript`, lists the report keys each selection removes or adds, and exits non-zero on failure without writing to `Artifacts/`.
+  - Defined the reply grammar: `no …`-only replies subtract from the defaults, ranges, category letters, and the insertion point for additions.
+  - Tightened checklist tailoring: vendor-only items move under "Not available", A5 shows the concrete app name, and Kandji apps get IDs `A5a`–`A5f`.
+  - Fixed the manual validation snippets (silent failures, `&&`/`||` precedence, uninitialized renumber counter).
+  - Dropped drifting line numbers from the references.
+  - Documented that test runs must use a Mac enrolled in the chosen MDM, because `mdmVendor` comes from `serverURL`, and that non-`Silent` test runs replace the Client-Side Cache copy
+- Refined `Skills/mac-health-check-selector` after a generic (Other / MDM-agnostic) run (Agent Experience):
+  - Split Filewave (`8`) from Other / MDM-agnostic (`9`) in the MDM question.
+  - Unified the reply grammar: every reply edits the current selection (bare IDs add, `no` removes, `only` replaces, `defaults` resets), so 4a adjustments like `H7 A4` no longer shrink the list.
+  - Defaulted A4 to Microsoft Teams, shown in 4a.
+  - Replaced `[default]` marks with `[off]` on the smaller, available-but-off group.
+  - Shortened 4a to IDs plus changes against the shipped default.
+  - `scripts/build-artifact.zsh` now:
+    - accepts `--selection -` (stdin here-doc), so no temporary file is left behind;
+    - validates selection IDs against a check-ID map;
+    - prints MDM display names (`Other / MDM-agnostic`, not `None`);
+    - flags rows borrowed from other MDM arrays, and uses the vendor-neutral Clock Skew subtitle outside Jamf Pro;
+    - writes the complete sidecar, with derived Disabled reasons and dependency notes tagged `[all]`, `[C8]`, `[C13]`, `[generic]`, `[Jamf]`, and so on.
+  - Documented that a generic test on an unenrolled Mac fails M4 as expected, and that C8 errors on Macs without Touch ID hardware
+- Added step-by-step `README.md` instructions for loading and running the `Skills/mac-health-check-selector` skill, from opening the repository in an AI assistant through artifact validation, five-mode testing, and deployment (Agent Experience)
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27

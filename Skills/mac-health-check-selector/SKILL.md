@@ -1,23 +1,25 @@
 ---
 name: mac-health-check-selector
-description: Interactively prompts a Mac Admin to select which health checks to enable or disable in Mac Health Check (dan-snelson/Mac-Health-Check). Use when customizing MHC list items, health-check functions, operationMode subsets, Development mode curated checks, external checks, or generating a tailored, validated, MDM-specific and date-stamped copy of Mac-Health-Check.zsh in Artifacts/ for Self Service, Silent, Debug, Development or Test modes. Triggers on phrases like "Mac Health Check checks", "which MHC checks", "customize MHC health checks", "select health checks for Mac Health Check", "MHC list items", or any request to choose or configure Mac Health Check compliance checks.
+description: Interactively prompts a Mac Admin to select which health checks to enable or disable in Mac Health Check (dan-snelson/Mac-Health-Check). Use when customizing MHC list items, health-check functions, external checks, or generating a tailored, validated, MDM-specific and date-stamped copy of Mac-Health-Check.zsh in Artifacts/. Triggers on phrases like "Mac Health Check checks", "which MHC checks", "customize MHC health checks", "select health checks for Mac Health Check", "MHC list items", or any request to choose or configure Mac Health Check compliance checks.
 ---
 
 # Mac Health Check Selector
 
 Guide a Mac Admin through choosing which Mac Health Check (MHC) health checks to show and run, then write an edited, MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/`, plus a sidecar `.md` that records the selection and validation results.
 
-Target: the `5.0.0b1` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. Read both files before generating output. When it disagrees with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
+Target: the `5.0.0b1` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
 
 ## Ground rules
 
 - Ask the MDM question first, every time. Do not skip, merge, or bury it.
 - Ask one step at a time. Wait for the answer before moving on.
-- Use numbered lists and check IDs (such as `C1`, `M5`) so any reply like `C1-C8, H, M4, no A6` can be parsed without ambiguity.
+- Use numbered lists and check IDs (such as `C1`, `M5`) so replies parse without ambiguity (see **Reply grammar**).
 - Be non-destructive. Never edit `Mac-Health-Check.zsh` in place; write only to `Artifacts/`. Never commit or deploy anything.
 - Use placeholders for anything organization-specific: `<YOUR_ORG_NAME>`, `<YOUR_WEBHOOK_URL>`, `<YOUR_SPLUNK_HEC_URL>`, `<YOUR_SPLUNK_HEC_TOKEN>`, `<YOUR_POLICY_TRIGGER>`, `<YOUR_ORGANIZATION_NETWORK>`. Never invent real URLs, tokens, or branding.
 - Keep user-facing subtitles short and action-oriented.
 - Accept "defaults", "same as shipped", or "recommend for me" at any step; pick the shipped default and say so.
+- Change only which checks run. Every other setting keeps its `Mac-Health-Check.zsh` default (`operationMode`, `mdmVendorUuid`, external-check triggers, targeted remediation verification, `developmentListitemJSON`). Admins who want those changed edit the artifact manually.
+- Leave only passing artifacts in `Artifacts/`. A build that fails validation is never written there.
 
 ## Step 1 — Ask which MDM is in use
 
@@ -32,7 +34,8 @@ Send this question alone and wait:
 > 5. Mosyle
 > 6. Kandji / Iru
 > 7. Addigy
-> 8. Other / MDM-agnostic / custom (includes Filewave)
+> 8. Filewave
+> 9. Other / MDM-agnostic / custom
 
 Map the answer to the script's names:
 
@@ -45,17 +48,20 @@ Map the answer to the script's names:
 | 5 | `Mosyle` | `mosyleListitemJSON` | `"Mosyle" )` | `mosyle` |
 | 6 | `Kandji` | `kandjiMdmListitemJSON` | `"Kandji" )` | `kandji` |
 | 7 | `Addigy` | `addigyMdmListitemJSON` | `"Addigy" )` | `addigy` |
-| 8 (Filewave) | `Filewave` | `filewaveMdmListitemJSON` | `"Filewave" )` | `filewave` |
-| 8 (other) | `None` | `genericMdmListitemJSON` | `* )` | `generic` |
+| 8 | `Filewave` | `filewaveMdmListitemJSON` | `"Filewave" )` | `filewave` |
+| 9 | `None` | `genericMdmListitemJSON` | `* )` | `generic` |
+
+The helper prints each MDM by its display name (`Kandji / Iru`, `Other / MDM-agnostic` for `generic`); use the same names with the admin and in the sidecar.
 
 MDM-specific notes to carry forward:
 
+- **All MDMs** — the script picks its branch at runtime from the enrolled `serverURL`, not from the artifact name. An Intune artifact run on a Jamf Pro-enrolled Mac runs the unedited `"Jamf Pro" )` branch.
 - **Jamf Pro** — only MDM with Jamf Pro Check-In, Jamf Pro Inventory, Jamf Hosts, Computer Inventory (`jamf recon`), and `checkExternalJamfPro` external checks. Entra ID Registration and Clock Skew ship in the Jamf Pro list. The script exits early if `/private/var/log/jamf.log` is missing.
 - **Mosyle** — adds Mosyle Check-In and the Mosyle Self-Service app check.
 - **Fleet / Intune** — add an MDM agent app presence check (Fleet Desktop / Microsoft Company Portal).
-- **Kandji / Iru** — detected when `serverURL` contains `kandji`; an Iru-branded URL without that string falls to the generic branch. Ask the admin to confirm their server URL.
-- **Addigy** — ships with a blank `mdmVendorUuid`; MDM Profile will not pass until the admin fills it in.
-- **Other** — no MDM Profile or MDM Certificate Expiration by default, because no vendor profile or certificate name is known. Offer to add `mdmVendor`, `mdmVendorUuid` or `mdmProfileIdentifier`, and a certificate name if the admin knows them.
+- **Kandji / Iru** — detected when `serverURL` contains `kandji`; an Iru-branded URL without that string falls to the generic branch. Ask the admin to confirm their server URL. Ships a six-app set (`A5a`–`A5f`) and no MDM Profile row.
+- **Addigy** — ships with a blank `mdmVendorUuid`; MDM Profile will not pass until the admin fills it in manually.
+- **Other** — no MDM Profile or MDM Certificate Expiration, because no vendor profile or certificate name is known. Admins who know them edit `mdmVendor`, `mdmVendorUuid` or `mdmProfileIdentifier`, and the certificate name manually. The generic branch also runs on unenrolled Macs, where M4 Apple Push Notification service fails.
 
 ## Step 2 — Explain the purpose
 
@@ -65,13 +71,18 @@ After the MDM is known, say in two or three sentences:
 
 ## Step 3 — Present the checklist
 
-Show the checklist below. Tailor it to the MDM from Step 1:
+Show the checklist below, tailored to the MDM from Step 1:
 
-- Mark every check in that MDM's shipped default with `[default]` (see **Shipped default order per MDM** in the reference).
-- Show `[Jamf Pro only]` items only for Jamf Pro. For other MDMs, list them once under "Not available for <MDM>" so the admin knows why they are missing.
+- **`[off]`** marks each available check that is *not* in that MDM's shipped default (for example H7, M2, A4 on Intune). The off group is the smaller one for every MDM, so the list stays quiet. Say once above the list: "Unmarked checks are on by default; `[off]` checks are available but off." (See **Shipped default order per MDM** in the reference.)
+- **A5** shows the concrete app for the chosen MDM: `A5 Fleet Desktop`, `A5 Microsoft Company Portal`, `A5 Mosyle Self-Service`, or for Kandji `A5a Microsoft One Drive`, `A5b Microsoft Outlook`, `A5c Company Portal`, `A5d Zoom`, `A5e Cortex`, `A5f Netskope`.
+- **"Not available for <MDM>"** is one group at the end that lists, with a short reason:
+  - Jamf Pro-only items (M5, M6, M13, A6–A10, F1) for every MDM except Jamf Pro;
+  - other vendors' vendor-only items (M7 Mosyle Check-In unless Mosyle);
+  - A5 when the MDM ships no agent app (Jamf Pro, JumpCloud, Addigy, Filewave, Other); offer an A4-style custom app instead;
+  - M1 and M3 for Other.
 - Mark external checks with `*`.
 
-Ask: "Reply with IDs, ranges, or whole categories to enable (for example `C, H1-H6, M4, M8-M12, A1-A3`). Prefix with `no` to drop something. Or pick a preset in the next step."
+Ask: "Reply `defaults` to keep the shipped list, or change it: `H7 A4` adds, `no A3` removes, `only C, H1-H6, M4` picks exactly those."
 
 **Core OS & Security (C)**
 - C1 macOS Version
@@ -118,8 +129,8 @@ Ask: "Reply with IDs, ranges, or whole categories to enable (for example `C, H1-
 - A1 App Auto-Patch
 - A2 Homebrew Status
 - A3 Electron Corner Mask
-- A4 Organizationally required application (Microsoft Teams by default; ask for others)
-- A5 MDM agent app (Fleet Desktop, Microsoft Company Portal, Mosyle Self-Service, or the Kandji app set)
+- A4 Organizationally required application (Microsoft Teams unless the admin names another app)
+- A5 MDM agent app (concrete name per MDM; see above)
 - A6 BeyondTrust Privilege Management* `[Jamf Pro only]`
 - A7 Cisco Umbrella* `[Jamf Pro only]`
 - A8 CrowdStrike Falcon* `[Jamf Pro only]`
@@ -131,132 +142,125 @@ Ask: "Reply with IDs, ranges, or whole categories to enable (for example `C, H1-
 
 `*` = requires an external-check script deployed as a Jamf Pro policy with a custom trigger. On other MDMs, offer A4-style presence checks (`checkInternal`) or a new custom `checkXxx` function instead.
 
-For A4, ask for each required app's path and display name. For A10, ask for the Jamf Pro policy trigger and the app path used for the icon.
+A4 defaults to Microsoft Teams (`/Applications/Microsoft Teams.app`). Do not ask about it up front; show it in 4a, and ask for the path and display name only when the admin names another app or asks to change it. For A10, ask for the Jamf Pro policy trigger and the app path used for the icon.
 
-## Step 4 — Ask for options
+### Reply grammar
 
-Ask these together as one numbered block. Accept partial answers and fill gaps with defaults.
+One rule set applies to every selection reply, in Step 3 and in 4a:
 
-> 1. **Preset** — pick one, or `Custom` to keep your Step 3 picks:
->    a. Full Self Service (shipped default for your MDM)
->    b. Silent / reporting only
->    c. Development curated subset
->    d. Minimal triage
->    e. Custom
-> 2. **operationMode** (Script Parameter 4): `Self Service` (default), `Silent`, `Debug`, `Development`, or `Test`
-> 3. **External checks** — include external-check scripts? (yes / no; Jamf Pro only)
-> 4. **Targeted remediation verification** — keep automatic targeted rechecks in Self Service (default), or force full runs?
+1. Tokens are case-insensitive and separated by commas or spaces. Duplicates are ignored.
+2. **Base:** the current selection. In Step 3 that is the MDM's shipped default; in 4a it is the list being confirmed.
+3. **Operations:**
+   - A bare token adds to the base: `H7 A4` → defaults + H7 + A4.
+   - `no <token>` removes: `no A3` on Intune → 33 − 1 = 32 checks.
+   - `only <tokens>` replaces the base with exactly those tokens; later `no` tokens in the same reply still apply.
+   - `defaults` resets the base to the shipped default: `defaults, no M15`.
+4. **Tokens:**
+   - An ID (`C5`, `A5c`). `A5` on Kandji means all six `A5a`–`A5f`.
+   - A range (`H1-H6`) is inclusive and stays inside one category.
+   - A category letter (`C`, `H`, `M`, `A`, `F`) means every *available* item in that category for the MDM.
+5. An unknown ID → ask. A "Not available" ID → warn with the reason, and include it only if the admin confirms.
+6. **Order:**
+   - Default items keep the MDM's shipped order.
+   - Available non-default additions go immediately before the first remaining M14, H6, or M15 (the tail every shipped default ends with), in master-table order (C, H, M, A). If none of those remain, append them.
+   - F1 always comes last. If F1 is picked without M15, warn and ask: keep M15 directly before F1, or drop F1.
 
-Preset definitions (resolve against the MDM's availability):
+## Step 4 — Generate the artifact
 
-- **Full Self Service** — the MDM's shipped default order, unchanged.
-- **Silent / reporting only** — Full minus M15 Network Quality Test (slow, uses bandwidth, no user watching). For Jamf Pro, also drop F1: reporting-first Silent skips `jamf recon`, and F1 without M15 breaks the Client-Side Cache copy (see Step 5b).
-- **Development curated subset** — only the checks being worked on. Default: H7 Clock Skew, H6 Memory Pressure (the shipped subset). Ask which checks the admin is developing.
-- **Minimal triage** — fast Tier 1 set: C1, C2, C5, C6, H1, H2, M1, M4, M14. Add M5 and M6 for Jamf Pro (no F1, because there is no M15), and M7 for Mosyle. Drop M1 for Other.
-- **Custom** — exactly the Step 3 selection, reordered to follow the MDM's shipped order. If F1 is picked without M15, warn and ask: keep M15 directly before F1, or drop F1.
+Read `references/health-checks.md` and `references/artifact-procedure.md`, then work through 4a–4e in order.
 
-Explain operationMode effects when relevant:
+### 4a. Confirm the selection
 
-- `Self Service`, `Silent`, and `Debug` use the MDM list-item array and case branch.
-- `Silent` runs checks and logging with no main dialog and no detached Inspect summary; it still writes the Inspect config and compliance plist.
-- `Debug` runs the same checks with `set -x` and a mode label in the title. Keep it out of production policies.
-- `Development` ignores the MDM array and uses `developmentListitemJSON` plus direct check calls.
-- `Test` uses the MDM array for rows but runs no real checks; every row is marked compliant. Never use it in production.
+Resolve the final ordered list with **Reply grammar**. Show this block and wait for `yes`:
 
-Explain targeted remediation verification:
+> **<MDM display name> · <n> checks**
+> Enabled: C1 C2 C3 … M14 H6 M15 *(IDs only, in final order)*
+> Changes vs shipped default: added `H7 Clock Skew`, `A4 Microsoft Teams`; removed `A3 Electron Corner Mask` *(or "none — unchanged copy of the source")*
+> A4 → Microsoft Teams (`/Applications/Microsoft Teams.app`) *(only when A4 is enabled)*
+> Artifact: `Artifacts/Mac-Health-Check_<slug>_<YYYY-MM-DD-HHMMSS>.zsh` plus a sidecar `.md` (timestamp set when written)
+> All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manually to change them.
+> Reply `yes` to write it, or change it: `H7` adds, `no A3` removes, `only …` replaces.
 
-- Applies only to `Self Service`. When a valid full-run report under 36 hours old (`targetedRecheckMaximumAgeSeconds="129600"`) has warnings, failures, or errors, the next run rechecks only those checks and merges results by stable check key.
-- To force full runs: set Script Parameter 11 `forceFreshRun` to `true`, or create `/var/tmp/MacHealthCheck-Force-Fresh-Run` for a one-shot full run.
-- Changing the check set changes the keys, so the first run after deployment is always a full run (`check_set_mismatch`). That is expected.
+- Enabled checks appear as IDs only. Give full titles only for checks added or removed against the shipped default. The helper's sidecar lists every disabled check with its reason, so 4a does not.
+- Always show the `<YYYY-MM-DD-HHMMSS>` placeholder here. The helper takes the timestamp (local time, `date +%Y-%m-%d-%H%M%S`) when it writes the file.
+- A reply other than `yes` is parsed with **Reply grammar** against the list shown; show the updated block and wait again.
 
-## Step 5 — Generate the artifact
+### 4b. Build the selection
 
-Read `references/health-checks.md` and `references/artifact-procedure.md`, then work through 5a–5e in order.
+- Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --list <slug>` from the repository root. It prints `index|raw title|call` for the MDM's shipped rows. If it differs from the reference's shipped default, trust the script and tell the admin.
+- Pass the selection on stdin with `--selection -` and a here-doc, so no temporary file is left behind (see `references/artifact-procedure.md`). Use one line per check, in the 4a order:
+  - `<ID>|<raw title>`, where the raw title is copied from `--list` output or the master table (for example `M1|'${mdmVendor}' MDM Profile`). The ID must match the master table; the helper exits `2` on a mismatch. The helper copies the row verbatim from the source, taking the chosen MDM's array first, then Jamf Pro, then the others. It pairs each row with the call at the same index, and prints `INFO borrowed row:` for each row taken from another MDM's array.
+  - `<ID>|custom|<row fragment>|<call>` for A4 extra apps and A10. Use `SF=NN.circle` in the row, and take the call arguments from the master table. Never guess them.
+- The helper renumbers `SF=NN.circle` and `runConfiguredHealthCheck "<index>"` from zero. It keeps `'"${organizationColorScheme}"'` and `'${mdmVendor}'` exactly, fixes commas, and replaces the A9 subtitle with `<YOUR_ORGANIZATION_NETWORK>`. Outside Jamf Pro, it swaps the Jamf-worded H7 Clock Skew subtitle for the vendor-neutral `Checks local clock offset against time.apple.com`.
+- If the selection equals the shipped default, the artifact is an unchanged copy. Say so.
+- Leave `developmentListitemJSON` and the direct Development calls untouched.
 
-### 5a. Confirm the selection
+### 4c. Write and validate the artifact
 
-Resolve the final ordered list against the MDM's shipped order and the preset rules. Show this block and wait for `yes`:
+- Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --slug <slug> --selection <file>`. Validation checks 1–8 each print `PASS`, `FAIL`, `SKIP`, or `INFO`:
+  1. `zsh -n` on the artifact.
+  2. The edited array, with the shell splices substituted, passes `jq`.
+  3. Alignment:
+     - 3a: row count equals call count.
+     - 3b: indices run `0` to `n-1`.
+     - 3c: icons run `01` to `n`.
+     - 3d: F1 is last or absent.
+     - 3e: M15 is last, or directly before F1.
+  4. `diff` hunks fall only inside the two regions.
+  5. Client-Side Cache replay (5a–5c), using the sanitizer extracted live from `installClientSideScript`: `zsh -n`, `jq`, and no `jamf recon` text.
+  6. `scriptVersion` is unchanged.
+  7. The source is unchanged (SHA-256 before and after). `git diff --quiet` is reported as `INFO`.
+  8. The artifact and sidecar paths are git-ignored.
+- Exit codes:
+  - **`0`:** the artifact and its complete sidecar `.md` are in `Artifacts/`.
+  - **`1`:** at least one check failed. Nothing was written to `Artifacts/`, and the failed build stays in the printed work directory. Fix the selection (usually the order), then rerun; the rerun gets a new timestamp.
+  - **`2`:** the selection file or the anchors are invalid. Fix it and rerun.
+- **If you cannot run the helper:** follow the manual procedure in `references/artifact-procedure.md`. Each manual check prints `PASS`/`FAIL`, and the block exits non-zero on any failure.
+- **If you cannot write files:** print the intended filename, the full artifact in one fenced `zsh` block, and the sidecar in a fenced `markdown` block. Tell the admin to save both under `Artifacts/` and run the helper, or the manual checks, on the saved file.
 
-> **<MDM> · <preset> · operationMode `<mode>` · <n> checks**
-> Enabled: `C1 macOS Version`, `C2 Available Updates`, …
-> Disabled: `M15 Network Quality Test` (preset trim), …
-> Artifact: `Artifacts/Mac-Health-Check_<slug>_<YYYY-MM-DD-HHMMSS>.zsh` plus a sidecar `.md`
-> Reply `yes` to write it, or adjust the list.
+### 4d. Review the sidecar
 
-- Timestamp: local time, `date +%Y-%m-%d-%H%M%S`, taken when writing.
-- For the Development preset, append `_development` to the basename.
+On exit `0`, the helper has already written `Artifacts/<same basename>.md`. It contains the header, Enabled (index, ID, resolved title, report key), Disabled (every unselected check with its reason), report keys removed and added, tagged dependency notes, the validation table, the diff summary, and next steps. Titles are resolved (`Microsoft Intune MDM Profile`, not `'${mdmVendor}' MDM Profile`), and MDMs use display names.
 
-### 5b. Build the two replacement regions
+Read it, and append only organization-specific notes the admin gave (for example a custom A4 app or a planned `vpnClientVendor` change). When the helper cannot run, write the sidecar by hand from the template in the procedure file.
 
-- **Self Service, Silent, Debug, or Test:**
-  - Region A is the MDM's array, from `<arrayName>='` through its closing `'`.
-  - Region B is the MDM's branch in the **health-check** `case ${mdmVendor} in` block, from the label line through `;;`.
-- **Development:**
-  - Region A′ is the `developmentListitemJSON` block.
-  - Region B′ is the direct calls between `# set -x` and `# set +x`.
-  - Leave the MDM arrays and branches untouched.
-- **Rows:**
-  - Copy each row verbatim from the source script's arrays. Fall back to the reference templates only when needed.
-  - Change only `NN` (index + 1, zero-padded). Keep `'"${organizationColorScheme}"'` and `'${mdmVendor}'` exactly.
-  - Put a comma after every row except the last.
-  - Replace org-specific text with placeholders (for example, A9 → `<YOUR_ORGANIZATION_NETWORK>`).
-- **Calls:**
-  - One `runConfiguredHealthCheck "<index>" <function> [args]` per row, in row order. Development uses `<function> "<index>" [args]`.
-  - Take function names and arguments from the reference master table. Never guess them.
-- **Order:**
-  - `updateComputerInventory` (F1) comes last.
-  - M15 Network Quality Test is the last row, or directly before F1. The Client-Side Cache sanitizer strips a trailing comma only from that row, after it drops the Computer Inventory row.
-- **Unchanged selection:** if it equals the shipped default, the artifact is an unchanged copy. Say so.
+### 4e. Report
 
-### 5c. Write the artifact
+Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each check, and the dependency notes that apply. The helper already picked them for the sidecar; repeat the non-`[all]` ones and any report-key or borrowed-row note. Each note's tag says when it applies:
 
-- Follow **Regions** and **Writing the artifact** in `references/artifact-procedure.md`:
-  - anchor on exact whole lines;
-  - never match a vendor label alone (labels repeat in unrelated `case` blocks);
-  - replace only the two ranges.
-- Create `Artifacts/` next to `Mac-Health-Check.zsh` if it is missing. Never write anywhere else, and never touch the source.
-- Leave `scriptVersion` unchanged. A version change triggers targeted-recheck `version_mismatch`.
-- **If you cannot write files:** print the intended filename, the full artifact in one fenced `zsh` block, and the sidecar in a fenced `markdown` block. Tell the admin to save both under `Artifacts/` and run the validation checks.
+| Tag | Applies when | Note |
+|---|---|---|
+| `[all]` | Always | swiftDialog `3.1.1.4996` or newer (`swiftDialogMinimumRequiredVersion`); pre-flight installs or updates it. |
+| `[all]` | Always | `jq` validates every array; an invalid array exits before any check runs. |
+| `[all]` | Always | Client-Side Cache / LaunchDaemon: the cached copy runs nightly in `Silent` and drops `updateComputerInventory`; H3–H5 fall back to the loginwindow `lastUserName`. |
+| `[all]` | Always | `Silent` + `splunkOperationMode=production` is reporting-first; use `<YOUR_SPLUNK_HEC_URL>` and `<YOUR_SPLUNK_HEC_TOKEN>`. |
+| `[all]` | Always | Webhook: Script Parameter 5; use `<YOUR_WEBHOOK_URL>`. |
+| `[all]` | Always | Runtime MDM detection: the edits run only on Macs the script detects as the chosen MDM; others run their own unedited branch. |
+| `[all]` | Keys change | Report keys removed or added through `sanitizeCheckKey` (for example `electron_corner_mask`); Splunk dashboards and targeted-recheck continuity lose or gain them. M1 and M3 keys include the vendor (`microsoft_intune_mdm_profile`). |
+| `[all]` | Borrowed rows | Rows copied from another MDM's array; review their subtitles. |
+| `[C8]` | C8 enabled | Touch ID reports an error on Macs without Touch ID hardware (VMs, desktops without a Touch ID keyboard). |
+| `[C13]` | C13 enabled | VPN Client follows `vpnClientVendor` (shipped `paloalto`) and `vpnClientDataType`; it fails when that client is absent. |
+| `[H6]` | H6 enabled | Memory Pressure needs samples from two distinct days; early runs show `Insufficient data`. |
+| `[vendor]` | M1 enabled | MDM Profile needs `mdmVendorUuid` or `mdmProfileIdentifier`. |
+| `[Addigy]` | Addigy + M1 | `mdmVendorUuid` ships blank; fill it in. |
+| `[Kandji]` | Kandji | Detection needs `serverURL` to contain `kandji`. |
+| `[generic]` | Other | No MDM Profile or MDM Certificate Expiration; M4 fails on unenrolled Macs. |
+| `[Jamf]` | Jamf Pro | Script exits early without `/private/var/log/jamf.log`. |
+| `[Jamf]` | External checks | Each `checkExternalJamfPro` call needs its `external-checks/` script in Jamf Pro and a policy with the matching custom trigger; output must include `Running`, `Warning`, `Failed`, or `Error`. See `external-checks/README.md`. |
+| `[Jamf]` | F1 enabled | `jamf recon` with a 90-second timeout; skipped in `Silent` + production; removed from the cached copy. |
+| `[A9]` | A9 rebuilt | Subtitle now `<YOUR_ORGANIZATION_NETWORK>`; replace it before deploying. |
+| `[A4]` | A4 enabled | Shows the `checkInternal` path and name; edit them if the required app differs. |
 
-### 5d. Validate and write the sidecar
-
-Run the validation checks from `references/artifact-procedure.md`:
-
-1. `zsh -n` on the artifact.
-2. Extract the edited array, substitute the shell splices, and confirm `jq` accepts it.
-3. Row count equals call count, indices run `0` to `n-1`, icon numbers match, and F1 is last when present.
-4. `diff` the source against the artifact and confirm that only the two intended regions changed.
-5. Replay the Client-Side Cache sanitizer on the artifact and confirm the array still passes `jq`.
-
-If any check fails, fix the regions and rewrite the artifact. Never hand over a failing artifact without flagging it.
-
-Write the sidecar `Artifacts/<same basename>.md` from the template in the procedure file. It records:
-- MDM, `mdmVendor`, operationMode and preset;
-- enabled checks (index, ID, title) and disabled checks, each with a reason;
-- dependency notes;
-- the result of each validation check;
-- a diff summary (hunk ranges, rows before → after).
-
-### 5e. Report
-
-Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each check, and only the dependency notes that apply:
-
-- **swiftDialog `3.1.1.4996` or newer.** Set by `swiftDialogMinimumRequiredVersion`; pre-flight installs or updates it.
-- **`jq`.** Every array is validated with `jq`. An invalid array exits the script before any check runs.
-- **External checks.** Each `checkExternalJamfPro` call is Jamf Pro only. It needs its `external-checks/` script saved in Jamf Pro and a policy with the matching custom trigger. The script's output must include `Running`, `Warning`, `Failed`, or `Error`. See `external-checks/README.md`.
-- **Client-Side Cache / LaunchDaemon.** The cached copy runs nightly in `Silent` and drops `updateComputerInventory`. For user-scoped checks such as H3–H5, it falls back to the loginwindow `lastUserName` when no one is logged in.
-- **`Silent` + `splunkOperationMode=production`.** Reporting-first: no non-Splunk console output and `jamf recon` skipped. Success means the report was written and delivered. Use the placeholders `<YOUR_SPLUNK_HEC_URL>` and `<YOUR_SPLUNK_HEC_TOKEN>`.
-- **Webhook.** Script Parameter 5; use `<YOUR_WEBHOOK_URL>`.
-- **Memory Pressure.** Needs samples from two distinct days before it can warn; early runs show `Insufficient data`.
-- **Stable keys.** Titles become report keys. Renaming a title breaks Splunk dashboards and targeted-recheck continuity for that check.
-- **MDM Profile.** Needs `mdmVendorUuid` or `mdmProfileIdentifier` for the chosen MDM.
-
-## Step 6 — Next steps
+## Step 5 — Next steps
 
 Close with these steps, then offer to adjust the selection or build another artifact for a different MDM. Each artifact starts from the untouched source.
 
 1. Review the sidecar and the diff summary.
-2. Test on one Mac with `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Development"`, then repeat with `Self Service`, `Silent`, `Debug`, and `Test` as Parameter 4.
+2. Test on one Mac **enrolled in the chosen MDM** (for Other / MDM-agnostic, a Mac whose `serverURL` matches no known MDM; an unenrolled Mac qualifies, and M4 then fails as expected):
+   - Run `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4.
+   - `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
+   - Confirm that the dropped checks do not appear in the log and that the row count matches.
+   - Non-`Silent` test runs install the artifact as the Mac's Client-Side Cache copy and LaunchDaemon. Re-run the production policy afterwards to restore them.
 3. Deploy the artifact as the MDM script. Keep `scriptVersion` unchanged, and keep Debug and Development out of the production policy.
 4. Expect the first Self Service run after deployment to be a full run (`check_set_mismatch`). Targeted rechecks resume after that.
 5. Keep `Artifacts/` out of version control. It is git-ignored because artifacts may carry org-specific edits.
@@ -265,12 +269,12 @@ Close with these steps, then offer to adjust the selection or build another arti
 ## Validation checklist (run before replying)
 
 - The first message asked only the MDM question.
-- The admin confirmed the selection in 5a before anything was written.
+- The reply was parsed with **Reply grammar**, and the admin confirmed the selection in 4a before anything was written.
 - `Mac-Health-Check.zsh` is unchanged, and the only new files are under `Artifacts/`.
-- The artifact name matches `Mac-Health-Check_<slug>_<YYYY-MM-DD-HHMMSS>[_development].zsh`, and the sidecar shares its basename.
-- Validation checks 1–5 passed and are recorded in the sidecar.
+- The artifact name matches `Mac-Health-Check_<slug>_<YYYY-MM-DD-HHMMSS>.zsh`, and the sidecar shares its basename.
+- Validation checks 1–8 printed `PASS` (or `SKIP` for 8 outside git), and the helper wrote the sidecar. No failed build remains in `Artifacts/`, and no selection file was left behind.
 - M15 is the last row or directly before F1, and F1 is last.
-- No `[Jamf Pro only]` check appears for another MDM unless the admin explicitly asked for it and was warned.
+- No "Not available" check appears for the MDM unless the admin explicitly asked for it and was warned.
 - No real organization names, URLs, tokens, or paths beyond the shipped defaults.
 
 ## Resources
@@ -278,40 +282,40 @@ Close with these steps, then offer to adjust the selection or build another arti
 - Project: https://github.com/dan-snelson/Mac-Health-Check
 - Releases (5.0.0b1 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
 - `README.md`, `CHANGELOG.md`, `external-checks/README.md`, `Artifacts/README.md`, and `AGENTS.md` in the repository
-- `references/health-checks.md` and `references/artifact-procedure.md` in this skill
+- `references/health-checks.md`, `references/artifact-procedure.md`, and `scripts/build-artifact.zsh` in this skill
 
 ## Example conversation
 
 **Admin:** Help me pick which MHC checks to run.
 
 **Assistant:** Which MDM manages these Macs? Reply with a number or type your own.
-1. Jamf Pro · 2. Fleet · 3. JumpCloud · 4. Microsoft Intune · 5. Mosyle · 6. Kandji / Iru · 7. Addigy · 8. Other / MDM-agnostic / custom
+1. Jamf Pro · 2. Fleet · 3. JumpCloud · 4. Microsoft Intune · 5. Mosyle · 6. Kandji / Iru · 7. Addigy · 8. Filewave · 9. Other / MDM-agnostic / custom
 
-**Admin:** 1
+**Admin:** 4
 
-**Assistant:** Jamf Pro it is. Each row in the swiftDialog window comes from `jamfProListitemJSON`, and each row's check runs from a matching `runConfiguredHealthCheck` line in the `"Jamf Pro"` case branch. I'll write an edited copy to `Artifacts/` and leave your script untouched. Here is the checklist; `[default]` marks what ships for Jamf Pro. *(checklist from Step 3)* Reply with IDs or categories, or pick a preset next.
+**Assistant:** Microsoft Intune it is. Each row in the swiftDialog window comes from `microsoftMdmListitemJSON`, and each row's check runs from a matching `runConfiguredHealthCheck` line in the `"Microsoft Intune"` case branch. I'll write an edited copy to `Artifacts/` and leave your script untouched. Unmarked checks are on by default (33 for Intune); `[off]` checks are available but off. *(checklist from Step 3, with `A5 Microsoft Company Portal`, `[off]` on H7, M2, and A4, and "Not available for Microsoft Intune: M5, M6, M13, A6–A10, F1 (Jamf Pro only); M7 (Mosyle only)")*
 
-**Admin:** Use a preset.
+**Admin:** no A3
 
-**Assistant:** *(Step 4 block)*
-
-**Admin:** d, Self Service, no externals, keep targeted rechecks.
-
-**Assistant:** **Jamf Pro · Minimal triage · operationMode `Self Service` · 11 checks**
-Enabled: C1, C2, C5, C6, H1, H2, M1, M4, M5, M6, M14.
-Disabled: everything else (preset trim), including F1 Computer Inventory, because the preset has no M15 and F1 without M15 breaks the Client-Side Cache copy.
-Artifact: `Artifacts/Mac-Health-Check_jamf-pro_2026-09-28-101745.zsh` plus a sidecar `.md`. Reply `yes` to write it.
+**Assistant:** **Microsoft Intune · 32 checks**
+Enabled: C1 C2 A1 C3 C4 C5 C6 C7 C8 C13 H1 H2 H3 H4 H5 C9 C10 C11 C12 M1 M3 M4 M8 M9 M10 M11 M12 A5 A2 M14 H6 M15
+Changes vs shipped default: removed `A3 Electron Corner Mask`.
+Artifact: `Artifacts/Mac-Health-Check_microsoft-intune_<YYYY-MM-DD-HHMMSS>.zsh` plus a sidecar `.md` (timestamp set when written).
+All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manually to change them. Reply `yes` to write it, or change it: `H7` adds, `no A3` removes, `only …` replaces.
 
 **Admin:** yes
 
-**Assistant:** Wrote `Artifacts/Mac-Health-Check_jamf-pro_2026-09-28-101745.zsh` and `Artifacts/Mac-Health-Check_jamf-pro_2026-09-28-101745.md`.
+**Assistant:** Wrote `Artifacts/Mac-Health-Check_microsoft-intune_2026-09-28-105327.zsh` and its sidecar `Artifacts/Mac-Health-Check_microsoft-intune_2026-09-28-105327.md` (written by the helper).
 
 | # | Check | Result |
 |---|---|---|
 | 1 | `zsh -n` | PASS |
-| 2 | `jq` on `jamfProListitemJSON` | PASS |
-| 3 | 11 rows = 11 calls, indices 0–10, icons `01`–`11` | PASS |
-| 4 | Diff: 2 hunks, inside the array and the `"Jamf Pro" )` branch only | PASS |
-| 5 | Client-Side Cache simulation | PASS |
+| 2 | `jq` on `microsoftMdmListitemJSON` | PASS |
+| 3 | 32 rows = 32 calls, indices 0–31, icons `01`–`32`, F1 absent, M15 last | PASS |
+| 4 | Diff: 2 hunks, inside the array and the `"Microsoft Intune" )` branch only | PASS |
+| 5 | Client-Side Cache simulation (`zsh -n`, `jq`, no `jamf recon`) | PASS |
+| 6 | `scriptVersion` `5.0.0b1` unchanged | PASS |
+| 7 | Source unchanged | PASS |
+| 8 | Artifact and sidecar git-ignored | PASS |
 
-*Notes:* swiftDialog `3.1.1.4996`+; `scriptVersion` unchanged; the first Self Service run after deployment is a full run because the check set changed. *(Step 6 next steps follow, then: "Build another artifact for a different MDM?")*
+*Notes:* `[all]` report key `electron_corner_mask` disappears from reports and dashboards; `[all]` test on an Intune-enrolled Mac, since a Jamf Pro-enrolled Mac runs the Jamf Pro branch; `[C8]` Touch ID errors on Macs without Touch ID hardware; `[C13]` set `vpnClientVendor` for your VPN client; the first Self Service run after deployment is a full run because the check set changed. *(Step 5 next steps follow, then: "Build another artifact for a different MDM?")*
