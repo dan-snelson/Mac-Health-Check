@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b6 28-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b1 28-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.2.0b6"
+scriptVersion="5.0.0b1"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -42,7 +42,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.0.4994"
+swiftDialogMinimumRequiredVersion="3.1.1.4996"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -5584,7 +5584,7 @@ function buildInspectConfigJSON() {
     printf '%s' "\"preset\":\"6\","
     printf '%s' "\"title\":$( jsonString "$( getInspectWindowTitle )" ),"
     printf '%s' "\"highlightColor\":$( jsonString "${inspectHighlightColor}" ),"
-    printf '%s' "\"moveable\":true,"
+    printf '%s' "\"options\":{\"moveable\":true,\"ontop\":true,\"windowbuttons\":\"min\"},"
     printf '%s' "\"triggerFile\":$( jsonString "${inspectTriggerFilePath}" ),"
     printf '%s' "\"readinessFile\":$( jsonString "${inspectReadinessFilePath}" ),"
     printf '%s' "\"resultFile\":$( jsonString "${inspectResultFilePath}" ),"
@@ -5606,6 +5606,7 @@ function validateInspectConfigFile() {
         and (.title | length > 0)
         and (.highlightColor | type == "string")
         and (.highlightColor | length > 0)
+        and ((.options // {}) | type == "object")
         and (.triggerFile | type == "string")
         and (.triggerFile | length > 0)
         and (.readinessFile | type == "string")

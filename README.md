@@ -1,8 +1,8 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check) [![swiftDialog](https://img.shields.io/badge/swiftDialog-Enabled-blue)](https://swiftdialog.app) [![Semgrep Security Scan](https://img.shields.io/badge/security%20scanned%20by-Semgrep-00C7B7?style=flat&logo=semgrep&logoColor=white)](https://semgrep.dev)
 
-# Mac Health Check (4.2.0b6)
+# Mac Health Check (5.0.0b1)
 
-> Mac Health Check 4.2.0b6 adds historical Memory Pressure warnings when adverse pressure appears on two distinct days. It also includes targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements.
+> Mac Health Check 5.0.0b1 adds historical Memory Pressure warnings when adverse pressure appears on two distinct days. It also includes targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements.
 
 <img src="images/MHC_4.0.0.png" alt="Mac Health Check Hero" width="800"/>
 
@@ -43,7 +43,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 
 ### :new: Enterprise Reporting
 
-The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `4.2.0b6` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.0.4994` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
+The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `5.0.0b1` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.1.4996` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
 
 - Structured JSON health report generated at the end of every run
 - Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
@@ -64,7 +64,7 @@ See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Refere
 
 The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables healthy-result cached replay; `off` disables asset generation, launch, and replay. Unresolved findings take precedence over replay and trigger targeted verification when the canonical report is eligible.
 
-The current `4.2.0b6` release targets swiftDialog `3.1.0.4994` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements. Older compatible swiftDialog builds retain their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
+The current `5.0.0b1` release targets swiftDialog `3.1.1.4996` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements. Older compatible swiftDialog builds retain their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
 
 User-facing report:
 
@@ -153,15 +153,15 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 - If dock icon setup fails, Mac Health Check logs a warning and falls back to the default `/usr/local/bin/dialog` launch path
 
 ## Features
-The following health checks and information reporting are included in version `4.2.0b6`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
+The following health checks and information reporting are included in version `5.0.0b1`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
 
-> :new: Mac Health Check version `4.2.0b6` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.0.4994` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
+> :new: Mac Health Check version `5.0.0b1` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.1.4996` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
 
 
 
 ### Health Checks
 
-:tada: Improved in version `4.2.0b6`
+:tada: Improved in version `5.0.0b1`
 
 1. macOS Version
 1. :tada: Available Updates (including deferred, staged, and DDM-enforced updates)
@@ -254,14 +254,14 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - Unhealthy runs now surface `Quick Actions Recommended` in `Overview`, add a conditional `Remediation Guide` step immediately after `Overview`, and keep `Unhealthy` as the audit-detail step
 - Category bento-grid cards now use status-aware backgrounds so unhealthy checks stand out more clearly in Preset 6, and `Available Updates` now expands across two columns when action is required
 - Plist-backed bento cells now emit FR #667 detail-sheet fields (`severity`, `explanation`, `remediation`, `actionButtonText`, `actionURL`) so warning and failure cards can explain why action is needed and link directly to next steps
-- Normal `Self Service` runs launch the detached, always-on-top, moveable swiftDialog Inspect Mode `preset6` guided summary after report generation while retaining the existing 60-second main-dialog countdown
+- Normal `Self Service` runs launch the detached, always-on-top, moveable, minimisable swiftDialog Inspect Mode `preset6` guided summary after report generation while retaining the existing 60-second main-dialog countdown
 - `Silent` runs never launch swiftDialog; they only write Inspect Mode config assets for later review
 - The detached summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when no checks exist in that bucket
 - Re-running `zsh Mac-Health-Check.zsh` with a healthy report within `inspectReplayMaximumAgeSeconds` (i.e., 15 minutes), replays the cached inspect summary immediately and skips the health checks plus the main dialog countdown
 - `inspectSummaryPreset="on"` enables Preset 6 asset generation, `Self Service` launch and healthy-result cached replay; set it to `off` to disable all three
 - Unhealthy `Self Service` runs now rely on the final unhealthy main-dialog state plus the detached inspect summary after report generation, without a separate pseudo-alert notification
 - If inspect-summary asset generation or launch fails, Mac Health Check falls back to the existing `completionTimer` countdown path
-- Targets swiftDialog `3.1.0.4994` or newer for PR #684 rendering; older compatible builds retain their prior Preset 6 appearance
+- Targets swiftDialog `3.1.1.4996` or newer for PR #684 rendering; older compatible builds retain their prior Preset 6 appearance
 
 Example Preset 6 JSON fragments used by generated inspect assets:
 
@@ -400,7 +400,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 A new "Development" Operation Mode has been added to aid in developing Health Checks, allowing quick runs against a small curated subset instead of the full suite.
 
-When `operationMode` is set to `Development`, `4.2.0b6` uses a dedicated `developmentListitemJSON` for `Clock Skew` and `Memory Pressure` instead of running the entire suite.
+When `operationMode` is set to `Development`, `5.0.0b1` uses a dedicated `developmentListitemJSON` for `Clock Skew` and `Memory Pressure` instead of running the entire suite.
 
 ```zsh
 ####################################################################################################

@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 4.2.0b6 (28-Sep-2026)
+### 5.0.0b1 (28-Sep-2026)
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
 - Added `memoryPressure` to vendor check lists, JSON reports, Inspect summaries, and the curated Development subset without changing default operation mode or exit-code semantics
 - Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails
@@ -11,6 +11,7 @@
 - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Refactored `checkClockSkew()` for macOS 27 to query one DNS record with a 3-second SNTP timeout while preserving the existing 5-second outer timeout and keeping Development and Debug tracing out of captured command output
+- Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4996`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27
@@ -20,7 +21,7 @@
 - Standardized `checkUptime()`
 
 ### 4.0.0 (16-Jul-2026)
-- Raised the minimum required swiftDialog version to `3.1.0.4994` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build
+- Raised the minimum required swiftDialog version to `3.1.1.4996` and refactored pre-flight checks to skip redundant production package downloads when the installed release already matches the latest production build
 - Added JSON health reporting with optional Splunk HTTP Event Collector (HEC) delivery, plus stricter cached-report validation so failed cached uploads no longer look like successful report generation
 - Added the Inspect Mode-flavored end-user report (`inspectSummaryPreset="on"`) for `Self Service`, including cached replay via `inspectReplayMaximumAgeSeconds`, `Next Steps`, `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, and a stronger unhealthy-results hierarchy
 - Updated the generated and detached Preset 6 Inspect configs and demo assets for swiftDialog `3.1.0.4979` compliance findings with live compliance plist sources, trigger/readiness/result control paths, source-level labels, plist-backed detail sheets, non-plist `detailOverlay` support, renderer-owned 6 / 12 / 24 / 36pt spacing, an explicit `12`-point bento-grid gap, and stricter validation for highlight content
