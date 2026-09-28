@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b5 26-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 4.2.0b6 28-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -33,7 +33,7 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
 
 # Script Version
-scriptVersion="4.2.0b5"
+scriptVersion="4.2.0b6"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -10286,10 +10286,10 @@ if [[ "${operationMode}" == "Development" ]]; then
     # Operation Mode: Development
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
-    set -x
+    # set -x
     checkClockSkew "0"
-    set +x
     checkMemoryPressure "1"
+    # set +x
 
 else
 

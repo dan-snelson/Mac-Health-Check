@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 4.2.0b5 (26-Sep-2026)
+### 4.2.0b6 (28-Sep-2026)
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
 - Added `memoryPressure` to vendor check lists, JSON reports, Inspect summaries, and the curated Development subset without changing default operation mode or exit-code semantics
 - Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails
