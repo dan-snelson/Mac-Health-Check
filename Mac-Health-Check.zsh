@@ -6322,6 +6322,77 @@ function replayCachedInspectSummaryIfEligible() {
 # Webhook Message (Microsoft Teams or Slack) (thanks, @robjschroeder! and @TechTrekkie!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+function sendWebhookPayload() {
+
+    local webhookServiceLabel="${1}"
+    local webhookPayload="${2}"
+    local webhookDeliveryConfig="${3}"
+    local payloadFile=""
+    local responseFile=""
+    local responseExcerpt=""
+    local httpCode=""
+    local curlExitCode=0
+    local retryDelay=1
+    local attempt=0
+
+    # Keep the webhook URL (a bearer credential) out of `set -x` output and the process list
+    setopt localoptions noxtrace
+
+    payloadFile="$( mktemp /var/tmp/mhc-webhook-payload.XXXXXX )"
+    responseFile="$( mktemp /var/tmp/mhc-webhook-response.XXXXXX )"
+
+    if ! writeSecureJSONFile "${payloadFile}" "${webhookPayload}"; then
+        rm -f "${payloadFile}" "${responseFile}"
+        webhookResult="failed"
+        warning "${webhookServiceLabel} Webhook: payload could not be written; message not sent."
+        return 1
+    fi
+
+    for attempt in 1 2 3; do
+        info "${webhookServiceLabel} Webhook: POST attempt ${attempt}"
+
+        httpCode="$(
+            printf '%s\n' "${webhookDeliveryConfig}" | curl --config - \
+                --silent --fail-with-body --max-time 15 \
+                --request POST \
+                --header "Content-Type: application/json" \
+                --data-binary "@${payloadFile}" \
+                --output "${responseFile}" \
+                --write-out "%{http_code}" 2>/dev/null
+        )"
+        curlExitCode=$?
+
+        if (( curlExitCode == 0 )) && [[ "${httpCode}" == 2* ]]; then
+            webhookResult="success"
+            info "${webhookServiceLabel} Webhook Result: delivered (HTTP ${httpCode})"
+            rm -f "${payloadFile}" "${responseFile}"
+            return 0
+        fi
+
+        if [[ "${httpCode}" == 5* ]] || [[ "${httpCode:-000}" == "000" ]]; then
+            if (( attempt < 3 )); then
+                warning "${webhookServiceLabel} Webhook: attempt ${attempt} failed (HTTP ${httpCode:-000}, curl ${curlExitCode}); retrying in ${retryDelay}s."
+                sleep "${retryDelay}"
+                retryDelay=$(( retryDelay * 2 ))
+                continue
+            fi
+        else
+            warning "${webhookServiceLabel} Webhook: request failed without retry (HTTP ${httpCode:-000}, curl ${curlExitCode})."
+            break
+        fi
+    done
+
+    responseExcerpt="$( head -c 200 "${responseFile}" 2>/dev/null | tr -d '\r\n' )"
+    [[ -n "${responseExcerpt}" ]] && warning "${webhookServiceLabel} Webhook: response body: ${responseExcerpt}"
+
+    webhookResult="failed"
+    warning "${webhookServiceLabel} Webhook: delivery failed after ${attempt} attempt(s) (HTTP ${httpCode:-000}, curl ${curlExitCode})"
+
+    rm -f "${payloadFile}" "${responseFile}"
+    return 1
+
+}
+
 function webHookMessage() {
 
     local webhookDeliveryConfig=""
@@ -6417,9 +6488,7 @@ EOF
         info "Send the message to Slack …"
         [[ "${operationMode}" == "Debug" ]] && info "${webHookdata}"
         # Submit the data to Slack
-        printf '%s\n' "${webhookDeliveryConfig}" | curl --config - -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" 2>&1
-        webhookResult="$?"
-        info "Slack Webhook Result: ${webhookResult}"
+        sendWebhookPayload "Slack" "${webHookdata}" "${webhookDeliveryConfig}"
 
     else
         
@@ -6510,15 +6579,7 @@ EOF
 
     # Send the message to Microsoft Teams
         info "Send the message to Microsoft Teams …"
-        printf '%s\n' "${webhookDeliveryConfig}" | curl --config - \
-            --silent \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data "${webHookdata}" \
-            --output /dev/null
-
-        webhookResult="$?"
-        info "Microsoft Teams Webhook Result: ${webhookResult}"
+        sendWebhookPayload "Microsoft Teams" "${webHookdata}" "${webhookDeliveryConfig}"
     fi
 
 }
