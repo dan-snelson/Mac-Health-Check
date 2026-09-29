@@ -19,6 +19,10 @@
     - The `/var/tmp/MacHealthCheck-Force-Fresh-Run` trigger is honored only when root-owned; triggers created by other users are ignored, logged and removed
     - `CrowdStrike Falcon Status.bash` (`0.0.14`) now restores (or removes) the system and root `AppleLocale` values on exit instead of permanently setting `en_US`; locales changed by earlier versions are not restored automatically
     - Pinned Semgrep to `1.177.0` in `.github/workflows/security-scan.yml`
+    - Reporting secrets now fail closed: a Splunk HEC token or webhook URL supplied only through Parameters 8 or 5 is rejected and logged as `[ERROR]` (Splunk HEC delivery and webhook messages are skipped, so `Silent` + `splunkOperationMode=production` exits `1`); deploy `MacHealthCheck-Secrets.plist` instead, or set the new source-level `allowParameterSecrets="true"` as a temporary, not-recommended legacy opt-in
+    - `Resources/Makefile` now installs the package payload to root-owned `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` instead of user-writable `/usr/local/bin/Mac-Health-Check`, and `Resources/postInstall.zsh` runs it with `/bin/zsh --no-rcs` in `Self Service` mode
+    - Removed `/usr/local/bin` from `PATH` in the BeyondTrust (`0.0.5`), Cisco Umbrella (`0.0.8`), CrowdStrike Falcon (`0.0.15`), GlobalProtect (`0.0.4`), Nessus Agent, Splunk Universal Forwarder and Zscaler Tunnel external checks
+    - `Microsoft Defender Check.sh` (`0.0.3`) now calls `mdatp` from `/Applications/Microsoft Defender.app/Contents/Resources/Tools/mdatp` instead of user-writable `/usr/local/bin/mdatp`
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27

@@ -21,6 +21,7 @@
 #       Not Installed
 #
 # Changelog:
+#   2026-09-29 - v1.1.1 - Removed `/usr/local/bin` from `PATH` (Mac Health Check 5.0.0b1).
 #   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
 #   2025-09-29 - v1.0.0 - Initial version created for GitHub release.
 #
@@ -30,7 +31,7 @@
 ###############################################################################
 
 set -euo pipefail
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 SPLUNK_PATH="/private/var/splunkforwarder/bin/splunk"
 RESULT="Not Installed"

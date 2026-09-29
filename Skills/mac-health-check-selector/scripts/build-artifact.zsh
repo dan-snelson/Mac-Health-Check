@@ -839,7 +839,7 @@ dependencyNotes+=( "[all] swiftDialog \`${swiftDialogMinimum}\` or newer (\`swif
 dependencyNotes+=( "[all] \`jq\` validates every list-item array; an invalid array exits the script before any check runs." )
 dependencyNotes+=( "[all] Client-Side Cache / LaunchDaemon: the cached copy runs nightly in \`Silent\` and drops \`updateComputerInventory\`; H3–H5 fall back to the loginwindow \`lastUserName\` when no one is logged in." )
 dependencyNotes+=( "[all] \`Silent\` + \`splunkOperationMode=production\` is reporting-first; use \`<YOUR_SPLUNK_HEC_URL>\` and \`<YOUR_SPLUNK_HEC_TOKEN>\`." )
-dependencyNotes+=( "[all] Webhook: Script Parameter 5; use \`<YOUR_WEBHOOK_URL>\`." )
+dependencyNotes+=( "[all] Secrets: \`webhookURL\` and \`splunkHECToken\` go in root-only \`MacHealthCheck-Secrets.plist\`; Parameters 5 and 8 are rejected unless \`allowParameterSecrets=\"true\"\`." )
 dependencyNotes+=( "[all] Runtime MDM detection: the edits run only on ${testTarget}; Macs enrolled elsewhere run their own unedited branch." )
 if [[ "${unchangedCopy}" == "true" ]]; then
     dependencyNotes+=( "[all] Unchanged copy: the selection equals the shipped ${mdmDisplay} default." )

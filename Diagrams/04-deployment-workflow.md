@@ -59,7 +59,7 @@ graph TB
     subgraph Phase4["Phase 4: MDM Upload"]
         P4A["Upload Mac-Health-Check.zsh<br>to MDM as a script"]
         P4B["Set Parameter 4<br>operationMode = 'Self Service'"]
-        P4C["Set Parameter 5 (optional)<br>webhookURL = Teams/Slack URL"]
+        P4C["Deploy MacHealthCheck-Secrets.plist (optional)<br>webhookURL + splunkHECToken"]
 
         P3B --> P4A
         P3SKIP --> P4A
@@ -191,7 +191,7 @@ Open `Mac-Health-Check.zsh` and review the **Organization Variables** and **IT S
 | `previousMinorOS` | `2` | How many older macOS versions are compliant |
 | `completionTimer` | `60` | Fallback dialog auto-close (seconds) |
 
-`webhookURL` is configured as **Parameter 5** in the MDM policy, not as a long-lived script default. Splunk reporting is likewise enabled through runtime parameters rather than hard-coded tokens in the script.
+`webhookURL` and `splunkHECToken` belong in the root-only secrets file `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (`root:wheel`, mode `600`, deployed from a package payload), not in script defaults or policy parameters. Beginning in `5.0.0b1`, secrets supplied only through **Parameter 5** or **Parameter 8** are rejected unless `allowParameterSecrets="true"` is set in the script (not recommended; parameters are visible to local users via `ps`). Splunk reporting mode, HEC URL, index, and sourcetype remain runtime parameters.
 
 ---
 
@@ -211,8 +211,8 @@ If your organization uses BeyondTrust, Cisco Umbrella, CrowdStrike, or GlobalPro
 1. Upload the customized `Mac-Health-Check.zsh` to your MDM as a script
 2. Configure the script parameters:
    - **Parameter 4** — Operation mode (start with `Debug` for initial testing)
-   - **Parameter 5** — Webhook URL (optional)
-   - **Parameters 6-10** — Splunk reporting mode, HEC URL, HEC token, HEC index, and HEC sourcetype
+   - **Parameter 5** — Leave blank; deploy `webhookURL` in `MacHealthCheck-Secrets.plist` (rejected unless `allowParameterSecrets="true"`)
+   - **Parameters 6-10** — Splunk reporting mode, HEC URL, HEC token (leave blank; deploy `splunkHECToken` in `MacHealthCheck-Secrets.plist`), HEC index, and HEC sourcetype
    - **Parameter 11** — `forceFreshRun` one-shot override for bypassing `Self Service` targeted verification/replay or Jamf `Silent` + `production` cached upload when you need a complete fresh run
 
 ---

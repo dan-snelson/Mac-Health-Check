@@ -2,10 +2,10 @@
 ###############################################################################
 # A script to report the state of CrowdStrike Falcon (thanks, ZT and mrw!)    #
 # - If CrowdStrike Falcon is not installed, "Not Installed" will be returned. #
-# scriptVersion="0.0.14"                                                      #
+# scriptVersion="0.0.15"                                                      #
 ###############################################################################
 
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 RESULT="Failed: Not Installed"
 lastConnectionFailed="false"
 

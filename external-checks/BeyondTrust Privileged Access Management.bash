@@ -21,6 +21,9 @@
 #   Version 0.0.4, 14-Aug-2025, Dan K. Snelson (@dan-snelson)
 #       Updates for BT PMfM 25.4.2.2
 #
+#   Version 0.0.5, 29-Sep-2026, Dan K. Snelson (@dan-snelson)
+#       Removed `/usr/local/bin` from `PATH` (Monocle S3)
+#
 ####################################################################################################
 
 
@@ -31,7 +34,7 @@
 #
 ####################################################################################################
 
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 
 

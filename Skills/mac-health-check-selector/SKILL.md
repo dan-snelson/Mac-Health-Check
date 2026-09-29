@@ -234,7 +234,7 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 | `[all]` | Always | `jq` validates every array; an invalid array exits before any check runs. |
 | `[all]` | Always | Client-Side Cache / LaunchDaemon: the cached copy runs nightly in `Silent` and drops `updateComputerInventory`; H3–H5 fall back to the loginwindow `lastUserName`. |
 | `[all]` | Always | `Silent` + `splunkOperationMode=production` is reporting-first; use `<YOUR_SPLUNK_HEC_URL>` and `<YOUR_SPLUNK_HEC_TOKEN>`. |
-| `[all]` | Always | Webhook: Script Parameter 5; use `<YOUR_WEBHOOK_URL>`. |
+| `[all]` | Always | Secrets: `webhookURL` and `splunkHECToken` go in root-only `MacHealthCheck-Secrets.plist`; Parameters 5 and 8 are rejected unless `allowParameterSecrets="true"`. |
 | `[all]` | Always | Runtime MDM detection: the edits run only on Macs the script detects as the chosen MDM; others run their own unedited branch. |
 | `[all]` | Keys change | Report keys removed or added through `sanitizeCheckKey` (for example `electron_corner_mask`); Splunk dashboards and targeted-recheck continuity lose or gain them. M1 and M3 keys include the vendor (`microsoft_intune_mdm_profile`). |
 | `[all]` | Borrowed rows | Rows copied from another MDM's array; review their subtitles. |

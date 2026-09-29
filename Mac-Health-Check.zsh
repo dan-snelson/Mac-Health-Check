@@ -255,6 +255,21 @@ splunkHECTokenSource="not configured"
 webhookURLSource="not configured"
 reportingSecretsFileStatus="missing"
 
+# Allow Parameters 5 and 8 to supply reporting secrets [ true | false (default) ]
+# (Legacy opt-in only; parameter values remain visible to local users in the process list)
+allowParameterSecrets="false"
+
+function refreshReportingSecretFlags() {
+
+    webhookConfigured="false"
+    webhookService="teams"
+    [[ -n "${webhookURL}" ]] && webhookConfigured="true"
+    [[ "${webhookURL}" == *"slack"* ]] && webhookService="slack"
+    splunkHECTokenConfigured="false"
+    [[ -n "${splunkHECToken}" ]] && splunkHECTokenConfigured="true"
+
+}
+
 function loadReportingSecrets() {
 
     local secretsFileMode=""
@@ -297,18 +312,36 @@ function loadReportingSecrets() {
     fi
 
     # Refresh the secret-free configuration flags
-    webhookConfigured="false"
-    webhookService="teams"
-    [[ -n "${webhookURL}" ]] && webhookConfigured="true"
-    [[ "${webhookURL}" == *"slack"* ]] && webhookService="slack"
-    splunkHECTokenConfigured="false"
-    [[ -n "${splunkHECToken}" ]] && splunkHECTokenConfigured="true"
+    refreshReportingSecretFlags
 
     return 0
 
 }
 
+function enforceReportingSecretsSource() {
+
+    # Keep secret values out of `set -x` output
+    setopt localoptions noxtrace
+
+    [[ "${allowParameterSecrets}" == "true" ]] && return 0
+
+    # Fail closed: discard reporting secrets supplied only through script parameters
+    if [[ "${splunkHECTokenSource}" == "Parameter 8" ]]; then
+        splunkHECToken=""
+        splunkHECTokenSource="Parameter 8 (rejected)"
+    fi
+
+    if [[ "${webhookURLSource}" == "Parameter 5" ]]; then
+        webhookURL=""
+        webhookURLSource="Parameter 5 (rejected)"
+    fi
+
+    refreshReportingSecretFlags
+
+}
+
 loadReportingSecrets
+enforceReportingSecretsSource
 
 # Splunk and JSON reporting defaults
 # (Persistent root-written state lives in the root-owned `organizationDirectory`, never in world-writable `/var/tmp`)
@@ -6790,7 +6823,9 @@ fi
 
 preFlight "Reporting Secrets: Splunk HEC token source: ${splunkHECTokenSource}; webhook URL source: ${webhookURLSource}"
 
-if [[ "${splunkHECTokenSource}" == Parameter* ]] || [[ "${webhookURLSource}" == Parameter* ]] \
+if [[ "${splunkHECTokenSource}" == *"(rejected)" ]] || [[ "${webhookURLSource}" == *"(rejected)" ]]; then
+    errorOut "Reporting Secrets: rejected secrets supplied through script parameters; store the Splunk HEC token and webhook URL in ${reportingSecretsPath} (root:wheel, mode 600) and clear Parameters 5 and 8, or set allowParameterSecrets=\"true\" (not recommended)."
+elif [[ "${splunkHECTokenSource}" == Parameter* ]] || [[ "${webhookURLSource}" == Parameter* ]] \
     || [[ "${splunkHECTokenSource}" == *"ignored"* ]] || [[ "${webhookURLSource}" == *"ignored"* ]]; then
     warning "Reporting Secrets: script parameters are visible to local users in the process list; store the Splunk HEC token and webhook URL in ${reportingSecretsPath} and clear Parameters 5 and 8."
 fi

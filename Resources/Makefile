@@ -16,17 +16,20 @@ SCRIPTS = $(TMPBASE)/scripts-$(DATESTAMP)# Temp scripts dir for pkgbuild
 # Sources relative to repo root (Makefile is in Resources/, so use ../)
 SCRIPT = ../Mac-Health-Check.zsh
 
+# Root-owned install directory (matches the script's `organizationDirectory`)
+INSTALL_DIR = /Library/Management/org.churchofjesuschrist
+
 # Default target
 all: pkg
 
 # Create package root and copy files
 $(ROOT):
 	@echo "Preparing package root in $(ROOT)..."
-	mkdir -p $(ROOT)/usr/local/bin
-	chmod 755 $(ROOT)/usr/local/bin  # Ensure bin dir is executable
-	# Copy main script (rename to drop .zsh for clean exec)
-	cp $(SCRIPT) "$(ROOT)/usr/local/bin/$(NAME)"
-	chmod 755 "$(ROOT)/usr/local/bin/$(NAME)"
+	mkdir -p "$(ROOT)$(INSTALL_DIR)"
+	chmod 755 "$(ROOT)$(INSTALL_DIR)"  # Root-owned install directory (never user-writable `/usr/local/bin`)
+	# Copy main script
+	cp $(SCRIPT) "$(ROOT)$(INSTALL_DIR)/$(NAME).zsh"
+	chmod 755 "$(ROOT)$(INSTALL_DIR)/$(NAME).zsh"
 	@echo "Main script copied to $(ROOT)."
 
 # Prepare scripts dir (copy postInstall.zsh from current dir)
@@ -43,7 +46,7 @@ pkg: $(ROOT) $(SCRIPTS)
 	pkgbuild --root "$(ROOT)" --identifier "$(IDENTIFIER)" --version "$(SCRIPT_VERSION)" --ownership recommended --install-location / --scripts "$(SCRIPTS)" "$(PKG)"
 	@echo "Package built: $(PKG) (in Resources/)"
 	@echo "To install: sudo installer -pkg $(PKG) -target /"
-	@echo "Post-install will auto-run /usr/local/bin/$(NAME) (default: interactive test mode)."
+	@echo "Post-install will auto-run $(INSTALL_DIR)/$(NAME).zsh in Self Service mode."
 	# Optional: Auto-clean temp dirs after build (uncomment if desired)
 	# $(MAKE) temp-clean
 
@@ -94,7 +97,7 @@ help:
 	@echo "Requirements: Xcode Command Line Tools (for pkgbuild)."
 	@echo "Notes: Builds in /var/tmp/$(NAME)/ for cleanliness; .pkg outputs to Resources/."
 	@echo "       Extracts version from ../Mac-Health-Check.zsh (scriptVersion var)."
-	@echo "       Main script installed as /usr/local/bin/$(NAME) (Zsh-compatible)."
+	@echo "       Main script installed as $(INSTALL_DIR)/$(NAME).zsh (root-owned)."
 	@echo "       .pkg filename uses script version + current timestamp."
 	@echo "       Post-install auto-runs the script (edit postInstall.zsh for custom args)."
 	@echo "Optional: For signing, 'productsign --sign \"Developer ID Installer\" <latest.pkg> <latest-signed.pkg>'."
