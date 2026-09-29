@@ -21,14 +21,17 @@ This directory contains two helper tools used to package or wrap `Mac-Health-Che
 
 `createSelfExtracting.zsh` Base64-encodes a script, writes a new self-extracting `.sh` file, and configures that output to:
 
-1. Decode to a target path
-2. Make the decoded file executable
-3. Execute it with `zsh`
+1. Create a root-only (`umask 077`) per-run directory with `mktemp -d /var/tmp/MHC-selfExtracting.XXXXXX`
+2. Decode the embedded script into that directory
+3. Execute it with `/bin/zsh --no-rcs`, forwarding all arguments (for example, Jamf Pro Parameters 1-11)
+4. Remove the directory on exit
+
+Beginning in `5.0.0b1`, the wrapper no longer writes to the fixed `/var/tmp/MHC.zsh` path (which a local user could pre-create and rewrite before root executed it) and the `--target` option has been removed. Regenerate any previously deployed self-extracting scripts.
 
 #### Default behavior
 
 - Default source file: `../Mac-Health-Check.zsh`
-- Default decoded target path: `/var/tmp/MHC.zsh`
+- Decoded path: unique, root-only `/var/tmp/MHC-selfExtracting.XXXXXX/<source_filename>`, removed on exit
 - Output filename format: `<source_filename>_self-extracting-<YYYY-MM-DD-HHMMSS>.sh`
 
 #### Commands
@@ -49,12 +52,6 @@ Specify a source file:
 
 ```zsh
 ./createSelfExtracting.zsh --file ../Mac-Health-Check.zsh
-```
-
-Specify source and extraction target path:
-
-```zsh
-./createSelfExtracting.zsh --file ../Mac-Health-Check.zsh --target /var/tmp/MHC.zsh
 ```
 
 Show help:

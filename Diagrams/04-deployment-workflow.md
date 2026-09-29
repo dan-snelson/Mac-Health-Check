@@ -233,9 +233,9 @@ For background compliance monitoring, create a second policy:
 - **Trigger:** Login, recurring check-in, or scheduled
 - **No Self Service entry** — runs silently in the background
 - **Splunk parameters:** Provide HEC URL/token/index/sourcetype from Jamf Pro policy parameters only
-- **Client-Side Cache:** Non-`Silent` runs and full Jamf production runs install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `org.churchofjesuschrist.MHC`; the script validates and loads a root LaunchDaemon without `RunAtLoad`, routes daemon stdout/stderr to `/dev/null`, and the client-side LaunchDaemon refreshes the local JSON report nightly with deterministic per-Mac jitter across 00:53-01:53 without uploading to Splunk
+- **Client-Side Cache:** `Self Service`, `Debug` and full Jamf production runs install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `org.churchofjesuschrist.MHC`; the script validates and loads a root LaunchDaemon without `RunAtLoad`, routes daemon stdout/stderr to `/dev/null`, and the client-side LaunchDaemon refreshes the local JSON report nightly with deterministic per-Mac jitter across 00:53-01:53 without uploading to Splunk; the copy is installed only when the running script is a root-owned file in root-controlled directories, and `Test` / `Development` never install it
 - When Jamf Pro runs `Silent` + `production`, matching client/server versions and a valid report under 36 hours old allow cached upload without re-running health checks
-- When stale data must be overwritten immediately, set Parameter 11 to `true` for one policy invocation or create `/var/tmp/MacHealthCheck-Force-Fresh-Run` before next eligible `Silent` + `production` run; both paths bypass cached upload and force a complete fresh run
+- When stale data must be overwritten immediately, set Parameter 11 to `true` for one policy invocation or create a root-owned `/var/tmp/MacHealthCheck-Force-Fresh-Run` (for example, `sudo touch`; files owned by other users are ignored and removed) before next eligible `Silent` + `production` run; both paths bypass cached upload and force a complete fresh run
 - Expect two common timestamps in healthy production telemetry: an overnight full `Silent` refresh that writes fresh local JSON, then a later Jamf `Silent` + `production` policy that uploads that cached JSON without re-running checks
 
 ---

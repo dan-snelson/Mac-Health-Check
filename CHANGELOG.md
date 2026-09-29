@@ -11,6 +11,14 @@
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Introduced a dedicated AI Skill to assist Mac Admins with custom deployment
 - Hardened code based on Monocle findings
+    - Refactored `Resources/createSelfExtracting.zsh` so generated wrappers decode into a root-only `mktemp -d` directory, run `/bin/zsh --no-rcs` with all forwarded arguments (Jamf Pro Parameters 1-11) and remove the copy on exit, replacing the fixed, pre-plantable `/var/tmp/MHC.zsh` path; removed the `--target` option
+    - `installClientSideScript()` now copies the running script into the root LaunchDaemon's path only when it is a root-owned file whose parent directories are root-owned and not group- or world-writable (new `isTrustedRootPath()`)
+    - Added an optional root-only secrets file, `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (`splunkHECToken`, `webhookURL`; `root:wheel` mode `600`), which takes precedence over Parameters 5 and 8 so those secrets can stay out of the process list; each run logs the secret source and warns when parameters are used; corrected the README claim that parameters never appear in the process list
+    - `Test` and `Development` runs now write `MacHealthCheck-Report-<mode>.json` instead of the canonical report, skip Splunk HEC delivery and never install the Client-Side Cache copy; cached uploads and targeted rechecks reject canonical reports whose `metadata.operationMode` is not `Self Service` or `Silent`
+    - Removed `/usr/local/bin` from the script and LaunchDaemon `PATH`; swiftDialog now runs from `Dialog.app/Contents/MacOS/dialogcli`, Jamf Pro from `/usr/local/jamf/bin/jamf`, and `jq` from `/usr/bin/jq` or a root-owned install only (user-owned Homebrew `jq` is rejected)
+    - The `/var/tmp/MacHealthCheck-Force-Fresh-Run` trigger is honored only when root-owned; triggers created by other users are ignored, logged and removed
+    - `CrowdStrike Falcon Status.bash` (`0.0.14`) now restores (or removes) the system and root `AppleLocale` values on exit instead of permanently setting `en_US`; locales changed by earlier versions are not restored automatically
+    - Pinned Semgrep to `1.177.0` in `.github/workflows/security-scan.yml`
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27

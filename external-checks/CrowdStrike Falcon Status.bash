@@ -2,7 +2,7 @@
 ###############################################################################
 # A script to report the state of CrowdStrike Falcon (thanks, ZT and mrw!)    #
 # - If CrowdStrike Falcon is not installed, "Not Installed" will be returned. #
-# scriptVersion="0.0.13"                                                      #
+# scriptVersion="0.0.14"                                                      #
 ###############################################################################
 
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
@@ -28,17 +28,44 @@ falconctlRetryPause="5"
 
 ###
 # Pre-flight: Check the Locale; this will affect the output of falconctl stats
+# (A non-US locale is switched to `en_US` only for the duration of this script, then restored on exit)
 ###
 
-lib_locale=$( /usr/bin/defaults read "/Library/Preferences/.GlobalPreferences.plist" AppleLocale )
-root_locale=$( /usr/bin/defaults read "/var/root/Library/Preferences/.GlobalPreferences.plist" AppleLocale )
+lib_locale_plist="/Library/Preferences/.GlobalPreferences.plist"
+root_locale_plist="/var/root/Library/Preferences/.GlobalPreferences.plist"
+lib_locale=$( /usr/bin/defaults read "${lib_locale_plist}" AppleLocale 2>/dev/null )
+root_locale=$( /usr/bin/defaults read "${root_locale_plist}" AppleLocale 2>/dev/null )
+lib_locale_changed="false"
+root_locale_changed="false"
+
+restore_locale(){
+    # Restore (or remove) any AppleLocale value this script changed
+    if [[ "${lib_locale_changed}" == "true" ]]; then
+        if [[ -n "${lib_locale}" ]]; then
+            /usr/bin/defaults write "${lib_locale_plist}" AppleLocale "${lib_locale}"
+        else
+            /usr/bin/defaults delete "${lib_locale_plist}" AppleLocale 2>/dev/null
+        fi
+    fi
+    if [[ "${root_locale_changed}" == "true" ]]; then
+        if [[ -n "${root_locale}" ]]; then
+            /usr/bin/defaults write "${root_locale_plist}" AppleLocale "${root_locale}"
+        else
+            /usr/bin/defaults delete "${root_locale_plist}" AppleLocale 2>/dev/null
+        fi
+    fi
+}
+
+trap restore_locale EXIT
 
 if [[ "${lib_locale}" != "en_US" ]]; then
-    /usr/bin/defaults write "/Library/Preferences/.GlobalPreferences.plist" AppleLocale "en_US"
+    lib_locale_changed="true"
+    /usr/bin/defaults write "${lib_locale_plist}" AppleLocale "en_US"
 fi
 
 if [[ "${root_locale}" != "en_US" ]]; then
-    /usr/bin/defaults write "/var/root/Library/Preferences/.GlobalPreferences.plist" AppleLocale "en_US"
+    root_locale_changed="true"
+    /usr/bin/defaults write "${root_locale_plist}" AppleLocale "en_US"
 fi
 
 

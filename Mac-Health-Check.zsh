@@ -30,7 +30,51 @@
 #
 ####################################################################################################
 
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
+# `/usr/local/bin` is intentionally excluded: Homebrew can make it user-writable, and this script runs as root
+# (swiftDialog, Jamf and `jq` are called through the root-owned absolute paths resolved below)
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+function isTrustedRootPath() {
+
+    local candidatePath="${1}"
+    local resolvedPath=""
+    local pathComponent=""
+    local pathComponentMode=""
+
+    [[ -n "${candidatePath}" ]] && [[ -e "${candidatePath}" ]] || return 1
+    resolvedPath="${candidatePath:A}"
+    [[ -f "${resolvedPath}" ]] || return 1
+
+    # The resolved file and every parent directory must be root-owned and not group- or world-writable
+    # (a sticky directory such as `/private/var/tmp` is accepted because other users cannot replace root's entries)
+    pathComponent="${resolvedPath}"
+    while [[ -n "${pathComponent}" ]]; do
+        [[ "$( stat -f %u "${pathComponent}" 2>/dev/null )" == "0" ]] || return 1
+        pathComponentMode="$( stat -f %Lp "${pathComponent}" 2>/dev/null )"
+        [[ "${pathComponentMode}" == <-> ]] || return 1
+        if (( ( 8#${pathComponentMode} & 8#022 ) != 0 )); then
+            [[ -d "${pathComponent}" ]] && (( ( 8#${pathComponentMode} & 8#1000 ) != 0 )) || return 1
+        fi
+        [[ "${pathComponent}" == "/" ]] && break
+        pathComponent="${pathComponent:h}"
+    done
+
+    return 0
+
+}
+
+# jq: prefer the macOS-bundled binary (macOS 15+); otherwise accept only a root-owned install
+jqBinary=""
+for jqCandidate in "/usr/bin/jq" "/usr/local/bin/jq" "/opt/homebrew/bin/jq"; do
+    if [[ -x "${jqCandidate}" ]] && isTrustedRootPath "${jqCandidate}"; then
+        jqBinary="${jqCandidate}"
+        break
+    fi
+done
+unset jqCandidate
+if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
+    function jq() { "${jqBinary}" "$@"; }
+fi
 
 # Script Version
 scriptVersion="5.0.0b1"
@@ -174,6 +218,26 @@ forceFreshRunTriggerFilePath="/var/tmp/MacHealthCheck-Force-Fresh-Run"
 forceFreshRunDetected="false"
 forceFreshRunSource="not_requested"
 
+function isTrustedForceFreshRunTrigger() {
+
+    # Honor only a root-owned regular file; any local user can create files in world-writable `/var/tmp`
+    [[ -f "${forceFreshRunTriggerFilePath}" ]] && [[ ! -L "${forceFreshRunTriggerFilePath}" ]] \
+        && [[ "$( stat -f %u "${forceFreshRunTriggerFilePath}" 2>/dev/null )" == "0" ]]
+
+}
+
+function removeUntrustedForceFreshRunTrigger() {
+
+    if { [[ -e "${forceFreshRunTriggerFilePath}" ]] || [[ -L "${forceFreshRunTriggerFilePath}" ]]; } \
+        && ! isTrustedForceFreshRunTrigger; then
+        [[ $(id -u) -eq 0 ]] && rm -f -- "${forceFreshRunTriggerFilePath}" 2>/dev/null
+        return 0
+    fi
+
+    return 1
+
+}
+
 # Per-run, root-owned temporary directory for downloaded icons and other transient files
 # (`mktemp -d` creates a unique directory that local users cannot pre-plant or redirect)
 runtimeTemporaryDirectory="$( mktemp -d "/var/tmp/${organizationScriptName}.XXXXXX" 2>/dev/null )"
@@ -184,6 +248,68 @@ fi
 chmod 755 "${runtimeTemporaryDirectory}" 2>/dev/null
 trap 'rm -rf -- "${runtimeTemporaryDirectory}"' EXIT
 
+# Optional root-only reporting secrets file (keeps the Splunk HEC token and webhook URL out of the process list)
+# Keys: `splunkHECToken`, `webhookURL`; must be a root-owned, `600` regular file inside `organizationDirectory`
+reportingSecretsPath="${organizationDirectory}/MacHealthCheck-Secrets.plist"
+splunkHECTokenSource="not configured"
+webhookURLSource="not configured"
+reportingSecretsFileStatus="missing"
+
+function loadReportingSecrets() {
+
+    local secretsFileMode=""
+    local secretsDirectoryMode=""
+    local secretValue=""
+
+    # Keep secret values out of `set -x` output
+    setopt localoptions noxtrace
+
+    [[ "${splunkHECTokenConfigured}" == "true" ]] && splunkHECTokenSource="Parameter 8"
+    [[ "${webhookConfigured}" == "true" ]] && webhookURLSource="Parameter 5"
+
+    if [[ ! -e "${reportingSecretsPath}" ]] && [[ ! -L "${reportingSecretsPath}" ]]; then
+        return 0
+    fi
+
+    secretsFileMode="$( stat -f %Lp "${reportingSecretsPath}" 2>/dev/null )"
+    secretsDirectoryMode="$( stat -f %Lp "${organizationDirectory}" 2>/dev/null )"
+    if [[ -L "${reportingSecretsPath}" ]] || [[ ! -f "${reportingSecretsPath}" ]] \
+        || [[ "$( stat -f %u "${reportingSecretsPath}" 2>/dev/null )" != "0" ]] \
+        || [[ "${secretsFileMode}" != <-> ]] || (( ( 8#${secretsFileMode} & 8#077 ) != 0 )) \
+        || [[ -L "${organizationDirectory}" ]] || [[ "$( stat -f %u "${organizationDirectory}" 2>/dev/null )" != "0" ]] \
+        || [[ "${secretsDirectoryMode}" != <-> ]] || (( ( 8#${secretsDirectoryMode} & 8#022 ) != 0 )); then
+        reportingSecretsFileStatus="untrusted"
+        return 1
+    fi
+
+    reportingSecretsFileStatus="trusted"
+
+    secretValue="$( /usr/libexec/PlistBuddy -c "Print :splunkHECToken" "${reportingSecretsPath}" 2>/dev/null )"
+    if [[ -n "${secretValue}" ]]; then
+        [[ "${splunkHECTokenSource}" == "Parameter 8" ]] && splunkHECTokenSource="secrets file (Parameter 8 ignored)" || splunkHECTokenSource="secrets file"
+        splunkHECToken="${secretValue}"
+    fi
+
+    secretValue="$( /usr/libexec/PlistBuddy -c "Print :webhookURL" "${reportingSecretsPath}" 2>/dev/null )"
+    if [[ -n "${secretValue}" ]]; then
+        [[ "${webhookURLSource}" == "Parameter 5" ]] && webhookURLSource="secrets file (Parameter 5 ignored)" || webhookURLSource="secrets file"
+        webhookURL="${secretValue}"
+    fi
+
+    # Refresh the secret-free configuration flags
+    webhookConfigured="false"
+    webhookService="teams"
+    [[ -n "${webhookURL}" ]] && webhookConfigured="true"
+    [[ "${webhookURL}" == *"slack"* ]] && webhookService="slack"
+    splunkHECTokenConfigured="false"
+    [[ -n "${splunkHECToken}" ]] && splunkHECTokenConfigured="true"
+
+    return 0
+
+}
+
+loadReportingSecrets
+
 # Splunk and JSON reporting defaults
 # (Persistent root-written state lives in the root-owned `organizationDirectory`, never in world-writable `/var/tmp`)
 splunkJSONReportPath="${organizationDirectory}/MacHealthCheck-Report.json"
@@ -192,6 +318,15 @@ cachedReportJSON=""
 cachedReportModificationEpoch="0"
 cachedReportAgeSeconds="0"
 cachedReportValidationStatus="not_checked"
+
+function isProductionReportOperationMode() {
+
+    case "${1}" in
+        "Self Service" | "Silent" ) return 0 ;;
+        * ) return 1 ;;
+    esac
+
+}
 
 function validateCachedSplunkReport() {
 
@@ -222,6 +357,12 @@ function validateCachedSplunkReport() {
     cachedReportJSON="$( < "${cachedReportPath}" )"
     if ! printf '%s' "${cachedReportJSON}" | jq -e . >/dev/null 2>&1; then
         cachedReportValidationStatus="invalid_json"
+        return 1
+    fi
+
+    # Never upload a report produced by a non-production mode (e.g., `Test` marks every check successful)
+    if ! isProductionReportOperationMode "$( printf '%s' "${cachedReportJSON}" | jq -r '.metadata.operationMode // empty' 2>/dev/null )"; then
+        cachedReportValidationStatus="non_production_mode"
         return 1
     fi
 
@@ -290,13 +431,17 @@ function clientSideEarlyLog() {
 # Client-Side Cache version check
 if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
 
-    if [[ -f "${forceFreshRunTriggerFilePath}" ]] || [[ "${forceFreshRun:l}" == "true" ]]; then
+    if removeUntrustedForceFreshRunTrigger; then
+        clientSideEarlyLog "Ignored untrusted Force Fresh Run trigger at ${forceFreshRunTriggerFilePath} (must be a root-owned regular file)."
+    fi
+
+    if isTrustedForceFreshRunTrigger || [[ "${forceFreshRun:l}" == "true" ]]; then
 
         forceFreshRunDetected="true"
 
-        if [[ -f "${forceFreshRunTriggerFilePath}" ]] && [[ "${forceFreshRun:l}" == "true" ]]; then
+        if isTrustedForceFreshRunTrigger && [[ "${forceFreshRun:l}" == "true" ]]; then
             forceFreshRunSource="trigger file and Parameter 11"
-        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        elif isTrustedForceFreshRunTrigger; then
             forceFreshRunSource="trigger file"
         else
             forceFreshRunSource="Parameter 11"
@@ -305,7 +450,7 @@ if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "produ
         clientSideSkipChecks="false"
         clientSideEarlyLog "FORCE FRESH RUN triggered via ${forceFreshRunSource} — bypassing cache and forcing complete health check run."
 
-        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        if isTrustedForceFreshRunTrigger; then
             rm -f "${forceFreshRunTriggerFilePath}"
         fi
 
@@ -1112,8 +1257,12 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # swiftDialog Binary Path
+# (Call `dialogcli` inside the root-owned app bundle instead of the `/usr/local/bin/dialog` symlink, which may live in a user-writable directory)
 dialogAppBundle="/Library/Application Support/Dialog/Dialog.app"
-dialogBinary="/usr/local/bin/dialog"
+dialogBinary="${dialogAppBundle}/Contents/MacOS/dialogcli"
+
+# Jamf Pro Binary Path (the `/usr/local/bin/jamf` symlink is intentionally bypassed)
+jamfBinary="/usr/local/jamf/bin/jamf"
 
 # Enable debugging options for swiftDialog
 dialogBinaryDebugArgs=()
@@ -2473,18 +2622,22 @@ function detectSelfServiceForceFreshRun() {
         return 1
     fi
 
-    if [[ "${forceFreshRun:l}" == "true" ]] || [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+    if removeUntrustedForceFreshRunTrigger; then
+        warning "Targeted Recheck: ignored untrusted Force Fresh Run trigger at ${forceFreshRunTriggerFilePath} (must be a root-owned regular file)."
+    fi
+
+    if [[ "${forceFreshRun:l}" == "true" ]] || isTrustedForceFreshRunTrigger; then
         forceFreshRunDetected="true"
 
-        if [[ "${forceFreshRun:l}" == "true" ]] && [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        if [[ "${forceFreshRun:l}" == "true" ]] && isTrustedForceFreshRunTrigger; then
             forceFreshRunSource="trigger file and Parameter 11"
-        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        elif isTrustedForceFreshRunTrigger; then
             forceFreshRunSource="trigger file"
         else
             forceFreshRunSource="Parameter 11"
         fi
 
-        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        if isTrustedForceFreshRunTrigger; then
             rm -f "${forceFreshRunTriggerFilePath}"
         fi
 
@@ -2581,6 +2734,12 @@ function prepareTargetedRecheckIfEligible() {
     baseReportOverallStatus="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.summary.overallStatus // empty' )"
     baseReportHasReportingErrors="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '((.summary.errorCount // 0) > 0) or ((.summary.reportingErrors // []) | length > 0)' )"
     baseReportRunScope="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.runScope // "legacy"' )"
+
+    if ! isProductionReportOperationMode "$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.operationMode // empty' )"; then
+        targetedRecheckEligibilityStatus="non_production_mode"
+        info "Targeted Recheck: canonical report was not produced by Self Service or Silent; running full health check."
+        return 1
+    fi
 
     if [[ "${baseReportScriptVersion}" != "${scriptVersion}" ]]; then
         targetedRecheckEligibilityStatus="version_mismatch"
@@ -3715,6 +3874,7 @@ function generateAndSendSplunkReport() {
     local currentReportIdentity=""
     local currentReportIdentityAfter=""
     local canonicalReportLockHeld="false"
+    local nonProductionReportPath=""
 
     notice "Generating Splunk JSON report …"
 
@@ -3840,6 +4000,20 @@ function generateAndSendSplunkReport() {
 
     reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${reportJSON}" )" )" )"
 
+    # `Test` and `Development` results are synthetic or curated; keep them out of the canonical report and Splunk HEC
+    if [[ "${operationMode}" == "Test" ]] || [[ "${operationMode}" == "Development" ]]; then
+        nonProductionReportPath="${organizationDirectory}/MacHealthCheck-Report-${operationMode}.json"
+        if writeSecureJSONFile "${nonProductionReportPath}" "${reportFilePayload}"; then
+            reportGenerated="true"
+            notice "Splunk Reporting: ${operationMode} mode; local report written to ${nonProductionReportPath} (canonical report and Splunk HEC delivery skipped)."
+        else
+            addReportingError "Failed to write local JSON report to ${nonProductionReportPath}"
+            warning "Splunk Reporting: failed to write local report to ${nonProductionReportPath}"
+        fi
+        reportTransmissionStatus="skipped_non_production_mode"
+        return 0
+    fi
+
     if [[ "${canonicalReportLockHeld}" != "true" ]]; then
         if acquireCanonicalReportLock; then
             canonicalReportLockHeld="true"
@@ -3938,6 +4112,12 @@ function installClientSideScript() {
         return 1
     fi
 
+    # The copy becomes the root LaunchDaemon's script; only copy a root-owned file no other user could have replaced
+    if ! isTrustedRootPath "${currentScriptPath}"; then
+        warning "Client-Side Cache: current script path is not a root-owned file in root-controlled directories (${currentScriptPath}); install skipped."
+        return 1
+    fi
+
     mkdir -p "${organizationDirectory}" || {
         warning "Client-Side Cache: unable to create ${organizationDirectory}"
         return 1
@@ -4004,7 +4184,7 @@ function installClientSideScript() {
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local:/usr/local/bin</string>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>launchDaemonRun</key>
         <string>true</string>
     </dict>
@@ -6591,11 +6771,28 @@ removeLegacyTemporaryArtifacts
 # Pre-flight Check: Confirm JSON tooling availability
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-if command -v jq &> /dev/null; then
-    preFlight "jq found; using jq for JSON validation and formatting."
+if [[ -n "${jqBinary}" ]]; then
+    preFlight "jq found at ${jqBinary}; using jq for JSON validation and formatting."
     reportJSONTool="jq"
 else
-    fatal "jq is required for JSON validation and formatting; install jq before running Mac Health Check on Macs that do not bundle it by default."
+    fatal "jq is required for JSON validation and formatting; install a root-owned jq (not a user-owned Homebrew copy) before running Mac Health Check on Macs that do not bundle it by default."
+fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pre-flight Check: Reporting secrets source
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${reportingSecretsFileStatus}" == "untrusted" ]]; then
+    warning "Reporting Secrets: ignored ${reportingSecretsPath}; it must be a root-owned, mode 600 regular file."
+fi
+
+preFlight "Reporting Secrets: Splunk HEC token source: ${splunkHECTokenSource}; webhook URL source: ${webhookURLSource}"
+
+if [[ "${splunkHECTokenSource}" == Parameter* ]] || [[ "${webhookURLSource}" == Parameter* ]] \
+    || [[ "${splunkHECTokenSource}" == *"ignored"* ]] || [[ "${webhookURLSource}" == *"ignored"* ]]; then
+    warning "Reporting Secrets: script parameters are visible to local users in the process list; store the Splunk HEC token and webhook URL in ${reportingSecretsPath} and clear Parameters 5 and 8."
 fi
 
 if [[ "${forceFreshRunDetected}" == "true" ]]; then
@@ -6615,7 +6812,9 @@ if [[ "${clientSideSkipChecks}" == "true" ]]; then
 
 fi
 
-if [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; then
+# `Test` and `Development` never install the client-side copy (it would replace production state on the Mac)
+if [[ "${operationMode}" != (Test|Development) ]] \
+    && { [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; }; then
     if ! installClientSideScript; then
         warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
     fi
@@ -6698,7 +6897,7 @@ function dialogInstall() {
 
         installer -pkg "$tempDirectory/Dialog.pkg" -target /
         sleep 2
-        dialogVersion=$( /usr/local/bin/dialog --version )
+        dialogVersion=$( "${dialogBinary}" --version )
         preFlight "swiftDialog version ${dialogVersion} installed; proceeding..."
 
     else
@@ -9566,7 +9765,7 @@ function checkExternalJamfPro() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
-    externalPolicyOutput=$( jamf policy -event "${trigger}" 2>&1 )
+    externalPolicyOutput=$( "${jamfBinary}" policy -event "${trigger}" 2>&1 )
     externalPolicyExitCode=$?
     if (( externalPolicyExitCode != 0 )); then
         info "External Check: Jamf policy trigger '${trigger}' exited ${externalPolicyExitCode}; evaluating available result output."
@@ -10279,10 +10478,10 @@ function updateComputerInventory() {
 
         if [[ -n "${inventoryEndUsername}" ]]; then
             notice "Including '-endUsername' in 'jamf recon' (source: ${inventoryEndUsernameSource}; value: ${inventoryEndUsername})"
-            inventoryCommand=( jamf recon -endUsername "${inventoryEndUsername}" )
+            inventoryCommand=( "${jamfBinary}" recon -endUsername "${inventoryEndUsername}" )
         else
             warning "NOT including '-endUsername' in 'jamf recon' since no SSO username is available for ${loggedInUser} (source: ${inventoryEndUsernameSource}; value: <empty>)"
-            inventoryCommand=( jamf recon )
+            inventoryCommand=( "${jamfBinary}" recon )
         fi
 
         inventoryCommandPreview="$( formatCommandForLog "${inventoryCommand[@]}" )"

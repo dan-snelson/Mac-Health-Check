@@ -44,7 +44,8 @@ jobs:
 
       - name: Install Semgrep CLI
         # Use the CLI directly so the blocking scan and SARIF export come from the same execution path.
-        run: python3 -m pip install --upgrade semgrep
+        # Pin the version so an upstream release cannot change CI behavior unreviewed; bump intentionally.
+        run: python3 -m pip install "semgrep==1.177.0"
 
       - name: Run Semgrep CLI (Blocking + SARIF)
         id: semgrep_sarif

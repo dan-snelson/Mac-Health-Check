@@ -2,13 +2,13 @@
 
 # Mac Health Check (5.0.0b1)
 
-> Mac Health Check 5.0.0b1 adds historical Memory Pressure warnings when adverse pressure appears on two distinct days. It also includes targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements.
+> Mac Health Check 5.0.0b1 adds a dedicated AI skill for easier Mac Admin customization, historical Memory Pressure warnings, targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements.
 
-<img src="images/MHC_4.0.0.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_5.0.0.png" alt="Mac Health Check Hero" width="800"/>
 
 <table>
     <tr>
-        <td><a href="images/MHC_4.0.0.png"><img src="images/MHC_4.0.0.png" alt="Main Dialog" width="320"></a>Main Dialog</td>
+        <td><a href="images/MHC_5.0.0_second_run.png"><img src="images/MHC_5.0.0_second_run.png" alt="Main Dialog" width="320"></a>Targeted Post-remediation Verification</td>
         <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.03%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.03%E2%80%AFPM.png" alt="Results Overview" width="320"></a>Results Overview</td>
         <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.58%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.58%E2%80%AFPM.png" alt="Security Status" width="320"></a>Security Status</td>
         <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.02%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.02%E2%80%AFPM.png" alt="AirDrop Detail Sheet" width="320"></a>AirDrop Detail Sheet</td>
@@ -48,7 +48,8 @@ The tool logs results for review, writes a structured JSON health report locally
 - Structured JSON health report generated at the end of every run
 - Local report saved to `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` by default with `600` permissions
 - Beginning in `5.0.0b1`, persistent runtime state (canonical report and lock, Inspect config and compliance plist, SOFA and `networkQuality` caches) lives in root-owned `/Library/Management/org.churchofjesuschrist` instead of world-writable `/var/tmp`; cached reports are trusted only when they are root-owned regular files, and root-owned pre-`5.0.0` leftovers in `/var/tmp` are removed automatically
-- Splunk HEC tokens and webhook URLs are passed to `curl` through `--config -` on stdin, so they no longer appear in the process list, and `Debug` mode's `set -x` tracing starts after parameter parsing and is suppressed inside secret-handling functions
+- Splunk HEC tokens and webhook URLs are passed to `curl` through `--config -` on stdin, so they never appear in the `curl` child's arguments, and `Debug` mode's `set -x` tracing starts after parameter parsing and is suppressed inside secret-handling functions
+- Script Parameters 5 and 8 remain visible to any local user (via `ps`) for as long as the root script runs; to keep the Splunk HEC token and webhook URL out of the process list, deploy them in the optional root-only secrets file `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (keys `splunkHECToken` and `webhookURL`; `root:wheel`, mode `600`, for example from a package payload) and leave Parameters 5 and 8 blank. Secrets-file values take precedence over the parameters, an untrusted secrets file is ignored with a warning, and each run logs which source was used. Rotate any token previously passed as a parameter, and restrict the HEC token to the Mac Health Check index and sourcetype
 - Optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
 - Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run by bypassing `Self Service` targeting/replay or Jamf `Silent` cached upload
 - `splunkOperationMode=off` disables HEC delivery explicitly while still preserving local JSON report generation
@@ -156,7 +157,8 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 - `dockIcon` is configurable and supports `default`, local paths, `file://` paths and `http(s)` URLs
 - Mac Health Check copies `Dialog.app` to `/Library/Application Support/Dialog/${humanReadableScriptName}.app` and launches `dialogcli` from that bundle so Dock hover text matches the script name
 - `dockiconbadge` shows the number of remaining checks, decreases after each completed check and is removed when checks complete
-- If dock icon setup fails, Mac Health Check logs a warning and falls back to the default `/usr/local/bin/dialog` launch path
+- If dock icon setup fails, Mac Health Check logs a warning and falls back to `/Library/Application Support/Dialog/Dialog.app/Contents/MacOS/dialogcli`
+- Beginning in `5.0.0b1`, the root script calls swiftDialog, Jamf Pro (`/usr/local/jamf/bin/jamf`) and `jq` through root-owned absolute paths and removes `/usr/local/bin` from `PATH`, because Homebrew can make that directory user-writable
 
 ## Features
 The following health checks and information reporting are included in version `5.0.0b1`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
@@ -241,7 +243,8 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - That `Silent` plus `splunkOperationMode=production` path also skips final Jamf Pro inventory submission while logging the skip to `${scriptLog}`
 - Client-Side Cache avoids a full Jamf Pro health-check run when the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` matches the server-side version and the cached JSON report is valid and fresh
 - The client-side nightly run defaults to `operationMode="Silent"` and `splunkOperationMode="test"` so it updates the local report without sending to production Splunk, and its LaunchDaemon routes stdout/stderr to `/dev/null` so MHC-prefixed log writes are not duplicated
-- Requires `jq` for JSON validation and formatting, with local report generation and Splunk payload assembly stopping at pre-flight if `jq` is unavailable
+- Requires `jq` for JSON validation and formatting, with local report generation and Splunk payload assembly stopping at pre-flight if `jq` is unavailable; `/usr/bin/jq` (macOS 15 and later) is preferred, and `/usr/local/bin/jq` or `/opt/homebrew/bin/jq` is used only when the binary and every parent directory are root-owned and not group- or world-writable (a user-owned Homebrew `jq` is rejected)
+- `Test` and `Development` runs write their local report to `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report-<mode>.json` instead of the canonical report, skip Splunk HEC delivery, and do not install the Client-Side Cache copy, so synthetic or curated results never replace production data; cached uploads and `Self Service` targeted rechecks also reject canonical reports whose `metadata.operationMode` is not `Self Service` or `Silent`
 - Includes copy/paste Splunk SPL, Simple XML, and Dashboard Studio starter examples in [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md)
 
 #### Inspect Mode Summary
@@ -253,7 +256,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - Targeted results replace only matching check records, preserve untouched results, add `checkedAt` / `checkedAtEpoch`, and expose `metadata.runScope`, full-run baseline fields and `summary.recheckedCount`
 - Targeted writes use a shared report lock and rebase onto compatible concurrent report updates so newer full-report data is not overwritten
 - Targeted writes cannot extend the 36-hour age of their underlying full-run baseline; missing, stale, malformed or incompatible reports fall back to all checks
-- Parameter 11 `forceFreshRun=true` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` bypass targeted verification and cached replay for a full `Self Service` run
+- Parameter 11 `forceFreshRun=true` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` bypass targeted verification and cached replay for a full `Self Service` run; the trigger file is honored only when root-owned (for example, `sudo touch /var/tmp/MacHealthCheck-Force-Fresh-Run`), and a trigger created by any other user is ignored and removed
 - `Silent`, `Debug`, `Development` and `Test` retain their existing execution behavior; targeted selection is confined to `Self Service`
 - Unhealthy runs now surface `Quick Actions Recommended` in `Overview`, add a conditional `Remediation Guide` step immediately after `Overview`, and keep `Unhealthy` as the audit-detail step
 - Category bento-grid cards now use status-aware backgrounds so unhealthy checks stand out more clearly in Preset 6, and `Available Updates` now expands across two columns when action is required
@@ -414,7 +417,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 1. **Check the results.** The assistant reports the artifact path, the sidecar `.md` path, PASS/FAIL for validation checks 1–8, and the report keys the change removes or adds (for example, `electron_corner_mask`). The helper writes the complete sidecar, including every disabled check with its reason and the dependency notes that apply. Only passing artifacts are written to `Artifacts/`.
 1. **Adjust other settings manually** (for example, `operationMode` or external-check triggers) in the artifact if needed, then re-run `zsh -n` on it.
 1. **Test on one Mac enrolled in the chosen MDM** in all five modes:
-   `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not your selection. The script picks its MDM branch from the enrolled server URL, so a Mac enrolled in a different MDM runs that MDM's unedited checks. Non-`Silent` test runs also replace the Mac's Client-Side Cache copy and LaunchDaemon; re-run your production policy afterwards.
+   `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not your selection. The script picks its MDM branch from the enrolled server URL, so a Mac enrolled in a different MDM runs that MDM's unedited checks. `Test` and `Development` runs never touch the canonical report or the Client-Side Cache copy. `Self Service` and `Debug` runs replace the Client-Side Cache copy and LaunchDaemon only when the running script is a root-owned file in root-controlled directories, so a copy run from a user-owned checkout logs `install skipped`; re-run your production policy afterwards.
 1. **Deploy** the artifact as your MDM script. Keep `Debug` and `Development` out of production policies, and expect the first Self Service run to be a full run (`check_set_mismatch`).
 1. **Keep artifacts out of version control** (`Artifacts/` is git-ignored), and build a fresh artifact after each Mac Health Check upgrade or for each additional MDM.
 

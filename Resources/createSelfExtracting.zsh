@@ -6,36 +6,31 @@
 
 # Updated by: Dan K. Snelson
 # For Mac Health Check
-# Date: 19-Oct-2025
+# Date: 28-Sep-2026
+# - Generated wrapper now decodes into a root-only `mktemp -d` directory (instead of a fixed, pre-plantable
+#   `/var/tmp/MHC.zsh`), forwards all arguments (i.e., Jamf Pro Parameters 1-11) and removes the copy on exit
 
 # Script for creating self extracting base64 encoded files.
 
-# usage: file_to_self_extracting_script <file_path> [target_path]
+# usage: file_to_self_extracting_script <file_path>
 
 SCRIPT_NAME=$(basename "$0")
 FILE_TO_ENCODE="$(cd "$(dirname "$0")"/.. && pwd)/Mac-Health-Check.zsh"
-TARGET_PATH="/var/tmp/MHC.zsh"
 
 datestamp=$( date '+%Y-%m-%d-%H%M%S' )
 
 file_to_self_extracting_script() {
     base64_string=$(base64 -i "$1")
     filename=$(basename "$1")
-    target_path=${2}
-    # if [[ -n "$target_path" ]]; then
-    #     # check to see if the path ends with a slash
-    #     if [[ ! "$target_path" =~ /$ ]]; then
-    #         target_path="${target_path}/"
-    #     fi
-    # fi
 
     cat <<EOF > "${filename}_self-extracting-${datestamp}.sh"
 #!/bin/sh
 base64_string='$base64_string'
-echo "\$base64_string" | base64 -d > "${target_path}"
-echo "File '${target_path}' has been created."
-chmod u+x "${target_path}"
-zsh "${target_path}"
+umask 077
+workDir=\$( /usr/bin/mktemp -d /var/tmp/MHC-selfExtracting.XXXXXX ) || exit 1
+trap 'rm -rf "\$workDir"' EXIT
+printf '%s' "\$base64_string" | /usr/bin/base64 -d > "\$workDir/${filename}" || exit 1
+/bin/zsh --no-rcs "\$workDir/${filename}" "\$@"
 EOF
     echo "Self-extracting script '${filename}_self-extracting-${datestamp}.sh' created."
 }
@@ -43,12 +38,13 @@ EOF
 printUsage() {
     echo "OVERVIEW: ${SCRIPT_NAME} is a utility that creates self extracting base64 encoded scripts."
     echo ""
-    echo "USAGE: ${SCRIPT_NAME} --file <filename> [--target <directory>]"
+    echo "USAGE: ${SCRIPT_NAME} [--file <filename>]"
     echo ""
     echo "OPTIONS:"
-    echo "    -f, --file <filename>     Encode the selected file"
-    echo "    -t, --target <directory>  Target directory to extract the file to. Defaults to the current directory."
+    echo "    -f, --file <filename>     Encode the selected file (defaults to ../Mac-Health-Check.zsh)"
     echo "    -h, --help                Print this message"
+    echo ""
+    echo "The generated script decodes into a root-only, per-run mktemp directory, forwards all arguments and removes the copy on exit."
     echo ""
 }
 
@@ -62,7 +58,6 @@ printUsage() {
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --file|-f) FILE_TO_ENCODE="$2"; shift ;;
-        --target|-t) TARGET_PATH="$2"; shift ;;
         --help|-h|help) printUsage; exit 0 ;;
         *) echo "Unknown argument: $1"; printUsage; exit 1 ;;
     esac
@@ -75,4 +70,4 @@ if [[ -z "$FILE_TO_ENCODE" ]]; then
     exit 1
 fi
 
-file_to_self_extracting_script "${FILE_TO_ENCODE}" "${TARGET_PATH}"
+file_to_self_extracting_script "${FILE_TO_ENCODE}"
