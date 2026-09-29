@@ -33,7 +33,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b1 28-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b2 29-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - Original version: tested renumbering, explicit PASS / FAIL validation, non-zero exit on failure
 # - Added MDM display names, vendor-neutral Clock Skew subtitle outside Jamf Pro, borrowed-row notices,
 #   `--selection -` (stdin), and a complete sidecar with Disabled reasons and tagged dependency notes
@@ -50,7 +50,7 @@
 
 setopt extendedglob pipefail
 
-helperVersion="5.0.0b1"
+helperVersion="5.0.0b2"
 healthCheckHeader="# Generate Health Checks based on Operation Mode and MDM Vendor"
 placeholderNetwork="<YOUR_ORGANIZATION_NETWORK>"
 inventoryTitle="Computer Inventory"

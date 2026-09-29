@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b1 28-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b2 29-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b1"
+scriptVersion="5.0.0b2"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -86,7 +86,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.1.4996"
+swiftDialogMinimumRequiredVersion="3.1.1.4997"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"

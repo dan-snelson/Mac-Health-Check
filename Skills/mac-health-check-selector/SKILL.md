@@ -7,7 +7,7 @@ description: Interactively prompts a Mac Admin to select which health checks to 
 
 Guide a Mac Admin through choosing which Mac Health Check (MHC) health checks to show and run, then write an edited, MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/`, plus a sidecar `.md` that records the selection and validation results.
 
-Target: the `5.0.0b1` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
+Target: the `5.0.0b2` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
 
 ## Ground rules
 
@@ -230,7 +230,7 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 
 | Tag | Applies when | Note |
 |---|---|---|
-| `[all]` | Always | swiftDialog `3.1.1.4996` or newer (`swiftDialogMinimumRequiredVersion`); pre-flight installs or updates it. |
+| `[all]` | Always | swiftDialog `3.1.1.4997` or newer (`swiftDialogMinimumRequiredVersion`); pre-flight installs or updates it. |
 | `[all]` | Always | `jq` validates every array; an invalid array exits before any check runs. |
 | `[all]` | Always | Client-Side Cache / LaunchDaemon: the cached copy runs nightly in `Silent` and drops `updateComputerInventory`; H3–H5 fall back to the loginwindow `lastUserName`. |
 | `[all]` | Always | `Silent` + `splunkOperationMode=production` is reporting-first; use `<YOUR_SPLUNK_HEC_URL>` and `<YOUR_SPLUNK_HEC_TOKEN>`. |
@@ -280,7 +280,7 @@ Close with these steps, then offer to adjust the selection or build another arti
 ## Resources
 
 - Project: https://github.com/dan-snelson/Mac-Health-Check
-- Releases (5.0.0b1 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
+- Releases (5.0.0b2 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
 - `README.md`, `CHANGELOG.md`, `external-checks/README.md`, `Artifacts/README.md`, and `AGENTS.md` in the repository
 - `references/health-checks.md`, `references/artifact-procedure.md`, and `scripts/build-artifact.zsh` in this skill
 
@@ -314,7 +314,7 @@ All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manua
 | 3 | 32 rows = 32 calls, indices 0–31, icons `01`–`32`, F1 absent, M15 last | PASS |
 | 4 | Diff: 2 hunks, inside the array and the `"Microsoft Intune" )` branch only | PASS |
 | 5 | Client-Side Cache simulation (`zsh -n`, `jq`, no `jamf recon`) | PASS |
-| 6 | `scriptVersion` `5.0.0b1` unchanged | PASS |
+| 6 | `scriptVersion` `5.0.0b2` unchanged | PASS |
 | 7 | Source unchanged | PASS |
 | 8 | Artifact and sidecar git-ignored | PASS |
 

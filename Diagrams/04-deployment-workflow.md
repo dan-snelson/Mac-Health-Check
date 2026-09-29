@@ -191,7 +191,7 @@ Open `Mac-Health-Check.zsh` and review the **Organization Variables** and **IT S
 | `previousMinorOS` | `2` | How many older macOS versions are compliant |
 | `completionTimer` | `60` | Fallback dialog auto-close (seconds) |
 
-`webhookURL` and `splunkHECToken` belong in the root-only secrets file `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (`root:wheel`, mode `600`, deployed from a package payload), not in script defaults or policy parameters. Beginning in `5.0.0b1`, secrets supplied only through **Parameter 5** or **Parameter 8** are rejected unless `allowParameterSecrets="true"` is set in the script (not recommended; parameters are visible to local users via `ps`). Splunk reporting mode, HEC URL, index, and sourcetype remain runtime parameters.
+`webhookURL` and `splunkHECToken` belong in the root-only secrets file `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (`root:wheel`, mode `600`, deployed from a package payload), not in script defaults or policy parameters. Beginning in `5.0.0b2`, secrets supplied only through **Parameter 5** or **Parameter 8** are rejected unless `allowParameterSecrets="true"` is set in the script (not recommended; parameters are visible to local users via `ps`). Splunk reporting mode, HEC URL, index, and sourcetype remain runtime parameters.
 
 ---
 

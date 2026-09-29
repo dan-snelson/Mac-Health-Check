@@ -2,9 +2,9 @@
 
 ## CHANGELOG
 
-### 5.0.0b1 (28-Sep-2026)
-- Raised the minimum required swiftDialog version to `3.1.1.4996`
-    - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4996`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
+### 5.0.0b2 (29-Sep-2026)
+- Raised the minimum required swiftDialog version to `3.1.1.4997`
+    - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4997`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
 - Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails
 - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent

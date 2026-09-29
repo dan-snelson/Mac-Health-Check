@@ -6,7 +6,7 @@
 
 # Updated by: Dan K. Snelson
 # For Mac Health Check
-# Date: 28-Sep-2026
+# Date: 29-Sep-2026
 # - Generated wrapper now decodes into a root-only `mktemp -d` directory (instead of a fixed, pre-plantable
 #   `/var/tmp/MHC.zsh`), forwards all arguments (i.e., Jamf Pro Parameters 1-11) and removes the copy on exit
 

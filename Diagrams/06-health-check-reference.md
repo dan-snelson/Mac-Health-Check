@@ -13,7 +13,7 @@ This text-only reference documents key configurable defaults and the current run
 - `checkMemoryPressure()` adds one observation whenever the check executes, including full runs and targeted rechecks, to root-only history under `organizationDirectory`; cached uploads, healthy Inspect replay, and synthetic `Test` runs do not sample.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
-- Pre-flight targets swiftDialog `3.1.1.4996` or newer and skips redundant production downloads when the installed release already matches the latest production build.
+- Pre-flight targets swiftDialog `3.1.1.4997` or newer and skips redundant production downloads when the installed release already matches the latest production build.
 - When `enableDockIntegration` is `true`, non-`Silent` runs show a Dock icon with a decreasing `dockiconbadge` count.
 - Client-Side Cache installs a client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` and a `org.churchofjesuschrist.MHC` LaunchDaemon for nightly `Silent` report refreshes.
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, routes stdout/stderr to `/dev/null`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
