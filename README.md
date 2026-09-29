@@ -54,6 +54,7 @@ The tool logs results for review, writes a structured JSON health report locally
 - Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run by bypassing `Self Service` targeting/replay or Jamf `Silent` cached upload
 - `splunkOperationMode=off` disables HEC delivery explicitly while still preserving local JSON report generation
 - `splunkOperationMode=test` preserves local report generation while intentionally skipping network transmission
+- Only `splunkOperationMode=production` (case-insensitive) enables Splunk HEC delivery; beginning in `5.0.0b2`, any unrecognized value (for example, a typo) falls back to `test` and logs `[ERROR]`, so it never uploads compliance data
 - Beginning in `4.0.0`, non-`Silent` runs and full Jamf production runs install a client-side copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus a `org.churchofjesuschrist.MHC` LaunchDaemon that refreshes the local report across a deterministic 00:53-01:53 window centered on 1:23 a.m.
 - The LaunchDaemon sets `launchDaemonRun=true`; the client-side script then derives a stable per-Mac jitter from hardware UUID, logs the jitter through MHC-prefixed logging, and routes daemon stdout/stderr to `/dev/null` to avoid duplicate client-log lines.
 - When a LaunchDaemon-triggered refresh runs with no active GUI user, Mac Health Check falls back to `/Library/Preferences/com.apple.loginwindow.plist` `lastUserName` for user-scoped checks.
@@ -239,6 +240,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - Wraps the finalized report as `{sourcetype, index, event}` when posting to Splunk HEC
 - Supports `splunkOperationMode=off` to disable HEC delivery explicitly while still preserving local JSON report generation
 - Preserves local report generation in `splunkOperationMode=test` while intentionally skipping network transmission
+- Treats any unrecognized `splunkOperationMode` value as `test` (logged as `[ERROR]`); only an explicit `production` enables HEC delivery
 - `Silent` plus `splunkOperationMode=production` mirrors only `Splunk Reporting:` lines to stdout; all other run output stays in `${scriptLog}`, and final exit returns success when local report generation plus HEC delivery both succeed, regardless of recorded health findings
 - That `Silent` plus `splunkOperationMode=production` path also skips final Jamf Pro inventory submission while logging the skip to `${scriptLog}`
 - Client-Side Cache avoids a full Jamf Pro health-check run when the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` matches the server-side version and the cached JSON report is valid and fresh

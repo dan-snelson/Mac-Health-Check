@@ -197,7 +197,7 @@ Each external check policy writes results to `organizationDefaultsDomain` using 
 |---|---|---|---|
 | 4 | `operationMode` | `Self Service` | Operation mode: `Self Service`, `Silent`, `Debug`, `Development`, `Test` |
 | 5 | `webhookURL` | (blank) | Microsoft Teams or Slack webhook URL for unhealthy-run summaries; rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
-| 6 | `splunkOperationMode` | `test` | Reporting mode: `off` disables HEC delivery, `production` posts to Splunk when configured, and `test` skips transmission while still generating the JSON report |
+| 6 | `splunkOperationMode` | `test` | Reporting mode: `off` disables HEC delivery, `production` posts to Splunk when configured, and `test` skips transmission while still generating the JSON report; unrecognized values fall back to `test` |
 | 7 | `splunkHECURL` | (blank) | Splunk HTTP Event Collector URL; leave blank to disable transmission |
 | 8 | `splunkHECToken` | (blank) | Splunk HEC token; never logged by the script; rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
 | 9 | `splunkHECIndex` | (blank) | Optional Splunk HEC index value included in the transmission wrapper payload |

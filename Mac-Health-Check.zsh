@@ -424,6 +424,9 @@ function validateCachedSplunkReport() {
 
 }
 
+splunkOperationModeRequested="${splunkOperationMode}"
+splunkOperationModeUnrecognized="false"
+
 case "${splunkOperationMode:l}" in
     "off" )
         splunkOperationMode="off"
@@ -431,8 +434,13 @@ case "${splunkOperationMode:l}" in
     "test" )
         splunkOperationMode="test"
         ;;
-    * )
+    "production" )
         splunkOperationMode="production"
+        ;;
+    * )
+        # Fail safe: an unrecognized value (e.g., a typo) must never enable production reporting
+        splunkOperationModeUnrecognized="true"
+        splunkOperationMode="test"
         ;;
 esac
 
@@ -6819,6 +6827,10 @@ fi
 
 if [[ "${reportingSecretsFileStatus}" == "untrusted" ]]; then
     warning "Reporting Secrets: ignored ${reportingSecretsPath}; it must be a root-owned, mode 600 regular file."
+fi
+
+if [[ "${splunkOperationModeUnrecognized}" == "true" ]]; then
+    errorOut "Splunk Reporting: unrecognized splunkOperationMode \"${splunkOperationModeRequested}\" (Parameter 6); using test (local report only, no HEC transmission). Valid values: off, test, production."
 fi
 
 preFlight "Reporting Secrets: Splunk HEC token source: ${splunkHECTokenSource}; webhook URL source: ${webhookURLSource}"
