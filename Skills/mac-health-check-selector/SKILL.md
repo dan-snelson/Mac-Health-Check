@@ -7,7 +7,7 @@ description: Interactively prompts a Mac Admin to select which health checks to 
 
 Guide a Mac Admin through choosing which Mac Health Check (MHC) health checks to show and run, then write an edited, MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/`, plus a sidecar `.md` that records the selection and validation results.
 
-Target: the `5.0.0b3` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
+Target: the `5.0.0b4` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
 
 ## Ground rules
 
@@ -280,7 +280,7 @@ Close with these steps, then offer to adjust the selection or build another arti
 ## Resources
 
 - Project: https://github.com/dan-snelson/Mac-Health-Check
-- Releases (5.0.0b3 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
+- Releases (5.0.0b4 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
 - `README.md`, `CHANGELOG.md`, `external-checks/README.md`, `Artifacts/README.md`, and `AGENTS.md` in the repository
 - `references/health-checks.md`, `references/artifact-procedure.md`, and `scripts/build-artifact.zsh` in this skill
 
@@ -314,7 +314,7 @@ All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manua
 | 3 | 32 rows = 32 calls, indices 0–31, icons `01`–`32`, F1 absent, M15 last | PASS |
 | 4 | Diff: 2 hunks, inside the array and the `"Microsoft Intune" )` branch only | PASS |
 | 5 | Client-Side Cache simulation (`zsh -n`, `jq`, no `jamf recon`) | PASS |
-| 6 | `scriptVersion` `5.0.0b3` unchanged | PASS |
+| 6 | `scriptVersion` `5.0.0b4` unchanged | PASS |
 | 7 | Source unchanged | PASS |
 | 8 | Artifact and sidecar git-ignored | PASS |
 

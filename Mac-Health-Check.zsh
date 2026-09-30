@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b3 30-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b4 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b3"
+scriptVersion="5.0.0b4"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -677,6 +677,7 @@ reportBaseTimestamp=""
 targetedRecheckMode="false"
 targetedRecheckEligibilityStatus="not_checked"
 targetedBaseReportJSON=""
+targetedInventoryAppended="false"
 targetedBaseReportIdentity=""
 targetedBaseFullRunTimestamp=""
 targetedBaseFullRunTimestampEpoch=""
@@ -711,6 +712,7 @@ typeset -a reportWarningChecks
 typeset -a reportFailChecks
 typeset -a reportErrorChecks
 typeset -a targetedCheckKeys
+typeset -a targetedFindingKeys
 typeset -a targetedOriginalIndices
 
 entraIDRegistrationStatus="unknown"
@@ -876,7 +878,7 @@ totalDiskBytes=$( diskutil info / | grep "Container Total Space" | sed -E 's/.*\
 if [[ -z "${totalDiskBytes}" || "${totalDiskBytes}" == "0" ]]; then
     totalDiskBytes=$( echo "${rawStorage} * 1000000000" | bc 2>/dev/null || echo "0" )
 fi
-batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
+batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | awk -F' = ' '/"CycleCount" = /{ print $2; exit }' | tr -d '"[:space:]' )
 activationLockStatus=$( system_profiler SPHardwareDataType 2>/dev/null | awk '/Activation Lock Status/{print $NF}' )
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
@@ -2712,6 +2714,8 @@ function prepareTargetedRecheckIfEligible() {
 
     targetedRecheckMode="false"
     targetedCheckKeys=()
+    targetedFindingKeys=()
+    targetedInventoryAppended="false"
     targetedOriginalIndices=()
     targetedSelectedOriginalIndex=()
     targetedDisplayIndexByOriginalIndex=()
@@ -2858,6 +2862,15 @@ function prepareTargetedRecheckIfEligible() {
     for candidateKey in "${targetedCheckKeys[@]}"; do
         targetKeySet[${candidateKey}]="true"
     done
+    targetedFindingKeys=( "${targetedCheckKeys[@]}" )
+
+    # Refresh MDM inventory so verified remediation reaches the server
+    for (( i=0; i<fullListitemLength; i++ )); do
+        if [[ "${fullCheckTitleByIndex[${i}]}" == "Computer Inventory" ]] && [[ "${targetKeySet[${fullCheckKeyByIndex[${i}]}]}" != "true" ]]; then
+            targetKeySet[${fullCheckKeyByIndex[${i}]}]="true"
+            targetedInventoryAppended="true"
+        fi
+    done
 
     targetedCheckKeys=()
     for (( i=0; i<fullListitemLength; i++ )); do
@@ -2912,7 +2925,8 @@ function prepareTargetedRecheckIfEligible() {
     reportFullRunTimestamp="${targetedBaseFullRunTimestamp}"
     reportFullRunTimestampEpoch="${targetedBaseFullRunTimestampEpoch}"
     reportBaseTimestamp="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.timestamp // empty' )"
-    notice "Targeted Recheck: rechecking ${#targetedCheckKeys[@]} recent warning(s), failure(s) or error(s): ${(j:, :)targetedCheckKeys}."
+    notice "Targeted Recheck: rechecking ${#targetedFindingKeys[@]} recent warning(s), failure(s) or error(s): ${(j:, :)targetedFindingKeys}."
+    [[ "${targetedInventoryAppended}" == "true" ]] && info "Targeted Recheck: including Computer Inventory to submit verified results."
     return 0
 
 }
@@ -6235,7 +6249,9 @@ function launchInspectSummary() {
         return 1
     fi
 
-    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} DIALOG_DEBUG=1 ${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} --ontop --moveable >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
+    local inspectDebugEnvironment=""
+    [[ "${operationMode}" == "Debug" ]] && inspectDebugEnvironment="DIALOG_DEBUG=1 "
+    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} ${inspectDebugEnvironment}${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} --ontop --moveable >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
     inspectPID="$( runAsUser /bin/zsh -lc "${launchCommand}" 2>/dev/null | tr -d '[:space:]' )"
 
     if [[ ! "${inspectPID}" == <-> ]]; then
@@ -6583,6 +6599,22 @@ EOF
 # Quit Script (thanks, @bartreadon!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+function targetedResultsChangedFromBase() {
+
+    local index=""
+    local baseStatus=""
+
+    [[ "${targetedRecheckMode}" != "true" ]] && return 0
+
+    for (( index=0; index<listitemLength; index++ )); do
+        baseStatus="$( printf '%s' "${targetedBaseReportJSON}" | jq -r --arg key "${checkKeyByIndex[${index}]}" 'first(.checks[] | select(.key == $key) | .status) // empty' 2>/dev/null )"
+        [[ "${checkNormalizedStatusByIndex[${index}]}" != "${baseStatus}" ]] && return 0
+    done
+
+    return 1
+
+}
+
 function quitScript() {
 
     local problemCheckCount=0
@@ -6591,6 +6623,7 @@ function quitScript() {
     local inspectSummaryLaunched="false"
     local reportGenerationSucceeded="true"
     local timeMachineSummary="${tmStatus}"
+    local sendWebhook="${webhookConfigured}"
 
     [[ -n "${tmLastBackup}" ]] && timeMachineSummary+=" ${tmLastBackup}"
 
@@ -6612,6 +6645,11 @@ function quitScript() {
 
     esac
 
+    if [[ "${sendWebhook}" == "true" ]] && ! targetedResultsChangedFromBase; then
+        sendWebhook="false"
+        info "Targeted Recheck: results unchanged from previous report; skipping webhook message."
+    fi
+
     case "${reportOverallStatus}" in
 
         "warning" )
@@ -6619,7 +6657,7 @@ function quitScript() {
                 dialogUpdate "icon: SF=exclamationmark.triangle.fill, weight=bold, colour1=${statusColorError}, colour2=${statusColorError}"
                 dialogUpdate "title: Computer Needs Attention <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
             fi
-            if [[ "${webhookConfigured}" == "true" ]]; then
+            if [[ "${sendWebhook}" == "true" ]]; then
                 info "Sending webhook message"
                 webhookStatus="Warnings Detected (${problemCheckCount} issues)"
                 webHookMessage
@@ -6633,7 +6671,7 @@ function quitScript() {
                 dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
                 dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
             fi
-            if [[ "${webhookConfigured}" == "true" ]]; then
+            if [[ "${sendWebhook}" == "true" ]]; then
                 info "Sending webhook message"
                 webhookStatus="Failures Detected (${problemCheckCount} issues)"
                 webHookMessage
@@ -7705,7 +7743,7 @@ function checkAvailableSoftwareUpdates() {
     # sleep "${anticipationDuration}"
 
     # MDM Client Available OS Updates
-    mdmClientAvailableOSUpdates=$( /usr/libexec/mdmclient AvailableOSUpdates | awk '/Available updates/,/^\)/{if(/HumanReadableName =/){n=$0;sub(/.*= "/,"",n);sub(/".*/,"",n)}if(/DeferredUntil =/){d=$0;sub(/.*= "/,"",d);sub(/ 00:00:00.*/,"",d)}if(n!=""&&d!=""){print n" | "d;n="";d=""}}' )
+    mdmClientAvailableOSUpdates=$( /usr/libexec/mdmclient AvailableOSUpdates 2>/dev/null | awk '/Available updates/,/^\)/{if(/HumanReadableName =/){n=$0;sub(/.*= "/,"",n);sub(/".*/,"",n)}if(/DeferredUntil =/){d=$0;sub(/.*= "/,"",d);sub(/ 00:00:00.*/,"",d)}if(n!=""&&d!=""){print n" | "d;n="";d=""}}' )
     if [[ -n "${mdmClientAvailableOSUpdates}" ]]; then
         notice "MDM Client Available OS Updates | Deferred Until"
         info "${mdmClientAvailableOSUpdates}"
@@ -8459,7 +8497,7 @@ function checkMemoryPressure() {
                     info "${humanReadableCheckName}: ${adverseDays} adverse days across ${validDays} observed days."
                 fi
             else
-                info "${humanReadableCheckName}: insufficient history (${validDays} valid days)."
+                info "${humanReadableCheckName}: insufficient history (${validDays} valid day$( (( validDays == 1 )) || print -n "s" ))."
             fi
         else
             warning "${humanReadableCheckName}: unable to evaluate history."

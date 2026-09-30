@@ -21,7 +21,7 @@
 #       Not Installed
 #
 # Changelog:
-#   2026-09-29 - v1.1.1 - Removed `/usr/local/bin` from `PATH` (Mac Health Check 5.0.0b3).
+#   2026-09-29 - v1.1.1 - Removed `/usr/local/bin` from `PATH` (Mac Health Check 5.0.0b4).
 #   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
 #   2025-09-29 - v1.0.0 - Initial version created for GitHub release.
 #

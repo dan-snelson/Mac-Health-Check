@@ -2,12 +2,15 @@
 
 ## CHANGELOG
 
-### 5.0.0b3 (30-Sep-2026)
+### 5.0.0b4 (30-Sep-2026)
 - Raised the minimum required swiftDialog version to `3.1.1.4997`
     - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4997`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
-- Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails
+- Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails; Jamf Pro targeted rechecks also run `Computer Inventory`, and targeted webhook messages are sent only when a rechecked status changes
 - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
+- Fixed `Battery Cycle Count` reporting `=` on macOS 27, where `ioreg` prefixes the `CycleCount` line with a tree marker
+- Suppressed `mdmclient AvailableOSUpdates` stderr, which macOS 27 rejects as an unrecognized command, so `Silent` production logs no longer capture the `mdmclient` usage banner
+- The detached Preset 6 Inspect summary now sets `DIALOG_DEBUG=1` only in `Debug` mode
 - Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - Introduced a dedicated AI Skill to assist Mac Admins with custom deployment
 - Hardened code based on Monocle findings
