@@ -26,7 +26,7 @@ This directory contains two helper tools used to package or wrap `Mac-Health-Che
 3. Execute it with `/bin/zsh --no-rcs`, forwarding all arguments (for example, Jamf Pro Parameters 1-11)
 4. Remove the directory on exit
 
-Beginning in `5.0.0b4`, the wrapper no longer writes to the fixed `/var/tmp/MHC.zsh` path (which a local user could pre-create and rewrite before root executed it) and the `--target` option has been removed. Regenerate any previously deployed self-extracting scripts.
+Beginning in `5.0.0b5`, the wrapper no longer writes to the fixed `/var/tmp/MHC.zsh` path (which a local user could pre-create and rewrite before root executed it) and the `--target` option has been removed. Regenerate any previously deployed self-extracting scripts.
 
 #### Default behavior
 
@@ -68,7 +68,7 @@ Show help:
 
 The `Makefile` packages `../Mac-Health-Check.zsh` as:
 
-- Install path: `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` (root-owned; beginning in `5.0.0b4`, the payload no longer uses `/usr/local/bin`, which Homebrew can make user-writable)
+- Install path: `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` (root-owned; beginning in `5.0.0b5`, the payload no longer uses `/usr/local/bin`, which Homebrew can make user-writable)
 - Package name format: `Mac-Health-Check-<scriptVersion>-<YYYY-MM-DD-HHMMSS>.pkg`
 - Post-install behavior: runs `postInstall.zsh` (copied as `postinstall`), which executes the payload with `/bin/zsh --no-rcs` in `Self Service` mode
 

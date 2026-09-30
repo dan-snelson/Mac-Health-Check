@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b4 30-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b5 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b4"
+scriptVersion="5.0.0b5"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
