@@ -31,7 +31,7 @@
 #   Version 0.0.7, 18-Jun-2025, Dan K. Snelson (@dan-snelson)
 #       Skip filter check if enrolled in the last hour
 #
-#   Version 0.0.8, 29-Sep-2026, Dan K. Snelson (@dan-snelson)
+#   Version 0.0.8, 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 #       Removed `/usr/local/bin` from `PATH` (Monocle S3)
 #
 ####################################################################################################

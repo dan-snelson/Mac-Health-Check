@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b2 29-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b3 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b2"
+scriptVersion="5.0.0b3"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -107,8 +107,6 @@ operationMode="${4:-"Self Service"}"
 webhookURL="${5:-""}"
 
 
-
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Client-Side Cache Jitter
@@ -637,7 +635,6 @@ excessiveUptimeAlertStyle="warning"
 # Completion Timer (in seconds)
 completionTimer="60"
 
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 # Inspect Mode Defaults
 # Toggle detached inspect summary generation and cached replay [ on | off ]
 inspectSummaryPreset="on"
@@ -2475,7 +2472,6 @@ function get_json_value() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 # Result-collection Helpers
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -3168,7 +3164,6 @@ function getCheckStatusByTitle() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 # Splunk Reporting Helpers
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 

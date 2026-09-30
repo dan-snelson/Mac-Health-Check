@@ -1,6 +1,6 @@
 # Mac Health Check — Health Check Reference
 
-Companion reference for the `mac-health-check-selector` skill. Derived from `Mac-Health-Check.zsh` `5.0.0b2`. When this file and the script disagree, the script wins. `scripts/build-artifact.zsh --list <slug>` prints the script's current rows and calls for any MDM.
+Companion reference for the `mac-health-check-selector` skill. Derived from `Mac-Health-Check.zsh` `5.0.0b3`. When this file and the script disagree, the script wins. `scripts/build-artifact.zsh --list <slug>` prints the script's current rows and calls for any MDM.
 
 ## How the pieces fit
 
@@ -242,7 +242,7 @@ When building an artifact, copy rows verbatim from the chosen MDM's array in the
 
 ## Shipped default order per MDM
 
-Each list is the shipped order, index `0` first. Use it as the default selection (`defaults`) for that MDM. Verified against `5.0.0b2` with `scripts/build-artifact.zsh --list <slug>`; rerun it each session and trust the script if they differ.
+Each list is the shipped order, index `0` first. Use it as the default selection (`defaults`) for that MDM. Verified against `5.0.0b3` with `scripts/build-artifact.zsh --list <slug>`; rerun it each session and trust the script if they differ.
 
 Every list ends with `M14 H6 M15` (plus `F1` for Jamf Pro). Available non-default additions go immediately before the first remaining item of that tail (see **Reply grammar** in `SKILL.md`).
 

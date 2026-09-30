@@ -12,7 +12,7 @@
 #   Version 0.0.2, 09-Oct-2025, Howard Griffith (@HowardGMac)
 #   - Added empty checkExtended field to the Not Installed failure to prevent spurious error message
 #
-#   Version 0.0.3, 29-Sep-2026, Dan K. Snelson (@dan-snelson)
+#   Version 0.0.3, 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 #   - Call `mdatp` from the root-owned app bundle instead of user-writable `/usr/local/bin` (Monocle)
 #
 ###########################################################################################

@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 5.0.0b2 (29-Sep-2026)
+### 5.0.0b3 (30-Sep-2026)
 - Raised the minimum required swiftDialog version to `3.1.1.4997`
     - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4997`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
