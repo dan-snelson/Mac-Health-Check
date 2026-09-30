@@ -2,7 +2,10 @@
 
 ## CHANGELOG
 
-### 5.0.0b5 (30-Sep-2026)
+### 5.0.0b6 (30-Sep-2026)
+- Fixed the detached Preset 6 Inspect summary never displaying in `Self Service`: `/Library/Management` can be `0700` root, which blocked the logged-in user from reading the Inspect config and compliance plist and from writing the launch log, while the script still logged a successful launch
+    - Moved user-facing Inspect assets to a root-owned `0755` tree at `/Library/Application Support/${reverseDomainNameNotation}/Inspect` (config and compliance plist) with per-user control files under `Inspect/Users/<user>`; the canonical report, secrets and caches remain root-only in `organizationDirectory`
+    - Removes root-owned 5.0.0-beta Inspect leftovers from `organizationDirectory`
 - Raised the minimum required swiftDialog version to `3.1.1.4997`
     - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4997`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
 - Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations

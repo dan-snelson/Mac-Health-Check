@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b5 30-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b6 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b5"
+scriptVersion="5.0.0b6"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -638,12 +638,16 @@ completionTimer="60"
 # Inspect Mode Defaults
 # Toggle detached inspect summary generation and cached replay [ on | off ]
 inspectSummaryPreset="on"
-# Root-written, user-readable (root:wheel 0644) Inspect assets
-inspectConfigPath="${organizationDirectory}/MacHealthCheck-Inspect-Config.json"
-inspectCompliancePlistPath="${organizationDirectory}/MacHealthCheck-Inspect-Compliance.plist"
+# Root-written, user-readable (root:wheel 0644) Inspect assets live in a root:wheel 0755 tree the
+# logged-in user can traverse; `/Library/Management` may be 0700 root, so the report, secrets and
+# cache stay root-only in `organizationDirectory`
+inspectAssetsParentDirectory="/Library/Application Support/${reverseDomainNameNotation}"
+inspectAssetsDirectory="${inspectAssetsParentDirectory}/Inspect"
+inspectConfigPath="${inspectAssetsDirectory}/MacHealthCheck-Inspect-Config.json"
+inspectCompliancePlistPath="${inspectAssetsDirectory}/MacHealthCheck-Inspect-Compliance.plist"
 # User-writable Inspect control files live in a per-user directory root never writes into
 # (trigger, readiness, result and launch-log paths are set after the logged-in user is determined)
-inspectUserRootDirectory="${organizationDirectory}/Inspect"
+inspectUserRootDirectory="${inspectAssetsDirectory}/Users"
 inspectUserDirectory=""
 inspectTriggerFilePath=""
 inspectReadinessFilePath=""
@@ -3689,7 +3693,8 @@ function ensureSecureRootDirectory() {
 
 function removeLegacyTemporaryArtifacts() {
 
-    # Pre-5.0.0 builds kept state at fixed `/var/tmp` paths; remove only root-owned, non-symlink leftovers
+    # Pre-5.0.0 builds kept state at fixed `/var/tmp` paths and 5.0.0 betas kept Inspect assets in
+    # `organizationDirectory`; remove only root-owned, non-symlink leftovers
     # (user-owned or symlinked leftovers are ignored, since nothing reads them any longer)
     local legacyArtifactPath=""
     local legacyArtifactPaths=(
@@ -3705,6 +3710,9 @@ function removeLegacyTemporaryArtifacts() {
         "/var/tmp/networkQualityTest"
         "/var/tmp/dockicon.png"
         "/var/tmp/sofa"
+        "${organizationDirectory}/MacHealthCheck-Inspect-Config.json"
+        "${organizationDirectory}/MacHealthCheck-Inspect-Compliance.plist"
+        "${organizationDirectory}/Inspect"
     )
 
     for legacyArtifactPath in "${legacyArtifactPaths[@]}"; do
@@ -6888,7 +6896,9 @@ if ! ensureSecureRootDirectory "${organizationDirectory}" 755; then
     fatal "Unable to secure '${organizationDirectory}' (must be a root-owned directory that is not group- or world-writable); exiting."
 fi
 
-if ! ensureSecureRootDirectory "${inspectUserRootDirectory}" 755; then
+if ! ensureSecureRootDirectory "${inspectAssetsParentDirectory}" 755 \
+    || ! ensureSecureRootDirectory "${inspectAssetsDirectory}" 755 \
+    || ! ensureSecureRootDirectory "${inspectUserRootDirectory}" 755; then
     warning "Unable to secure '${inspectUserRootDirectory}'; Inspect Summary launch will be unavailable."
 fi
 

@@ -1,6 +1,6 @@
 # Mac Health Check — Artifact Procedure
 
-Companion reference for the `mac-health-check-selector` skill. It describes how to write an MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/` and how to validate it. Derived from `Mac-Health-Check.zsh` `5.0.0b5`. When this file and the script disagree, the script wins.
+Companion reference for the `mac-health-check-selector` skill. It describes how to write an MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/` and how to validate it. Derived from `Mac-Health-Check.zsh` `5.0.0b6`. When this file and the script disagree, the script wins.
 
 The procedure is deterministic: find anchor lines, replace line ranges, validate. Prefer the tested helper `scripts/build-artifact.zsh`, which implements every step below. The manual snippets are the fallback for environments that cannot run it.
 
@@ -233,7 +233,7 @@ if awk -v a1="${srcAStart}" -v a2="${srcAEnd}" -v b1="${srcBStart}" -v b2="${src
     END { exit bad }' "${work}/artifact.diff"; then passCheck 4 "diff scope"; else failCheck 4 "hunk outside the two regions"; fi
 grep -E '^[0-9]' "${work}/artifact.diff"   # hunk headers for the sidecar diff summary
 
-# 5. Client-Side Cache replay (copied from installClientSideScript in 5.0.0b5; the helper extracts it live)
+# 5. Client-Side Cache replay (copied from installClientSideScript in 5.0.0b6; the helper extracts it live)
 cp "${artifact}" "${work}/client.zsh"
 sed -i '' 's|operationMode="${4:-"Self Service"}"|operationMode="${4:-"Silent"}"|' "${work}/client.zsh"
 awk '
