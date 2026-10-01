@@ -2,6 +2,20 @@
 
 ## CHANGELOG
 
+### 5.0.0b7 (01-Oct-2026)
+- `checkJamfProCheckIn()` now counts `startup`, `login` and `networkStateChange` triggers alongside `recurring check-in`, preventing false warnings on Macs powered off overnight, and parses `jamf.log` timestamps with the current year (falling back to the prior year for future dates), preventing false successes across the December-to-January rollover
+- `checkAppAutoPatch()` now supports App Auto-Patch `4.0.0`, reading `/Library/Application Support/AppAutoPatch/logs/aap.log` (plus the per-user `~/Library/Logs/AppAutoPatch/aap.log` fallback) and using the newest `Discovery complete` timestamp; falls back to the 3.x `/Library/Management/AppAutoPatch/logs/aap.log`, and reports `Unable to determine last run` when a 4.0.0 log has no `Discovery complete` entry
+- Polished health-check log output; check results, statustext and report values are unchanged
+    - Leading zero on user-directory disk percentages (i.e., `0.06% of disk`)
+    - Rounded Network Quality responsiveness and removed the trailing `; `
+    - Singular / plural Memory Pressure day counts
+    - `Warning: ` / `Error: ` spacing in `checkExternalJamfPro()`
+    - `; ` separator between Time Machine destinations and backup dates
+    - Removed trailing `; ` from `checkNetworkHosts()` and `checkElectronCornerMask()` logs
+- `checkHomebrewStatus()` now logs its warning-level results as `[WARNING]` instead of `[ERROR]`
+- Client-Side Cache now logs `evaluating` (instead of `installing`) before checking whether the cached copy is current
+- DDM Resolver logs now explain non-zero resolver exits and show `build=unavailable` instead of `(null)`
+
 ### 5.0.0b6 (30-Sep-2026)
 - Fixed the detached Preset 6 Inspect summary never displaying in `Self Service`: `/Library/Management` can be `0700` root, which blocked the logged-in user from reading the Inspect config and compliance plist and from writing the launch log, while the script still logged a successful launch
     - Moved user-facing Inspect assets to a root-owned `0755` tree at `/Library/Application Support/${reverseDomainNameNotation}/Inspect` (config and compliance plist) with per-user control files under `Inspect/Users/<user>`; the canonical report, secrets and caches remain root-only in `organizationDirectory`

@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b6 30-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b7 01-Oct-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b6"
+scriptVersion="5.0.0b7"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -1078,7 +1078,7 @@ else
     if [[ -z $tmBackupDates ]]; then
         tmLastBackup="Last backup date(s) unknown; connect destination(s)"
     else
-        tmLastBackup="; Date(s): ${tmBackupDates//$'\n'/, }"
+        tmLastBackup="Date(s): ${tmBackupDates//$'\n'/, }"
     fi
 fi
 
@@ -4158,7 +4158,7 @@ function installClientSideScript() {
     local launchctlOutput=""
     local launchDaemonValidationOutput=""
 
-    notice "Client-Side Cache: installing client-side script at ${clientSideScriptPath}"
+    notice "Client-Side Cache: evaluating client-side script at ${clientSideScriptPath}"
 
     if [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
         notice "Client-Side Cache: running from client-side script path; install skipped."
@@ -6633,7 +6633,7 @@ function quitScript() {
     local timeMachineSummary="${tmStatus}"
     local sendWebhook="${webhookConfigured}"
 
-    [[ -n "${tmLastBackup}" ]] && timeMachineSummary+=" ${tmLastBackup}"
+    [[ -n "${tmLastBackup}" ]] && timeMachineSummary+="; ${tmLastBackup}"
 
     rebuildOverallHealthFromRecordedResults
     calculateOverallReportStatus
@@ -7780,9 +7780,19 @@ function checkAvailableSoftwareUpdates() {
         fi
 
         [[ -z "${ddmEnforcedInstallDateHumanReadable}" ]] && ddmEnforcedInstallDateHumanReadable="${ddmEnforcedInstallDateDisplay}"
-        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionString}"
+        local ddmBuildVersionLog="${ddmBuildVersionString}"
+        [[ -z "${ddmBuildVersionLog}" || "${ddmBuildVersionLog}" == "(null)" ]] && ddmBuildVersionLog="unavailable"
+        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionLog}"
     else
-        info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode})"
+        local ddmResolverExitReason=""
+        case "${ddmResolverExitCode}" in
+            20 ) ddmResolverExitReason="no DDM enforcement entries found in install.log" ;;
+            21 ) ddmResolverExitReason="conflicting or ambiguous DDM enforcement candidates" ;;
+            22 ) ddmResolverExitReason="DDM-enforced version string failed validation" ;;
+            23 ) ddmResolverExitReason="Apple reported no matching update for the DDM-requested version" ;;
+            * )  ddmResolverExitReason="unexpected resolver result" ;;
+        esac
+        info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode}: ${ddmResolverExitReason})"
     fi
 
     # Software Update Recommended Updates
@@ -7883,12 +7893,24 @@ function checkAppAutoPatch() {
     local aap_warning_threshold=7
     local aap_critical_threshold=30
 
-    # Path to App Auto-Patch log
-    local aap_log_path="/Library/Management/AppAutoPatch/logs/aap.log"
+    # Paths to App Auto-Patch logs (3.x; 4.0.0 system log and per-user fallback)
+    local aap_log_path_legacy="/Library/Management/AppAutoPatch/logs/aap.log"
+    local aap_log_path_current="/Library/Application Support/AppAutoPatch/logs/aap.log"
+    local aap_log_path_user=""
+    [[ -n "${loggedInUserHomeDirectory}" ]] && aap_log_path_user="${loggedInUserHomeDirectory}/Library/Logs/AppAutoPatch/aap.log"
+    local aap_log_path="" aap_log_format=""
     local canEvaluateLastRun="true"
 
+    # Prefer App Auto-Patch 4.0.0 logs; fall back to the 3.x log
+    if [[ -f "${aap_log_path_current}" || ( -n "${aap_log_path_user}" && -f "${aap_log_path_user}" ) ]]; then
+        aap_log_format="4"
+    elif [[ -f "${aap_log_path_legacy}" ]]; then
+        aap_log_format="3"
+        aap_log_path="${aap_log_path_legacy}"
+    fi
+
     # Check if log file exists
-    if [[ ! -f "${aap_log_path}" ]]; then
+    if [[ -z "${aap_log_format}" ]]; then
         errorOut "${humanReadableCheckName}: Log file not found"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Log not found"
         overallHealth+="${humanReadableCheckName}; "
@@ -7896,17 +7918,38 @@ function checkAppAutoPatch() {
         canEvaluateLastRun="false"
     fi
 
-    # Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
     local aap_ts_line aap_ts last_run_epoch now_epoch seconds_since_last_run days_since_last_run
+    local aap_v4_log aap_v4_epoch
 
     if [[ "${canEvaluateLastRun}" == "true" ]]; then
+        info "${humanReadableCheckName}: Evaluating App Auto-Patch ${aap_log_format}.x log(s)"
+    fi
+
+    # App Auto-Patch 4.0.0: newest ISO-8601 "Discovery complete" timestamp across system and per-user logs
+    # (log mtime is not used; the root helper writes to the log continuously)
+    if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "4" ]]; then
+        for aap_v4_log in "${aap_log_path_current}" "${aap_log_path_user}"; do
+            [[ -n "${aap_v4_log}" && -f "${aap_v4_log}" ]] || continue
+            aap_ts_line=$( grep -E "Discovery complete" "${aap_v4_log}" 2>/dev/null | tail -1 )
+            [[ -n "${aap_ts_line}" ]] || continue
+            aap_ts=$( echo "${aap_ts_line%% *}" | sed -E 's/\.[0-9]+//; s/Z$/+0000/; s/([+-][0-9]{2}):([0-9]{2})$/\1\2/' )
+            [[ "${aap_ts}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}$ ]] || continue
+            aap_v4_epoch=$( date -j -f "%Y-%m-%dT%H:%M:%S%z" "${aap_ts}" "+%s" 2>/dev/null )
+            if [[ "${aap_v4_epoch}" =~ ^[0-9]+$ ]] && (( aap_v4_epoch > ${last_run_epoch:-0} )); then
+                last_run_epoch="${aap_v4_epoch}"
+            fi
+        done
+    fi
+
+    # App Auto-Patch 3.x — Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
+    if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" ]]; then
         aap_ts_line=$(grep -E "Current time stamp:" "${aap_log_path}" | tail -1)
     fi
 
-    if [[ "${canEvaluateLastRun}" == "true" && -z "${aap_ts_line}" ]]; then
+    if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" && -z "${aap_ts_line}" ]]; then
         # Fallback: use log mtime if the timestamp line is missing
         last_run_epoch=$(stat -f %m "${aap_log_path}" 2>/dev/null)
-    elif [[ "${canEvaluateLastRun}" == "true" ]]; then
+    elif [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" ]]; then
         aap_ts=$(echo "${aap_ts_line}" | awk '{print $NF}')
 
         # Validate expected format (14 digits)
@@ -8500,11 +8543,11 @@ function checkMemoryPressure() {
                     resultColor="${statusColorError}"
                     resultText="Elevated on ${adverseDays} of last ${memoryPressureLookbackDays} days"
                     resultSubtitle="Close unused apps; check Activity Monitor > Memory; restart if slowdowns persist"
-                    warning "${humanReadableCheckName}: ${adverseDays} adverse days in last ${memoryPressureLookbackDays}; current level ${pressureLevel}."
+                    warning "${humanReadableCheckName}: ${adverseDays} adverse day$( (( adverseDays == 1 )) || print -n "s" ) in last ${memoryPressureLookbackDays}; current level ${pressureLevel}."
                 else
                     resultText="No recurring pressure"
                     resultSubtitle="Memory pressure history shows no repeated warning"
-                    info "${humanReadableCheckName}: ${adverseDays} adverse days across ${validDays} observed days."
+                    info "${humanReadableCheckName}: ${adverseDays} adverse day$( (( adverseDays == 1 )) || print -n "s" ) across ${validDays} observed day$( (( validDays == 1 )) || print -n "s" )."
                 fi
             else
                 info "${humanReadableCheckName}: insufficient history (${validDays} valid day$( (( validDays == 1 )) || print -n "s" ))."
@@ -8553,15 +8596,17 @@ function checkUserDirectorySizeItems() {
         dirBytes=$( echo "${dirBlocks} * 512" | bc 2>/dev/null || echo "0" )
         percentage=$( echo "scale=2; if (${totalDiskBytes} > 0) ${dirBytes} * 100 / ${totalDiskBytes} else 0" | bc -l 2>/dev/null || echo "0" )
         userDirectoryResult="${userDirectorySize} (${userDirectoryItems} items) — ${percentage}% of disk"
+        # Log-only copy with a leading zero (`bc` prints `.06`); statustext and report values stay unchanged
+        local userDirectoryLogResult="${userDirectorySize} (${userDirectoryItems} items) — $( printf "%.2f" "${percentage}" 2>/dev/null || print -n "${percentage}" )% of disk"
         if (( $( echo ${percentage}'>'${allowedMaximumDirectoryPercentage} | bc -l 2>/dev/null ) )); then
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName} if you need assistance, status: error, statustext: ${userDirectoryResult}"
             footerStatusColor="${statusColorError}"
-            warning "${humanReadableCheckName}: ${userDirectoryResult}"
+            warning "${humanReadableCheckName}: ${userDirectoryLogResult}"
             # overallHealth+="${humanReadableCheckName}; " # Uncomment to treat as an error
         else
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
             footerStatusColor="${statusColorSuccess}"
-            info "${humanReadableCheckName}: ${userDirectoryResult}"
+            info "${humanReadableCheckName}: ${userDirectoryLogResult}"
         fi
     fi
 
@@ -9110,11 +9155,11 @@ function checkNetworkHosts() {
     if [[ "${allOK}" == true ]]; then
         dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Passed"
         footerStatusColor="${statusColorSuccess}"
-        info "${name}: ${results%;; }"
+        info "${name}: ${results%; }"
     else
         dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: Failed"
         footerStatusColor="${statusColorFail}"
-        errorOut "${name}: ${results%;; }"
+        errorOut "${name}: ${results%; }"
         overallHealth+="${name}; "
     fi
 
@@ -9229,13 +9274,19 @@ function checkJamfProCheckIn() {
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
 
-    last_check_in_time=$(grep "Checking for policies triggered by \"recurring check-in\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
+    # Any trigger that contacts Jamf Pro counts as a check-in (i.e., a Mac powered off overnight checks in at startup)
+    last_check_in_time=$(grep -E "Checking for policies triggered by \"(recurring check-in|startup|login|networkStateChange)\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
     if [[ -z "${last_check_in_time}" ]]; then
         last_check_in_time=$( date "+%b %e %H:%M:%S" )
     fi
 
-    # Convert last Jamf Pro check-in time to epoch
-    last_check_in_time_epoch=$(date -j -f "%b %d %T" "${last_check_in_time}" +"%s")
+    # Convert last Jamf Pro check-in time to epoch; `jamf.log` omits the year, so assume the current year and
+    # fall back to the prior year when that yields a future timestamp (i.e., December entries read in January)
+    local checkInYear=$( date "+%Y" )
+    last_check_in_time_epoch=$(date -j -f "%Y %b %d %T" "${checkInYear} ${last_check_in_time}" +"%s")
+    if (( last_check_in_time_epoch > $( date +%s ) + 86400 )); then
+        last_check_in_time_epoch=$(date -j -f "%Y %b %d %T" "$(( checkInYear - 1 )) ${last_check_in_time}" +"%s")
+    fi
     time_since_check_in_epoch=$(($currentTimeEpoch-$last_check_in_time_epoch))
 
     # Convert last Jamf Pro epoch to something easier to read
@@ -9965,14 +10016,14 @@ function checkExternalJamfPro() {
                     warningStatus="${checkExtended}"
                 fi
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $warningStatus"
-                warning "${appDisplayName} Warning:$warningStatus"
+                warning "${appDisplayName} Warning: ${warningStatus}"
                 footerCheckIcon="SF=exclamationmark.triangle.fill"
                 footerStatusColor="${statusColorError}"
                 ;;
 
             "error" | * )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $checkStatus:$checkExtended"
-                errorOut "${appDisplayName} Error:$checkExtended"
+                errorOut "${appDisplayName} Error: ${checkExtended}"
                 overallHealth+="${appDisplayName}; "
                 footerCheckIcon="SF=exclamationmark.triangle.fill"
                 footerStatusColor="${statusColorError}"
@@ -10006,7 +10057,7 @@ function checkExternalJamfPro() {
                 fi
                 [[ -z "${warningStatus}" ]] && warningStatus="Warning"
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $warningStatus"
-                warning "${appDisplayName} Warning:$warningStatus"
+                warning "${appDisplayName} Warning: ${warningStatus}"
                 footerCheckIcon="SF=exclamationmark.triangle.fill"
                 footerStatusColor="${statusColorError}"
                 ;;
@@ -10097,7 +10148,9 @@ function checkNetworkQuality() {
 
     mbps=$( echo "scale=2; ( $dlThroughput / 1000000 )" | bc )
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, status: success, statustext: ${mbps} Mbps ${testStatus}"
-    info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsiveness}; "
+    local dlResponsivenessLog="${dlResponsiveness}"
+    [[ "${dlResponsivenessLog}" =~ ^[0-9]+(\.[0-9]+)?$ ]] && dlResponsivenessLog=$( printf "%.0f" "${dlResponsivenessLog}" )
+    info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsivenessLog}"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
@@ -10160,7 +10213,7 @@ function checkHomebrewStatus() {
 
         if [[ -z "${installedHomebrewVersion}" ]] || [[ -z "${latestHomebrewVersion}" ]] || [[ "${outdatedFormulaeCount}" != <-> ]] || [[ "${outdatedCasksCount}" != <-> ]]; then
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Homebrew was found but could not be fully evaluated, status: error, statustext: Unable to determine"
-            errorOut "${humanReadableCheckName}: Unable to determine; installed=${installedHomebrewVersion:-unknown}; latest=${latestHomebrewVersion:-unknown}; formulae=${outdatedFormulaeCount:-unknown}; casks=${outdatedCasksCount:-unknown}"
+            warning "${humanReadableCheckName}: Unable to determine; installed=${installedHomebrewVersion:-unknown}; latest=${latestHomebrewVersion:-unknown}; formulae=${outdatedFormulaeCount:-unknown}; casks=${outdatedCasksCount:-unknown}"
             overallHealth+="${humanReadableCheckName}; "
             footerStatusColor="${statusColorError}"
         else
@@ -10182,7 +10235,7 @@ function checkHomebrewStatus() {
                 fi
 
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Open Terminal and update Homebrew packages if you manage them on this Mac, status: error, statustext: ${statusSummary}"
-                errorOut "${humanReadableCheckName}: Installed ${installedHomebrewVersion}; latest ${latestHomebrewVersion}; outdated formulae ${outdatedFormulaeCount}; outdated casks ${outdatedCasksCount}"
+                warning "${humanReadableCheckName}: Installed ${installedHomebrewVersion}; latest ${latestHomebrewVersion}; outdated formulae ${outdatedFormulaeCount}; outdated casks ${outdatedCasksCount}"
                 overallHealth+="${humanReadableCheckName}; "
                 footerStatusColor="${statusColorError}"
             fi
@@ -10382,6 +10435,7 @@ function checkElectronCornerMask() {
             footerStatusColor="${statusColorError}"
         else
             local safeList=$(printf '%s; ' "${safeApps[@]}")
+            safeList="${safeList%; }"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: All Electron apps patched"
             info "${humanReadableCheckName}: All Electron apps are running patched versions — ${safeList}"
         fi
