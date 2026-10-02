@@ -2,6 +2,18 @@
 
 ## CHANGELOG
 
+### 5.0.0b8 (02-Oct-2026)
+- Nightly Client-Side Cache `Silent` reports now serve as targeted-recheck and cached-replay baselines for `Self Service`; check-set validation ignores `Computer Inventory` (which the sanitized client-side copy omits), targeted merges append the rechecked `Computer Inventory` result, and its absence from the base no longer counts as a status change for webhook messages, preventing a full run (and `[WARNING] Targeted Recheck: report check set does not match …`) after every nightly refresh
+- `Microsoft OneDrive Sync Date` now uses the local date instead of UTC, preventing evening runs from reporting tomorrow's date (affects the quit summary, help message, Inspect and the Splunk `oneDriveSyncDate` value)
+- `checkWiFiStrength()` now logs `Fair` results as `[WARNING]` and `Poor` results as `[ERROR]`, matching their list-item statuses; statuses and report values are unchanged
+- SOFA cache refreshes now revalidate a stale feed with its stored ETag (HTTP `304` refreshes the cache age) instead of deleting the cache first, keep the stale feed when a download fails, and allow `10` seconds (previously `3`) for the initial download
+- Polished log output
+    - swiftDialog older than `swiftDialogMinimumRequiredVersion` (when no newer production release exists) now logs `[WARNING]` instead of `[PRE-FLIGHT]`
+    - Inspect Summary Replay logs one specific reason when falling back to a full run (removed the generic `no eligible cached summary` line)
+    - Removed the trailing space from `Run "…" as "<UID>" …` log lines
+    - Client-Side Cache logs `generated LaunchDaemon plist validated` only when an install proceeds
+- `5.0.0b7` reports do not match the `5.0.0b8` script version, so the first `5.0.0b8` `Self Service` run on each Mac is a full run
+
 ### 5.0.0b7 (01-Oct-2026)
 - `checkJamfProCheckIn()` now counts `startup`, `login` and `networkStateChange` triggers alongside `recurring check-in`, preventing false warnings on Macs powered off overnight, and parses `jamf.log` timestamps with the current year (falling back to the prior year for future dates), preventing false successes across the December-to-January rollover
 - `checkAppAutoPatch()` now supports App Auto-Patch `4.0.0`, reading `/Library/Application Support/AppAutoPatch/logs/aap.log` (plus the per-user `~/Library/Logs/AppAutoPatch/aap.log` fallback) and using the newest `Discovery complete` timestamp; falls back to the 3.x `/Library/Management/AppAutoPatch/logs/aap.log`, and reports `Unable to determine last run` when a 4.0.0 log has no `Discovery complete` entry

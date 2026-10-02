@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b7 01-Oct-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b8 02-Oct-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b7"
+scriptVersion="5.0.0b8"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -1059,8 +1059,8 @@ fi
 if [[ -d "${loggedInUserHomeDirectory}/Library/Application Support/OneDrive/settings/Business1/" ]]; then
     DataFile=$( ls -t "${loggedInUserHomeDirectory}"/Library/Application\ Support/OneDrive/settings/Business1/*.ini | head -n 1 )
     EpochTime=$( stat -f %m "$DataFile" )
-    UTCDate=$( date -u -r $EpochTime '+%d-%b-%Y' )
-    oneDriveSyncDate="${UTCDate}"
+    # Local date, matching log timestamps (UTC showed tomorrow's date on evening runs)
+    oneDriveSyncDate=$( date -r "${EpochTime}" '+%d-%b-%Y' )
 else
     oneDriveSyncDate="Not Configured"
 fi
@@ -2340,7 +2340,7 @@ function runAsUser() {
     local commandPreview=""
 
     commandPreview="$( formatCommandForLog "$@" )"
-    info "Run \"${commandPreview}\" as \"$loggedInUserID\" … " 1>&2
+    info "Run \"${commandPreview}\" as \"$loggedInUserID\" …" 1>&2
     launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" "$@"
 
 }
@@ -2352,7 +2352,7 @@ function captureRunAsUserOutput() {
     local commandExitCode=0
 
     commandPreview="$( formatCommandForLog "$@" )"
-    info "Run \"${commandPreview}\" as \"$loggedInUserID\" … " 1>&2
+    info "Run \"${commandPreview}\" as \"$loggedInUserID\" …" 1>&2
     commandOutput="$( launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" "$@" 2>&1 )"
     commandExitCode=$?
 
@@ -2422,7 +2422,7 @@ function runHomebrewAsUser() {
     local commandPreview=""
 
     commandPreview="$( formatCommandForLog "${brewBinary}" "$@" )"
-    info "Run Homebrew \"${commandPreview}\" as \"${loggedInUserID}\" … " 1>&2
+    info "Run Homebrew \"${commandPreview}\" as \"${loggedInUserID}\" …" 1>&2
     launchctl asuser "${loggedInUserID}" sudo -H -u "${loggedInUser}" env \
         HOME="${loggedInUserHomeDirectory}" \
         USER="${loggedInUser}" \
@@ -2692,6 +2692,13 @@ function detectSelfServiceForceFreshRun() {
 
 }
 
+# Client-Side Cache copies omit `Computer Inventory`, which targeted rechecks always re-run
+function filterComparableCheckKeysJSON() {
+
+    jq -c 'map(select(. != "computer_inventory")) | sort'
+
+}
+
 function prepareTargetedRecheckIfEligible() {
 
     local baseReportModificationEpoch=""
@@ -2842,8 +2849,8 @@ function prepareTargetedRecheckIfEligible() {
     for (( i=0; i<fullListitemLength; i++ )); do
         currentCheckKeys+=( "${fullCheckKeyByIndex[${i}]}" )
     done
-    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | jq -c 'sort' )"
-    baseCheckKeysJSON="$( printf '%s' "${targetedBaseReportJSON}" | jq -c '[.checks[].key] | sort' )"
+    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | filterComparableCheckKeysJSON )"
+    baseCheckKeysJSON="$( printf '%s' "${targetedBaseReportJSON}" | jq -c '[.checks[].key]' | filterComparableCheckKeysJSON )"
     if [[ "${baseCheckKeysJSON}" != "${currentCheckKeysJSON}" ]]; then
         targetedRecheckEligibilityStatus="check_set_mismatch"
         warning "Targeted Recheck: report check set does not match current ${mdmVendor} configuration; running full health check."
@@ -3009,14 +3016,16 @@ function validateTargetedMergeBaseReportJSON() {
     for (( i=0; i<fullListitemLength; i++ )); do
         currentCheckKeys+=( "${fullCheckKeyByIndex[${i}]}" )
     done
-    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | jq -c 'sort' )"
-    mergeCheckKeysJSON="$( printf '%s' "${reportJSON}" | jq -c '[.checks[].key] | sort' )"
+    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | filterComparableCheckKeysJSON )"
+    mergeCheckKeysJSON="$( printf '%s' "${reportJSON}" | jq -c '[.checks[].key]' | filterComparableCheckKeysJSON )"
     if [[ "${mergeCheckKeysJSON}" != "${currentCheckKeysJSON}" ]]; then
         warning "Targeted Recheck: current report check set does not match current ${mdmVendor} configuration; preserving current report."
         return 1
     fi
 
     for candidateKey in "${targetedCheckKeys[@]}"; do
+        # Client-Side Cache reports omit `Computer Inventory`; `mergeTargetedReportJSON` appends it
+        [[ "${candidateKey}" == "computer_inventory" ]] && continue
         if ! printf '%s' "${reportJSON}" | jq -e --arg key "${candidateKey}" 'any(.checks[]; .key == $key)' >/dev/null 2>&1; then
             warning "Targeted Recheck: current report does not contain targeted key ${candidateKey}; preserving current report."
             return 1
@@ -3459,7 +3468,8 @@ function mergeTargetedReportJSON() {
         def replacement($key): ([$run.checks[] | select(.key == $key)][0] // null);
 
         . as $base
-        | ($base.checks | map(
+        | ($base.checks | map(.key)) as $baseKeys
+        | (($base.checks | map(
             . as $old
             | replacement($old.key) as $new
             | (($old.checkedAtEpoch // $base.metadata.timestampEpoch // $fullRunTimestampEpoch // 0) | tonumber? // 0) as $oldEpoch
@@ -3480,7 +3490,10 @@ function mergeTargetedReportJSON() {
                 }
               end)
             | .index = $indexMap[.key]
-        ) | sort_by(.index)) as $mergedChecks
+        ))
+        # Client-Side Cache reports omit `Computer Inventory`; append targeted results absent from the base
+        + [$run.checks[] | select(.key as $key | targeted($key) and ($baseKeys | index($key)) == null) | .index = $indexMap[.key]]
+        | sort_by(.index)) as $mergedChecks
         | ($mergedChecks | map(select(.status == "healthy"))) as $healthyChecks
         | ($mergedChecks | map(select(.status == "warning"))) as $warningChecks
         | ($mergedChecks | map(select(.status == "fail"))) as $failedChecks
@@ -4267,8 +4280,6 @@ ENDOFLAUNCHDAEMON
         warning "Client-Side Cache: generated LaunchDaemon plist failed validation at ${launchDaemonPath}: ${launchDaemonValidationOutput}"
         rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
         return 1
-    else
-        info "Client-Side Cache: generated LaunchDaemon plist validated at ${launchDaemonPath}"
     fi
 
     if [[ -f "${clientSideScriptPath}" ]] && [[ -f "${launchDaemonPath}" ]] \
@@ -4281,6 +4292,8 @@ ENDOFLAUNCHDAEMON
         notice "Client-Side Cache: client-side assets already current; install skipped."
         return 0
     fi
+
+    info "Client-Side Cache: generated LaunchDaemon plist validated at ${launchDaemonPath}"
 
     cp "${sanitizedClientScript}" "${clientSideScriptPath}" || {
         warning "Client-Side Cache: unable to update ${clientSideScriptPath}"
@@ -6280,6 +6293,7 @@ function replayCachedInspectSummaryIfEligible() {
     local configResultFilePath=""
 
     if ! inspectSummaryIsEnabled; then
+        info "Inspect Summary Replay: Inspect Summary is off; running full health check."
         return 1
     fi
 
@@ -6288,6 +6302,7 @@ function replayCachedInspectSummaryIfEligible() {
     fi
 
     if [[ ! -r "${inspectConfigPath}" ]]; then
+        info "Inspect Summary Replay: no cached config at ${inspectConfigPath}; running full health check."
         return 1
     fi
 
@@ -6616,6 +6631,8 @@ function targetedResultsChangedFromBase() {
 
     for (( index=0; index<listitemLength; index++ )); do
         baseStatus="$( printf '%s' "${targetedBaseReportJSON}" | jq -r --arg key "${checkKeyByIndex[${index}]}" 'first(.checks[] | select(.key == $key) | .status) // empty' 2>/dev/null )"
+        # Keys absent from the base (i.e., `Computer Inventory` from Client-Side Cache reports) are not status changes
+        [[ -z "${baseStatus}" ]] && continue
         [[ "${checkNormalizedStatusByIndex[${index}]}" != "${baseStatus}" ]] && return 0
     done
 
@@ -7089,7 +7106,7 @@ function dialogCheck() {
             latestProductionDialogVersion="$( getSwiftDialogVersionFromPkgURL "${latestProductionDialogURL}" )"
 
             if [[ -n "${latestProductionDialogVersion}" ]] && is-at-least "${latestProductionDialogVersion}" "${dialogVersion}"; then
-                preFlight "swiftDialog version ${dialogVersion} found. Latest production release is ${latestProductionDialogVersion}; skipping automatic download because configured minimum ${swiftDialogMinimumRequiredVersion} targets a newer non-production build."
+                warning "swiftDialog version ${dialogVersion} found. Latest production release is ${latestProductionDialogVersion}; skipping automatic download because configured minimum ${swiftDialogMinimumRequiredVersion} targets a newer non-production build."
                 return 0
             fi
             
@@ -7207,9 +7224,8 @@ function checkOS() {
                 logComment "Using cached SOFA data (age within ${sofaCacheMaximumAge})"
                 sofaDataCached="true"
             else
-                logComment "Cached SOFA data is stale; removing …"
-                rm -Rf "$json_cache_dir"
-                ensureSecureRootDirectory "$json_cache_dir" 755 || warning "Unable to secure SOFA cache directory at $json_cache_dir"
+                # Keep the stale feed and its ETag so the download below can revalidate (HTTP 304) instead of re-downloading
+                logComment "Cached SOFA data is stale; revalidating …"
             fi
         fi
 
@@ -7220,18 +7236,21 @@ function checkOS() {
             etag_download=$( mktemp "$json_cache_dir/.macos_data_feed_etag.txt.XXXXXX" 2>/dev/null )
             if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
                 logComment "e-tag stored, will download only if e-tag doesn’t match"
-                curl --compressed --location --fail --max-time 10 --silent --etag-compare "$etag_cache" --etag-save "$etag_download" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_download"
+                sofaHTTPStatus=$( curl --compressed --location --fail --max-time 10 --silent --etag-compare "$etag_cache" --etag-save "$etag_download" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_download" --write-out '%{http_code}' )
             else
                 logComment "No e-tag cached, proceeding to download SOFA json file"
-                curl --compressed --location --fail --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_download" --output "$json_download"
+                sofaHTTPStatus=$( curl --compressed --location --fail --max-time 10 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_download" --output "$json_download" --write-out '%{http_code}' )
             fi
             if [[ -s "$json_download" ]] && jq -e . "$json_download" >/dev/null 2>&1; then
                 chmod 644 "$json_download" "$etag_download" 2>/dev/null
                 mv -f "$json_download" "$json_cache"
                 [[ -s "$etag_download" ]] && mv -f "$etag_download" "$etag_cache"
                 logComment "Downloaded new SOFA json file"
+            elif [[ -f "$json_cache" ]] && [[ "${sofaHTTPStatus}" == "304" ]]; then
+                touch "$json_cache"
+                logComment "Cached ETag matched online ETag; keeping cached json file"
             elif [[ -f "$json_cache" ]]; then
-                logComment "Cached ETag matched online ETag (or download failed) - keeping cached json file"
+                logComment "SOFA download failed (HTTP ${sofaHTTPStatus:-000}); keeping stale cached json file"
             else
                 logComment "Unable to download a valid SOFA json file"
             fi
@@ -9848,7 +9867,11 @@ function checkWiFiStrength() {
 
     checkInspectTextByIndex[${1}]="${quality} (${rssi} dBm)"
     dialogUpdate "icon: SF=wifi,weight=semibold,colour=${footerStatusColor}"
-    info "${humanReadableCheckName}: ${quality} (${rssi} dBm)"
+    case "${quality}" in
+        "Fair" ) warning "${humanReadableCheckName}: ${quality} (${rssi} dBm)" ;;
+        "Poor" ) errorOut "${humanReadableCheckName}: ${quality} (${rssi} dBm)" ;;
+        * ) info "${humanReadableCheckName}: ${quality} (${rssi} dBm)" ;;
+    esac
 
     sleep $((anticipationDuration / 2))
 
@@ -10792,7 +10815,6 @@ if [[ "${targetedRecheckEligibilityStatus}" == "healthy" ]]; then
         quitOut "Replayed cached inspect summary."
         exit 0
     fi
-    info "Inspect Summary Replay: no eligible cached summary; running full health check."
 fi
 
 if [[ "${targetedRecheckMode}" != "true" ]]; then

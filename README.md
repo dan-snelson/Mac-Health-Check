@@ -260,7 +260,7 @@ Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs
 - The generated config includes `/Library/Application Support/org.churchofjesuschrist/Inspect/Users/<user>/MacHealthCheck-Inspect.trigger`, `/Library/Application Support/org.churchofjesuschrist/Inspect/Users/<user>/MacHealthCheck-Inspect.ready` and `/Library/Application Support/org.churchofjesuschrist/Inspect/Users/<user>/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
 - `Self Service` automatically rechecks non-healthy `.checks[].key` values when the canonical report has a matching device, MDM vendor, script version and full-run baseline less than 36 hours old
 - Targeted dialogs display contiguous check numbers immediately, while Inspect presents the authoritative Mac Health Check status separately from swiftDialog's weighted `Compliance Score`
-- Jamf Pro targeted rechecks also run `Computer Inventory` so verified remediation reaches the server
+- Jamf Pro targeted rechecks also run `Computer Inventory` so verified remediation reaches the server; nightly Client-Side Cache reports (which omit `Computer Inventory`) remain valid targeted-recheck and replay baselines
 - Targeted rechecks send Slack or Microsoft Teams webhook messages only when at least one rechecked status differs from the previous report
 - Targeted results replace only matching check records, preserve untouched results, add `checkedAt` / `checkedAtEpoch`, and expose `metadata.runScope`, full-run baseline fields and `summary.recheckedCount`
 - Targeted writes use a shared report lock and rebase onto compatible concurrent report updates so newer full-report data is not overwritten
