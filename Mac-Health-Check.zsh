@@ -6795,7 +6795,8 @@ function quitScript() {
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
-    quitOut "Good manners don’t cost nothing, do they, eh?"
+    quitOut "And then one day you find,"
+    quitOut "ten years have got behind you …"
 
     exit "${exitCode}"
 
