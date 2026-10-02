@@ -2055,7 +2055,7 @@ mosyleListitemJSON='
 
 # Validate mosyleListitemJSON is valid JSON
 if ! validateJson "${mosyleListitemJSON}"; then
-  echo "Error: mosyletitemJSON is invalid JSON"
+  echo "Error: mosyleListitemJSON is invalid JSON"
   echo "$mosyleListitemJSON"
   exit 1
 fi
