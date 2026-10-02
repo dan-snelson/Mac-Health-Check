@@ -50,17 +50,17 @@ Used by `references/artifact-procedure.md`.
 - **Region B** runs from the branch label line (12 spaces) through the next `                ;;`. It sits inside the first `        case ${mdmVendor} in` after the header `# Generate Health Checks based on Operation Mode and MDM Vendor`.
 - This file lists no line numbers because they drift with every release. Always anchor on the text. `zsh scripts/build-artifact.zsh --list <slug>` prints the live ranges.
 
-| Slug | Region A start line | Region B label line |
-|---|---|---|
-| `addigy` | `addigyMdmListitemJSON='` | `"Addigy" )` |
-| `filewave` | `filewaveMdmListitemJSON='` | `"Filewave" )` |
-| `fleet` | `fleetMdmListitemJSON='` | `"Fleet" )` |
-| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` |
-| `jamf-pro` | `jamfProListitemJSON='` | `"Jamf Pro" )` |
-| `jumpcloud` | `jumpcloudMdmListitemJSON='` | `"JumpCloud" )` |
-| `microsoft-intune` | `microsoftMdmListitemJSON='` | `"Microsoft Intune" )` |
-| `mosyle` | `mosyleListitemJSON='` | `"Mosyle" )` |
-| `generic` | `genericMdmListitemJSON='` | `* )` |
+| Slug | Region A start line | Region B label line | Detection pattern (`case "${serverURL}" in`) |
+|---|---|---|---|
+| `addigy` | `addigyMdmListitemJSON='` | `"Addigy" )` | `*addigy* )` |
+| `filewave` | `filewaveMdmListitemJSON='` | `"Filewave" )` | `*filewave* )` |
+| `fleet` | `fleetMdmListitemJSON='` | `"Fleet" )` | `*fleet* )` |
+| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` | `*kandji* )` |
+| `jamf-pro` | `jamfProListitemJSON='` | `"Jamf Pro" )` | `*jamf* \| *jss* )` |
+| `jumpcloud` | `jumpcloudMdmListitemJSON='` | `"JumpCloud" )` | `*jumpcloud* )` |
+| `microsoft-intune` | `microsoftMdmListitemJSON='` | `"Microsoft Intune" )` | `*microsoft* )` |
+| `mosyle` | `mosyleListitemJSON='` | `"Mosyle" )` | `*mosyle* )` |
+| `generic` | `genericMdmListitemJSON='` | `* )` | `* )` (never pruned) |
 
 Pitfalls:
 
@@ -68,6 +68,26 @@ Pitfalls:
 - Kandji's Cortex and Netskope rows carry trailing whitespace after `},`. Strip trailing whitespace before handling commas.
 - Vendor labels also appear in other `case` blocks: configuration, help message, report JSON, webhooks, `quitScript`, MDM certificate names, and dialog JSON merging. Never anchor on the label alone.
 - Every shipped MDM region pairs row `i` with call `i` and holds only `runConfiguredHealthCheck` lines; the helper stops with exit `2` if that stops being true.
+
+Vendor `case` blocks pruned by `--prune-other-mdms` (anchor on the `case` line, never on line numbers):
+
+- `case "${serverURL}" in` (detection), then each `case ${mdmVendor} in` / `case "${mdmVendor}" in`: Configuration Profile Variables (Jamf Pro only), help message (Jamf Pro only), `buildMacHealthReportJSON` (Jamf Pro, Mosyle), webhook `computerMdmURL` (Jamf Pro, Mosyle, `* )`), quit notice (Jamf Pro only), `checkMdmCertificateExpiration` (all, `* )`), dialog JSON merging (one-liners, all, `* )`), and the health-check block (Region B).
+- A new vendor label in any of these blocks must be added to the helper's `slugVendor` / `slugDetect` maps; otherwise pruning stops with exit `2`.
+
+### Vendor-owned symbols
+
+Removed by `--prune-other-mdms` only when the owner is pruned and no selected call still names the symbol.
+
+| Symbol | Owner | Kind | Called by |
+|---|---|---|---|
+| `checkJamfProCheckIn` | Jamf Pro | function | M5 |
+| `checkJamfProInventory` | Jamf Pro | function | M6 |
+| `checkExternalJamfPro` | Jamf Pro | function | A6–A10 |
+| `updateComputerInventory` | Jamf Pro | function | F1 |
+| `jamfHosts` | Jamf Pro | array | M13 (`checkNetworkHosts "Jamf Hosts"`) |
+| `checkMosyleCheckIn` | Mosyle | function | M7 |
+
+`checkEntraIDRegistration` (M2) and `checkClockSkew` (H7) ship only for Jamf Pro but run on any MDM, so they are never pruned.
 
 Client-Side Cache constraint:
 

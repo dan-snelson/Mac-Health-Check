@@ -10,7 +10,7 @@
 #
 # Usage:
 #   zsh build-artifact.zsh --list <slug> [--source <path>]
-#   zsh build-artifact.zsh --slug <slug> --selection <file|-> [--source <path>] [--out-dir <dir>]
+#   zsh build-artifact.zsh --slug <slug> --selection <file|-> [--prune-other-mdms] [--source <path>] [--out-dir <dir>]
 #
 # Slugs: jamf-pro, fleet, jumpcloud, microsoft-intune, mosyle, kandji, addigy, filewave, generic
 #
@@ -23,6 +23,10 @@
 # Raw titles are looked up in the source script: the chosen MDM's array first, then Jamf Pro, then
 # the remaining MDMs. Each row is paired with the call at the same index in that MDM's branch. Each
 # non-custom <ID> must match the check-ID map below (kept in sync with references/health-checks.md).
+#
+# --prune-other-mdms removes every other named MDM's list-item array, its branches in each vendor
+# `case` block (including `serverURL` detection), and vendor-owned functions or data the selection no
+# longer calls; the generic `* )` fallback always stays.
 #
 # Exit codes:
 #   0  every validation check passed; artifact and complete sidecar .md written to --out-dir
@@ -38,6 +42,10 @@
 # - Added MDM display names, vendor-neutral Clock Skew subtitle outside Jamf Pro, borrowed-row notices,
 #   `--selection -` (stdin), and a complete sidecar with Disabled reasons and tagged dependency notes
 #
+# Version 5.0.0b8 02-Oct-2026, Dan K. Snelson (@dan-snelson)
+# - Added optional `--prune-other-mdms`, which removes other MDMs' arrays, `case` branches, detection,
+#   and unreferenced vendor-owned symbols (keeping the generic fallback), with validation checks 4b and 4c
+#
 ####################################################################################################
 
 
@@ -50,7 +58,7 @@
 
 setopt extendedglob pipefail
 
-helperVersion="5.0.0b6"
+helperVersion="5.0.0b8"
 healthCheckHeader="# Generate Health Checks based on Operation Mode and MDM Vendor"
 placeholderNetwork="<YOUR_ORGANIZATION_NETWORK>"
 inventoryTitle="Computer Inventory"
@@ -108,6 +116,29 @@ slugDisplay=(
     addigy              "Addigy"
     filewave            "Filewave"
     generic             "Other / MDM-agnostic"
+)
+
+# `serverURL` detection patterns (the `case "${serverURL}" in` labels), used by --prune-other-mdms
+typeset -A slugDetect
+slugDetect=(
+    jamf-pro            "*jamf* | *jss*"
+    fleet               "*fleet*"
+    jumpcloud           "*jumpcloud*"
+    microsoft-intune    "*microsoft*"
+    mosyle              "*mosyle*"
+    kandji              "*kandji*"
+    addigy              "*addigy*"
+    filewave            "*filewave*"
+)
+
+# Vendor-owned symbols: name|owning slug|kind (function or array); pruned only when no reference remains
+vendorSymbols=(
+    "checkJamfProCheckIn|jamf-pro|function"
+    "checkJamfProInventory|jamf-pro|function"
+    "checkExternalJamfPro|jamf-pro|function"
+    "updateComputerInventory|jamf-pro|function"
+    "jamfHosts|jamf-pro|array"
+    "checkMosyleCheckIn|mosyle|function"
 )
 
 # Vendor-neutral subtitles for shipped rows that name Jamf Pro; applied when the chosen MDM is not Jamf Pro
@@ -192,6 +223,7 @@ slug=""
 selectionFile=""
 sourceScript=""
 outDir=""
+pruneOtherMdms="false"
 failCount=0
 typeset -a validationNumbers validationNames validationResults
 
@@ -210,7 +242,7 @@ typeset -a validationNumbers validationNames validationResults
 function printUsage() {
     print -r -- "Usage:"
     print -r -- "  zsh build-artifact.zsh --list <slug> [--source <path>]"
-    print -r -- "  zsh build-artifact.zsh --slug <slug> --selection <file|-> [--source <path>] [--out-dir <dir>]"
+    print -r -- "  zsh build-artifact.zsh --slug <slug> --selection <file|-> [--prune-other-mdms] [--source <path>] [--out-dir <dir>]"
     print -r -- "Slugs: ${slugOrder[*]}"
 }
 
@@ -357,6 +389,211 @@ function reportKeyForTitle() {
     fi
 }
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pruning (--prune-other-mdms)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function writeLabelFile() {
+    # writeLabelFile <file> <pruned slug> …; tab-separated known / prune labels for findCaseBranchRanges
+    local labelFile="${1}"
+    shift
+    local labelSlug=""
+    {
+        for labelSlug in ${slugOrder:#generic}; do
+            print -r -- "known"$'\t'"vendor"$'\t'"\"${slugVendor[${labelSlug}]}\""
+            print -r -- "known"$'\t'"detect"$'\t'"${slugDetect[${labelSlug}]}"
+        done
+        print -r -- "known"$'\t'"vendor"$'\t'"*"
+        print -r -- "known"$'\t'"detect"$'\t'"*"
+        for labelSlug in "$@"; do
+            print -r -- "prune"$'\t'"vendor"$'\t'"\"${slugVendor[${labelSlug}]}\""
+            print -r -- "prune"$'\t'"detect"$'\t'"${slugDetect[${labelSlug}]}"
+        done
+    } > "${labelFile}"
+}
+
+function findCaseBranchRanges() {
+    # findCaseBranchRanges <file> <label file>
+    # Prints one tab-separated line per pruned range: branch|block <case line> <start> <end> <label>
+    # A block whose every branch is pruned is printed once as "block"; exits 3 on anchor drift
+    awk '
+        function trimRight(s) { sub(/[[:space:]]+$/, "", s); return s }
+        function isBlank(n) { return (n >= 1 && n <= total && line[n] ~ /^[[:space:]]*$/) }
+        function pad(n,   s) { s = ""; while (n-- > 0) s = s " "; return s }
+        function isLabel(t) { return (substr(t, 1, indent + 4) == labelPrefix && substr(t, indent + 5, 1) != " " && t != "") }
+        function fail(message) { print "ERROR\t" message; failed = 1; exit 3 }
+        FNR == NR { split($0, p, "\t"); if (p[1] == "prune") prune[p[2] SUBSEP p[3]] = 1; else known[p[2] SUBSEP p[3]] = 1; next }
+        { line[++total] = $0 }
+        END {
+            if (failed) exit 3
+            for (n = 1; n <= total; n++) {
+                kind = ""
+                if (line[n] ~ /^ *case "?\$\{mdmVendor\}"? in$/) kind = "vendor"
+                else if (line[n] == "case \"${serverURL}\" in") kind = "detect"
+                if (kind == "") continue
+                match(line[n], /^ */); indent = RLENGTH
+                labelPrefix = pad(indent + 4); endText = pad(indent + 8) ";;"; esacText = pad(indent) "esac"
+                branchCount = 0; prunedCount = 0; esacAt = 0; m = n + 1
+                while (m <= total) {
+                    text = trimRight(line[m])
+                    if (text == esacText) { esacAt = m; break }
+                    if (isLabel(text)) {
+                        label = substr(text, indent + 5)
+                        if (label !~ /\)/) fail("line " m ": branch label without )")
+                        sub(/[[:space:]]*\).*$/, "", label)
+                        if (!((kind SUBSEP label) in known)) fail("line " m ": unknown " kind " label " label)
+                        finish = 0
+                        if (text ~ /;;$/) {
+                            finish = m
+                        } else {
+                            for (k = m + 1; k <= total; k++) {
+                                t2 = trimRight(line[k])
+                                if (t2 == endText) { finish = k; break }
+                                if (t2 == esacText || isLabel(t2)) break
+                            }
+                        }
+                        if (!finish) fail("line " m ": branch " label " has no ;;")
+                        branchCount++
+                        if ((kind SUBSEP label) in prune) { prunedCount++; ps[prunedCount] = m; pe[prunedCount] = finish; pl[prunedCount] = label }
+                        m = finish + 1
+                        continue
+                    }
+                    if (text != "" && substr(text, 1, indent + 5) != pad(indent + 5)) fail("line " m ": unexpected line between branches")
+                    m++
+                }
+                if (!esacAt) fail("line " n ": case block has no esac")
+                if (prunedCount > 0 && prunedCount == branchCount) {
+                    s = n; e = esacAt
+                    # A block that is its section'\''s only content takes the section header with it
+                    h = s - 1; while (isBlank(h)) h--
+                    f = e + 1; while (isBlank(f)) f++
+                    if (h > 3 && h < s - 1 && line[h] ~ /^# # #/ && line[h - 1] ~ /^# / && line[h - 1] !~ /^# # #/ && line[h - 2] ~ /^# # #/ && isBlank(h - 3) && f <= total && line[f] ~ /^(# # #|####)/) {
+                        s = h - 2; e = f - 1
+                    } else if (isBlank(s - 1) && isBlank(e + 1)) e++
+                    print "block\t" n "\t" s "\t" e "\t" kind
+                } else {
+                    for (i = 1; i <= prunedCount; i++) {
+                        s = ps[i]; e = pe[i]
+                        if (isBlank(s - 1) && isBlank(e + 1)) e++
+                        print "branch\t" n "\t" s "\t" e "\t" pl[i]
+                    }
+                }
+                n = esacAt
+            }
+        }' "${2}" "${1}"
+}
+
+function caseError() {
+    # caseError <findCaseBranchRanges output>; prints its ERROR message
+    local errorMessage=""
+    errorMessage=$( print -r -- "${1}" | awk -F '\t' '$1 == "ERROR" { print $2; exit }' )
+    print -r -- "${errorMessage:-vendor case blocks do not parse}"
+}
+
+function findArraySectionRange() {
+    # findArraySectionRange <file> <array name>; prints "<start> <end>" (section header through validation fi)
+    awk -v name="${2}" '
+        { line[++total] = $0 }
+        END {
+            for (n = 1; n <= total; n++) if (line[n] == name "='\''") { a = n; break }
+            if (!a) exit 3
+            h = a - 1; while (h > 0 && line[h] ~ /^[[:space:]]*$/) h--
+            if (h < 3 || line[h] !~ /^# # #/ || line[h - 1] !~ /^# .*List Items/ || line[h - 2] !~ /^# # #/) exit 3
+            for (q = a + 1; q <= total && line[q] != "'\''"; q++) ;
+            if (q > total) exit 3
+            v = q + 1; while (v <= total && line[v] ~ /^[[:space:]]*$/) v++
+            if (line[v] != "# Validate " name " is valid JSON") exit 3
+            for (f = v + 1; f <= total && f <= v + 8 && line[f] != "fi"; f++) ;
+            if (line[f] != "fi") exit 3
+            e = f; while (e + 1 <= total && line[e + 1] ~ /^[[:space:]]*$/) e++
+            print (h - 2) " " e
+        }' "${1}"
+}
+
+function findSymbolRange() {
+    # findSymbolRange <file> <name> <function|array>; prints "<start> <end>"
+    # function: section header triple through the closing "}" plus trailing blank lines
+    # array: preceding comment lines through the closing ")"
+    awk -v name="${2}" -v kind="${3}" '
+        { line[++total] = $0 }
+        END {
+            opener = (kind == "function") ? "function " name "() {" : name "=("
+            for (n = 1; n <= total; n++) if (line[n] == opener) { d = n; break }
+            if (!d) exit 3
+            closer = (kind == "function") ? "}" : ")"
+            for (q = d + 1; q <= total && line[q] != closer; q++) ;
+            if (q > total) exit 3
+            if (kind == "function") {
+                h = d - 1; while (h > 0 && line[h] ~ /^[[:space:]]*$/) h--
+                if (h < 3 || line[h] !~ /^# # #/ || line[h - 1] !~ /^# / || line[h - 1] ~ /^# # #/ || line[h - 2] !~ /^# # #/) exit 3
+                s = h - 2; e = q
+                while (e + 1 <= total && line[e + 1] ~ /^[[:space:]]*$/) e++
+            } else {
+                s = d; while (s - 1 > 0 && line[s - 1] ~ /^# / && line[s - 1] !~ /^# # #/) s--
+                e = q
+                if (s > 1 && line[s - 1] ~ /^[[:space:]]*$/ && e < total && line[e + 1] ~ /^[[:space:]]*$/) e++
+            }
+            print s " " e
+        }' "${1}"
+}
+
+function countReferences() {
+    # countReferences <file> <name> [<skip start> <skip end>]
+    # Counts non-comment lines naming <name>, outside installClientSideScript (its sanitizer patterns are not calls)
+    awk -v name="${2}" -v ds="${3:-0}" -v de="${4:-0}" '
+        /^function installClientSideScript\(\) \{$/ { inside = 1 }
+        inside { if ($0 == "}") inside = 0; next }
+        NR >= ds && NR <= de { next }
+        /^[[:space:]]*#/ { next }
+        $0 ~ ("(^|[^A-Za-z0-9_])" name "([^A-Za-z0-9_]|$)") { count++ }
+        END { print count + 0 }' "${1}"
+}
+
+function printLinesOutside() {
+    # printLinesOutside <file> <range> …; prints the lines of <file> outside every "<start> <end>" range
+    local file="${1}"
+    shift
+    print -r -l -- "$@" | awk '
+        FNR == NR { k++; split($0, r, " "); s[k] = r[1]; e[k] = r[2]; next }
+        { for (i = 1; i <= k; i++) if (FNR >= s[i] && FNR <= e[i]) next; print }' - "${file}"
+}
+
+function sortRanges() {
+    # sortRanges <range> …; prints "<start> <end>" sorted by start
+    print -r -l -- "$@" | sort -n -k1,1 -k2,2
+}
+
+function assembleArtifact() {
+    # assembleArtifact <output> <plan file>; plan lines "<start> <end> [replacement file]" in source coordinates
+    awk '
+        FNR == NR { k++; s[k] = $1; e[k] = $2; f[k] = $3; next }
+        {
+            for (i = 1; i <= k; i++) {
+                if (FNR >= s[i] && FNR <= e[i]) {
+                    if (FNR == s[i] && f[i] != "") { while ((getline replacementLine < f[i]) > 0) print replacementLine; close(f[i]) }
+                    next
+                }
+            }
+            print
+        }' "${2}" "${sourceScript}" > "${1}"
+}
+
+function writeAssemblyPlan() {
+    # writeAssemblyPlan <plan file> <prune range> …; adds Regions A and B; exits 2 on overlap
+    local planFile="${1}"
+    shift
+    local planLine="" previousEnd=0 planStart="" planEnd=""
+    local -a planLines
+    planLines=( "${(@f)$( sortRanges "${sourceAStart} ${sourceAEnd} ${workDirectory}/regionA.txt" "${sourceBStart} ${sourceBEnd} ${workDirectory}/regionB.txt" "$@" )}" )
+    for planLine in "${planLines[@]}"; do
+        planStart="${${(s: :)planLine}[1]}"
+        planEnd="${${(s: :)planLine}[2]}"
+        (( planStart > previousEnd && planEnd >= planStart )) || buildError "prune ranges overlap near source line ${planStart}"
+        previousEnd="${planEnd}"
+    done
+    print -r -l -- "${planLines[@]}" > "${planFile}"
+}
+
 
 
 ####################################################################################################
@@ -376,6 +613,7 @@ while (( $# > 0 )); do
         --selection )   selectionFile="${2}"; shift 2 ;;
         --source )      sourceScript="${2}"; shift 2 ;;
         --out-dir )     outDir="${2}"; shift 2 ;;
+        --prune-other-mdms ) pruneOtherMdms="true"; shift ;;
         -h | --help )   printUsage; exit 0 ;;
         * )             printUsage; exit 2 ;;
     esac
@@ -494,9 +732,11 @@ done < "${selectionInput}"
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 unchangedCopy="false"
+selectionUnchanged="false"
 typeset -a neutralizedTitles
 if (( customCount == 0 )) && [[ "${(pj:\n:)selectionTitles}" == "${(pj:\n:)shippedTitles}" ]]; then
-    unchangedCopy="true"
+    selectionUnchanged="true"
+    [[ "${pruneOtherMdms}" == "false" ]] && unchangedCopy="true"
     sed -n "${sourceAStart},${sourceAEnd}p" "${sourceScript}" > "${workDirectory}/regionA.txt"
     sed -n "${sourceBStart},${sourceBEnd}p" "${sourceScript}" > "${workDirectory}/regionB.txt"
 else
@@ -525,6 +765,46 @@ else
     } > "${workDirectory}/regionB.txt"
 fi
 
+# Prune other MDMs: case branches and arrays first, then vendor-owned symbols nothing references any more
+typeset -a pruneSlugs pruneRanges pruneCaseLines prunedSymbols keptSymbols prunedArrays
+pruneBranchCount=0
+pruneBlockCount=0
+if [[ "${pruneOtherMdms}" == "true" ]]; then
+    pruneSlugs=( ${${slugOrder:#${slug}}:#generic} )
+    writeLabelFile "${workDirectory}/labels.txt" "${pruneSlugs[@]}"
+    caseOutput=$( findCaseBranchRanges "${sourceScript}" "${workDirectory}/labels.txt" ) || buildError "prune: $( caseError "${caseOutput}" )"
+    for caseRecord in "${(@f)caseOutput}"; do
+        [[ -z "${caseRecord}" ]] && continue
+        caseFields=( "${(@ps:\t:)caseRecord}" )
+        pruneRanges+=( "${caseFields[3]} ${caseFields[4]}" )
+        (( ${pruneCaseLines[(Ie)${caseFields[2]}]} )) || pruneCaseLines+=( "${caseFields[2]}" )
+        if [[ "${caseFields[1]}" == "block" ]]; then (( pruneBlockCount++ )); else (( pruneBranchCount++ )); fi
+    done
+    for pruneSlug in "${pruneSlugs[@]}"; do
+        arrayRange=$( findArraySectionRange "${sourceScript}" "${slugArray[${pruneSlug}]}" ) || buildError "prune: section for ${slugArray[${pruneSlug}]} not found"
+        pruneRanges+=( "${arrayRange}" )
+        prunedArrays+=( "${slugArray[${pruneSlug}]}" )
+    done
+
+    writeAssemblyPlan "${workDirectory}/plan.txt" "${pruneRanges[@]}"
+    assembleArtifact "${workDirectory}/pass1.zsh" "${workDirectory}/plan.txt"
+    for vendorSymbol in "${vendorSymbols[@]}"; do
+        symbolFields=( "${(@s:|:)vendorSymbol}" )
+        (( ${pruneSlugs[(Ie)${symbolFields[2]}]} )) || continue
+        symbolRange=$( findSymbolRange "${workDirectory}/pass1.zsh" "${symbolFields[1]}" "${symbolFields[3]}" ) || buildError "prune: ${symbolFields[3]} ${symbolFields[1]} not found"
+        if (( $( countReferences "${workDirectory}/pass1.zsh" "${symbolFields[1]}" ${=symbolRange} ) > 0 )); then
+            keptSymbols+=( "${symbolFields[1]}" )
+            continue
+        fi
+        symbolRange=$( findSymbolRange "${sourceScript}" "${symbolFields[1]}" "${symbolFields[3]}" ) || buildError "prune: ${symbolFields[3]} ${symbolFields[1]} not found"
+        pruneRanges+=( "${symbolRange}" )
+        prunedSymbols+=( "${symbolFields[1]}" )
+    done
+    pruneRanges=( "${(@f)$( sortRanges "${pruneRanges[@]}" )}" )
+    writeAssemblyPlan "${workDirectory}/plan.txt" "${pruneRanges[@]}"
+    rm -f "${workDirectory}/pass1.zsh"
+fi
+
 stamp=$( date +%Y-%m-%d-%H%M%S )
 while [[ -e "${outDir}/Mac-Health-Check_${slug}_${stamp}.zsh" ]]; do
     sleep 1
@@ -535,18 +815,32 @@ workArtifact="${workDirectory}/${baseName}.zsh"
 finalArtifact="${outDir}/${baseName}.zsh"
 finalSidecar="${outDir}/${baseName}.md"
 
-{
-    sed -n "1,$(( sourceAStart - 1 ))p" "${sourceScript}"
-    cat "${workDirectory}/regionA.txt"
-    sed -n "$(( sourceAEnd + 1 )),$(( sourceBStart - 1 ))p" "${sourceScript}"
-    cat "${workDirectory}/regionB.txt"
-    sed -n "$(( sourceBEnd + 1 )),\$p" "${sourceScript}"
-} > "${workArtifact}"
+if [[ "${pruneOtherMdms}" == "true" ]]; then
+    assembleArtifact "${workArtifact}" "${workDirectory}/plan.txt"
+else
+    {
+        sed -n "1,$(( sourceAStart - 1 ))p" "${sourceScript}"
+        cat "${workDirectory}/regionA.txt"
+        sed -n "$(( sourceAEnd + 1 )),$(( sourceBStart - 1 ))p" "${sourceScript}"
+        cat "${workDirectory}/regionB.txt"
+        sed -n "$(( sourceBEnd + 1 )),\$p" "${sourceScript}"
+    } > "${workArtifact}"
+fi
+sourceLineCount=$( wc -l < "${sourceScript}" | tr -d ' ' )
+artifactLineCount=$( wc -l < "${workArtifact}" | tr -d ' ' )
 
 print -r -- "Mac Health Check Selector: build-artifact.zsh ${helperVersion}"
 print -r -- "Source: ${sourceScript}"
 print -r -- "MDM: ${mdmDisplay} (mdmVendor ${mdmVendor}; ${arrayName}; ${branchLabel}); source Region A ${sourceAStart}-${sourceAEnd}; Region B ${sourceBStart}-${sourceBEnd}"
 print -r -- "Selection: ${#selectionTitles} checks (shipped: ${#shippedTitles}); unchanged copy: ${unchangedCopy}"
+typeset -a prunedDisplays
+for pruneSlug in "${pruneSlugs[@]}"; do
+    prunedDisplays+=( "${slugDisplay[${pruneSlug}]}" )
+done
+if [[ "${pruneOtherMdms}" == "true" ]]; then
+    print -r -- "Pruned other MDMs: ${(j:, :)prunedDisplays}; ${#pruneRanges} source ranges; ${sourceLineCount} → ${artifactLineCount} lines"
+    print -r -- "Pruned symbols: ${${(j:, :)prunedSymbols}:-none}${keptSymbols:+; kept (still called): ${(j:, :)keptSymbols}}"
+fi
 typeset -a borrowedNotes
 for (( i = 1; i <= ${#selectionTitles}; i++ )); do
     [[ -z "${sourceSlugByTitle[${selectionTitles[${i}]}]}" || "${selectionRows[${i}]}" != "${rowByTitle[${selectionTitles[${i}]}]}" ]] && continue
@@ -654,7 +948,20 @@ fi
 # 4. Diff scope
 diff "${sourceScript}" "${workArtifact}" > "${workDirectory}/artifact.diff"
 hunkHeaders=( ${(f)"$( grep -E '^[0-9]' "${workDirectory}/artifact.diff" )"} )
-if (( ${#hunkHeaders} == 0 )); then
+if [[ "${pruneOtherMdms}" == "true" ]]; then
+    # Pruned hunks slide across identical neighbouring lines, so compare every line outside the edited ranges instead
+    printLinesOutside "${sourceScript}" "${sourceAStart} ${sourceAEnd}" "${sourceBStart} ${sourceBEnd}" "${pruneRanges[@]}" > "${workDirectory}/outside.source"
+    if [[ -n "${artifactAStart}" && -n "${artifactBStart}" ]]; then
+        printLinesOutside "${workArtifact}" "${artifactAStart} ${artifactAEnd}" "${artifactBStart} ${artifactBEnd}" > "${workDirectory}/outside.artifact"
+    else
+        : > "${workDirectory}/outside.artifact"
+    fi
+    if cmp -s "${workDirectory}/outside.source" "${workDirectory}/outside.artifact"; then
+        recordCheck 4 "Diff limited to two regions and pruned ranges" PASS "${#hunkHeaders} hunk(s); every line outside A, B, and ${#pruneRanges} pruned ranges unchanged"
+    else
+        recordCheck 4 "Diff limited to two regions and pruned ranges" FAIL "lines outside A ${sourceAStart}-${sourceAEnd} / B ${sourceBStart}-${sourceBEnd} / pruned ranges differ"
+    fi
+elif (( ${#hunkHeaders} == 0 )); then
     recordCheck 4 "Diff limited to two regions" PASS "0 hunks (unchanged copy)"
 elif awk -v a1="${sourceAStart}" -v a2="${sourceAEnd}" -v b1="${sourceBStart}" -v b2="${sourceBEnd}" '
         /^[0-9]/ {
@@ -665,6 +972,45 @@ elif awk -v a1="${sourceAStart}" -v a2="${sourceAEnd}" -v b1="${sourceBStart}" -
     recordCheck 4 "Diff limited to two regions" PASS "${#hunkHeaders} hunk(s): ${hunkHeaders[*]}"
 else
     recordCheck 4 "Diff limited to two regions" FAIL "hunk outside A ${sourceAStart}-${sourceAEnd} / B ${sourceBStart}-${sourceBEnd}: ${hunkHeaders[*]}"
+fi
+
+# 4b–4c. Pruned MDM code absent; generic fallback intact
+if [[ "${pruneOtherMdms}" == "true" ]]; then
+    pruneProblems=()
+    for prunedArray in "${prunedArrays[@]}"; do
+        grep -qF -- "${prunedArray}" "${workArtifact}" && pruneProblems+=( "${prunedArray}" )
+    done
+    if remainingBranches=$( findCaseBranchRanges "${workArtifact}" "${workDirectory}/labels.txt" ); then
+        for caseRecord in "${(@f)remainingBranches}"; do
+            [[ -n "${caseRecord}" ]] && pruneProblems+=( "${${(@ps:\t:)caseRecord}[5]} (line ${${(@ps:\t:)caseRecord}[3]})" )
+        done
+    else
+        pruneProblems+=( "$( caseError "${remainingBranches}" )" )
+    fi
+    if [[ "${slug}" != "generic" ]] && ! grep -qxF -- "    ${slugDetect[${slug}]} )" "${workArtifact}"; then
+        pruneProblems+=( "${mdmDisplay} detection missing" )
+    fi
+    if [[ "${slug}" != "generic" ]] && ! loadMdmRegion "${workArtifact}" "generic"; then
+        pruneProblems+=( "generic fallback: ${regionError}" )
+    fi
+    if (( ${#pruneProblems} == 0 )); then
+        recordCheck 4b "Pruned MDMs absent" PASS "${#prunedArrays} arrays, ${pruneBranchCount} branches, ${pruneBlockCount} blocks removed; generic fallback intact"
+    else
+        recordCheck 4b "Pruned MDMs absent" FAIL "${(j:; :)pruneProblems}"
+    fi
+
+    symbolProblems=()
+    for prunedSymbol in "${prunedSymbols[@]}"; do
+        (( $( countReferences "${workArtifact}" "${prunedSymbol}" ) > 0 )) && symbolProblems+=( "${prunedSymbol}" )
+    done
+    for keptSymbol in "${keptSymbols[@]}"; do
+        print -r -- "INFO 4c ${keptSymbol} kept: the selection still calls it"
+    done
+    if (( ${#symbolProblems} == 0 )); then
+        recordCheck 4c "Pruned symbols unreferenced" PASS "${${(j:, :)prunedSymbols}:-none removed}"
+    else
+        recordCheck 4c "Pruned symbols unreferenced" FAIL "still referenced: ${(j:, :)symbolProblems}"
+    fi
 fi
 
 # 5. Client-Side Cache simulation (sanitizer extracted from installClientSideScript in the source)
@@ -840,9 +1186,17 @@ dependencyNotes+=( "[all] \`jq\` validates every list-item array; an invalid arr
 dependencyNotes+=( "[all] Client-Side Cache / LaunchDaemon: the cached copy runs nightly in \`Silent\` and drops \`updateComputerInventory\`; H3–H5 fall back to the loginwindow \`lastUserName\` when no one is logged in." )
 dependencyNotes+=( "[all] \`Silent\` + \`splunkOperationMode=production\` is reporting-first; use \`<YOUR_SPLUNK_HEC_URL>\` and \`<YOUR_SPLUNK_HEC_TOKEN>\`." )
 dependencyNotes+=( "[all] Secrets: \`webhookURL\` and \`splunkHECToken\` go in root-only \`MacHealthCheck-Secrets.plist\`; Parameters 5 and 8 are rejected unless \`allowParameterSecrets=\"true\"\`." )
-dependencyNotes+=( "[all] Runtime MDM detection: the edits run only on ${testTarget}; Macs enrolled elsewhere run their own unedited branch." )
+if [[ "${pruneOtherMdms}" == "false" ]]; then
+    dependencyNotes+=( "[all] Runtime MDM detection: the edits run only on ${testTarget}; Macs enrolled elsewhere run their own unedited branch." )
+elif [[ "${slug}" == "generic" ]]; then
+    dependencyNotes+=( "[prune] Named-MDM code removed: every Mac runs the generic branch, whatever its MDM; rebuild without pruning for MDM-specific checks." )
+else
+    dependencyNotes+=( "[prune] Other MDM code removed: only ${mdmDisplay} and the generic fallback remain; Macs enrolled in any other MDM run the generic branch (no MDM Profile or MDM Certificate Expiration). Rebuild without pruning for mixed fleets." )
+fi
 if [[ "${unchangedCopy}" == "true" ]]; then
     dependencyNotes+=( "[all] Unchanged copy: the selection equals the shipped ${mdmDisplay} default." )
+elif [[ "${selectionUnchanged}" == "true" ]]; then
+    dependencyNotes+=( "[all] Check set unchanged: the selection equals the shipped ${mdmDisplay} default; only other MDM code was removed." )
 else
     dependencyNotes+=( "[all] Check set changed: the first Self Service run after deployment is a full run (\`check_set_mismatch\`)." )
 fi
@@ -862,7 +1216,7 @@ fi
 [[ "${slug}" == "jamf-pro" ]] && dependencyNotes+=( "[Jamf] The script exits early when \`/private/var/log/jamf.log\` is missing." )
 [[ "${externalSelected}" == "true" ]] && dependencyNotes+=( "[Jamf] External checks need their \`external-checks/\` scripts saved in Jamf Pro and policies with matching custom triggers; output must include \`Running\`, \`Warning\`, \`Failed\`, or \`Error\`." )
 (( ${+selectedIdSet[F1]} )) && dependencyNotes+=( "[Jamf] F1 runs \`jamf recon\` (90-second timeout); skipped in \`Silent\` + \`splunkOperationMode=production\` and removed from the Client-Side Cache copy." )
-if (( ${+selectedIdSet[A9]} )) && [[ "${unchangedCopy}" == "false" ]]; then
+if (( ${+selectedIdSet[A9]} )) && [[ "${selectionUnchanged}" == "false" ]]; then
     dependencyNotes+=( "[A9] Palo Alto GlobalProtect subtitle now reads \`<YOUR_ORGANIZATION_NETWORK>\`; replace it before deploying." )
 fi
 for (( i = 1; i <= ${#selectionIds}; i++ )); do
@@ -877,6 +1231,11 @@ artifactDisplayPath="${finalArtifact#${sourceDirectory}/}"
     print -r -- "- Source: \`${sourceScript:t}\` (\`scriptVersion\` ${${sourceVersion#scriptVersion=}//\"/}, unchanged)"
     print -r -- "- MDM: ${mdmDisplay} (\`mdmVendor\` = \`${mdmVendor}\`, slug \`${slug}\`)"
     print -r -- "- Built by: \`scripts/build-artifact.zsh\` ${helperVersion}"
+    if [[ "${pruneOtherMdms}" == "true" ]]; then
+        print -r -- "- Other MDM code: removed (${(j:, :)prunedDisplays}); generic fallback kept"
+    else
+        print -r -- "- Other MDM code: kept (not pruned)"
+    fi
     print -r -- ""
     print -r -- "## Enabled (${#selectionTitles})"
     print -r -- "| Index | ID | Title | Report key |"
@@ -897,6 +1256,16 @@ artifactDisplayPath="${finalArtifact#${sourceDirectory}/}"
     print -r -- "## Report keys added vs shipped ${mdmDisplay} default"
     if (( ${#addedKeys} > 0 )); then print -r -l -- "${addedKeys[@]/#/- }"; else print -r -- "- None"; fi
     print -r -- ""
+    if [[ "${pruneOtherMdms}" == "true" ]]; then
+        print -r -- "## Pruned MDM code"
+        print -r -- "- MDMs removed: ${(j:, :)prunedDisplays}; generic fallback (\`* )\`, \`genericMdmListitemJSON\`) kept"
+        print -r -- "- List-item arrays removed: \`${(pj:\`, \`:)prunedArrays}\`"
+        print -r -- "- Vendor \`case\` blocks: ${pruneBranchCount} branches removed, ${pruneBlockCount} emptied blocks removed (source lines ${(j:, :)pruneCaseLines})"
+        print -r -- "- Vendor-only symbols removed: ${${prunedSymbols:+\`${(pj:\`, \`:)prunedSymbols}\`}:-None}"
+        print -r -- "- Vendor-only symbols kept (still called by this selection): ${${keptSymbols:+\`${(pj:\`, \`:)keptSymbols}\`}:-None}"
+        print -r -- "- Source lines: ${sourceLineCount} → ${artifactLineCount} (${#pruneRanges} ranges: ${(j:, :)${(@)pruneRanges// /-}})"
+        print -r -- ""
+    fi
     print -r -- "## Dependency notes"
     print -r -l -- "${dependencyNotes[@]/#/- }"
     print -r -- ""
@@ -911,6 +1280,14 @@ artifactDisplayPath="${finalArtifact#${sourceDirectory}/}"
     print -r -- "## Diff summary"
     if [[ "${unchangedCopy}" == "true" ]]; then
         print -r -- "- Unchanged copy of the source: selection equals the shipped ${mdmDisplay} default"
+    elif [[ "${pruneOtherMdms}" == "true" ]]; then
+        if [[ "${selectionUnchanged}" == "true" ]]; then
+            print -r -- "- Regions A \`${arrayName}\` and B \`${branchLabel}\`: unchanged (selection equals the shipped ${mdmDisplay} default)"
+        else
+            print -r -- "- Region A \`${arrayName}\`: source lines ${sourceAStart}-${sourceAEnd}, ${#shippedTitles} rows → ${rowCount} rows"
+            print -r -- "- Region B \`${branchLabel}\`: source lines ${sourceBStart}-${sourceBEnd}, ${#shippedTitles} calls → ${callCount} calls"
+        fi
+        print -r -- "- Pruned ranges: ${#pruneRanges} (see **Pruned MDM code**); ${#hunkHeaders} diff hunks"
     else
         print -r -- "- Region A \`${arrayName}\`: source lines ${sourceAStart}-${sourceAEnd}, ${#shippedTitles} rows → ${rowCount} rows"
         print -r -- "- Region B \`${branchLabel}\`: source lines ${sourceBStart}-${sourceBEnd}, ${#shippedTitles} calls → ${callCount} calls"
@@ -921,8 +1298,13 @@ artifactDisplayPath="${finalArtifact#${sourceDirectory}/}"
     print -r -- "1. Review this sidecar and the diff; add organization-specific notes below."
     print -r -- "2. Run the five-mode test on ${testTarget}; re-run the production policy afterwards to restore the Client-Side Cache copy and LaunchDaemon."
     print -r -- "3. Deploy the artifact as the MDM script; keep \`scriptVersion\` unchanged."
-    if [[ "${unchangedCopy}" == "false" ]]; then
-        print -r -- "4. Expect the first Self Service run to be a full run (\`check_set_mismatch\`)."
+    nextStep=4
+    if [[ "${selectionUnchanged}" == "false" ]]; then
+        print -r -- "${nextStep}. Expect the first Self Service run to be a full run (\`check_set_mismatch\`)."
+        (( nextStep++ ))
+    fi
+    if [[ "${pruneOtherMdms}" == "true" && "${slug}" != "generic" ]]; then
+        print -r -- "${nextStep}. Optionally run once on a Mac not enrolled in ${mdmDisplay} (an unenrolled Mac qualifies) to confirm the generic fallback."
     fi
 } > "${workDirectory}/${baseName}.md" || buildError "unable to write sidecar"
 

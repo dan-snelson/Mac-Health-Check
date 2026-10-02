@@ -18,7 +18,7 @@ Target: the `5.0.0b6` prerelease line and later. Full per-check data (exact list
 - Use placeholders for anything organization-specific: `<YOUR_ORG_NAME>`, `<YOUR_WEBHOOK_URL>`, `<YOUR_SPLUNK_HEC_URL>`, `<YOUR_SPLUNK_HEC_TOKEN>`, `<YOUR_POLICY_TRIGGER>`, `<YOUR_ORGANIZATION_NETWORK>`. Never invent real URLs, tokens, or branding.
 - Keep user-facing subtitles short and action-oriented.
 - Accept "defaults", "same as shipped", or "recommend for me" at any step; pick the shipped default and say so.
-- Change only which checks run. Every other setting keeps its `Mac-Health-Check.zsh` default (`operationMode`, `mdmVendorUuid`, external-check triggers, targeted remediation verification, `developmentListitemJSON`). Admins who want those changed edit the artifact manually.
+- Change only which checks run, plus the optional removal of other MDMs' code (Step 4b). Every other setting keeps its `Mac-Health-Check.zsh` default (`operationMode`, `mdmVendorUuid`, external-check triggers, targeted remediation verification, `developmentListitemJSON`). Admins who want those changed edit the artifact manually.
 - Leave only passing artifacts in `Artifacts/`. A build that fails validation is never written there.
 
 ## Step 1 — Ask which MDM is in use
@@ -167,7 +167,7 @@ One rule set applies to every selection reply, in Step 3 and in 4a:
 
 ## Step 4 — Generate the artifact
 
-Read `references/health-checks.md` and `references/artifact-procedure.md`, then work through 4a–4e in order.
+Read `references/health-checks.md` and `references/artifact-procedure.md`, then work through 4a–4f in order.
 
 ### 4a. Confirm the selection
 
@@ -185,7 +185,19 @@ Resolve the final ordered list with **Reply grammar**. Show this block and wait 
 - Always show the `<YYYY-MM-DD-HHMMSS>` placeholder here. The helper takes the timestamp (local time, `date +%Y-%m-%d-%H%M%S`) when it writes the file.
 - A reply other than `yes` is parsed with **Reply grammar** against the list shown; show the updated block and wait again.
 
-### 4b. Build the selection
+### 4b. Offer to remove other MDMs' code
+
+After `yes` in 4a, send this question alone and wait:
+
+> Remove code for other MDMs from this artifact? Reply `yes` or `no` (default `no`).
+> `yes` removes the list-item arrays of <other MDMs>, their branches in every vendor `case` block (including `serverURL` detection), and vendor-only functions this selection doesn't call (<symbols>). The generic fallback stays, so a Mac enrolled in another MDM runs the MDM-agnostic checks.
+
+- Fill `<other MDMs>` with every named MDM except the chosen one, and `<symbols>` from **Vendor-owned symbols** in `references/health-checks.md` (Jamf Pro: `checkMosyleCheckIn`; Mosyle: the five Jamf Pro symbols; others: all six). A symbol the selection still calls (for example `checkJamfProCheckIn` when M5 is picked on Fleet) stays, and the helper prints `INFO 4c … kept`.
+- For Other / MDM-agnostic, say instead: "`yes` removes every named MDM's code; every Mac runs the generic checks, whatever its MDM."
+- `defaults`, `no`, or no clear answer means `no`: the artifact keeps every MDM's code, exactly as before.
+- Mention once: pruning suits fleets on a single MDM; a mixed fleet should keep the unpruned artifact.
+
+### 4c. Build the selection
 
 - Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --list <slug>` from the repository root. It prints `index|raw title|call` for the MDM's shipped rows. If it differs from the reference's shipped default, trust the script and tell the admin.
 - Pass the selection on stdin with `--selection -` and a here-doc, so no temporary file is left behind (see `references/artifact-procedure.md`). Use one line per check, in the 4a order:
@@ -195,9 +207,9 @@ Resolve the final ordered list with **Reply grammar**. Show this block and wait 
 - If the selection equals the shipped default, the artifact is an unchanged copy. Say so.
 - Leave `developmentListitemJSON` and the direct Development calls untouched.
 
-### 4c. Write and validate the artifact
+### 4d. Write and validate the artifact
 
-- Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --slug <slug> --selection <file>`. Validation checks 1–8 each print `PASS`, `FAIL`, `SKIP`, or `INFO`:
+- Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --slug <slug> --selection <file>`, adding `--prune-other-mdms` when the admin replied `yes` in 4b. Validation checks 1–8 each print `PASS`, `FAIL`, `SKIP`, or `INFO`:
   1. `zsh -n` on the artifact.
   2. The edited array, with the shell splices substituted, passes `jq`.
   3. Alignment:
@@ -206,7 +218,9 @@ Resolve the final ordered list with **Reply grammar**. Show this block and wait 
      - 3c: icons run `01` to `n`.
      - 3d: F1 is last or absent.
      - 3e: M15 is last, or directly before F1.
-  4. `diff` hunks fall only inside the two regions.
+  4. `diff` hunks fall only inside the two regions. With `--prune-other-mdms`, every line outside the two regions and the pruned ranges is unchanged.
+     - 4b (prune only): no pruned array, `case` branch, or detection pattern remains; the chosen MDM and the generic fallback are intact.
+     - 4c (prune only): no removed vendor-only symbol is still referenced.
   5. Client-Side Cache replay (5a–5c), using the sanitizer extracted live from `installClientSideScript`: `zsh -n`, `jq`, and no `jamf recon` text.
   6. `scriptVersion` is unchanged.
   7. The source is unchanged (SHA-256 before and after). `git diff --quiet` is reported as `INFO`.
@@ -218,13 +232,13 @@ Resolve the final ordered list with **Reply grammar**. Show this block and wait 
 - **If you cannot run the helper:** follow the manual procedure in `references/artifact-procedure.md`. Each manual check prints `PASS`/`FAIL`, and the block exits non-zero on any failure.
 - **If you cannot write files:** print the intended filename, the full artifact in one fenced `zsh` block, and the sidecar in a fenced `markdown` block. Tell the admin to save both under `Artifacts/` and run the helper, or the manual checks, on the saved file.
 
-### 4d. Review the sidecar
+### 4e. Review the sidecar
 
-On exit `0`, the helper has already written `Artifacts/<same basename>.md`. It contains the header, Enabled (index, ID, resolved title, report key), Disabled (every unselected check with its reason), report keys removed and added, tagged dependency notes, the validation table, the diff summary, and next steps. Titles are resolved (`Microsoft Intune MDM Profile`, not `'${mdmVendor}' MDM Profile`), and MDMs use display names.
+On exit `0`, the helper has already written `Artifacts/<same basename>.md`. It contains the header (including whether other MDM code was removed), Enabled (index, ID, resolved title, report key), Disabled (every unselected check with its reason), report keys removed and added, **Pruned MDM code** (prune only), tagged dependency notes, the validation table, the diff summary, and next steps. Titles are resolved (`Microsoft Intune MDM Profile`, not `'${mdmVendor}' MDM Profile`), and MDMs use display names.
 
 Read it, and append only organization-specific notes the admin gave (for example a custom A4 app or a planned `vpnClientVendor` change). When the helper cannot run, write the sidecar by hand from the template in the procedure file.
 
-### 4e. Report
+### 4f. Report
 
 Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each check, and the dependency notes that apply. The helper already picked them for the sidecar; repeat the non-`[all]` ones and any report-key or borrowed-row note. Each note's tag says when it applies:
 
@@ -235,7 +249,8 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 | `[all]` | Always | Client-Side Cache / LaunchDaemon: the cached copy runs nightly in `Silent` and drops `updateComputerInventory`; H3–H5 fall back to the loginwindow `lastUserName`. |
 | `[all]` | Always | `Silent` + `splunkOperationMode=production` is reporting-first; use `<YOUR_SPLUNK_HEC_URL>` and `<YOUR_SPLUNK_HEC_TOKEN>`. |
 | `[all]` | Always | Secrets: `webhookURL` and `splunkHECToken` go in root-only `MacHealthCheck-Secrets.plist`; Parameters 5 and 8 are rejected unless `allowParameterSecrets="true"`. |
-| `[all]` | Always | Runtime MDM detection: the edits run only on Macs the script detects as the chosen MDM; others run their own unedited branch. |
+| `[all]` | Not pruned | Runtime MDM detection: the edits run only on Macs the script detects as the chosen MDM; others run their own unedited branch. |
+| `[prune]` | Pruned | Only the chosen MDM and the generic fallback remain; Macs enrolled in any other MDM run the generic branch (no MDM Profile or MDM Certificate Expiration). Rebuild unpruned for mixed fleets. |
 | `[all]` | Keys change | Report keys removed or added through `sanitizeCheckKey` (for example `electron_corner_mask`); Splunk dashboards and targeted-recheck continuity lose or gain them. M1 and M3 keys include the vendor (`microsoft_intune_mdm_profile`). |
 | `[all]` | Borrowed rows | Rows copied from another MDM's array; review their subtitles. |
 | `[C8]` | C8 enabled | Touch ID reports an error on Macs without Touch ID hardware (VMs, desktops without a Touch ID keyboard). |
@@ -261,6 +276,7 @@ Close with these steps, then offer to adjust the selection or build another arti
    - `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
    - Confirm that the dropped checks do not appear in the log and that the row count matches.
    - Non-`Silent` test runs install the artifact as the Mac's Client-Side Cache copy and LaunchDaemon. Re-run the production policy afterwards to restore them.
+   - Pruned artifact: optionally run it once on a Mac not enrolled in the chosen MDM (an unenrolled Mac qualifies) to confirm the generic fallback.
 3. Deploy the artifact as the MDM script. Keep `scriptVersion` unchanged, and keep Debug and Development out of the production policy.
 4. Expect the first Self Service run after deployment to be a full run (`check_set_mismatch`). Targeted rechecks resume after that.
 5. Keep `Artifacts/` out of version control. It is git-ignored because artifacts may carry org-specific edits.
@@ -270,9 +286,10 @@ Close with these steps, then offer to adjust the selection or build another arti
 
 - The first message asked only the MDM question.
 - The reply was parsed with **Reply grammar**, and the admin confirmed the selection in 4a before anything was written.
+- The Step 4b prune question was asked on its own after 4a; `--prune-other-mdms` was passed only on `yes`, and the sidecar header records the choice.
 - `Mac-Health-Check.zsh` is unchanged, and the only new files are under `Artifacts/`.
 - The artifact name matches `Mac-Health-Check_<slug>_<YYYY-MM-DD-HHMMSS>.zsh`, and the sidecar shares its basename.
-- Validation checks 1–8 printed `PASS` (or `SKIP` for 8 outside git), and the helper wrote the sidecar. No failed build remains in `Artifacts/`, and no selection file was left behind.
+- Validation checks 1–8 printed `PASS` (or `SKIP` for 8 outside git), plus 4b and 4c when pruned, and the helper wrote the sidecar. No failed build remains in `Artifacts/`, and no selection file was left behind.
 - M15 is the last row or directly before F1, and F1 is last.
 - No "Not available" check appears for the MDM unless the admin explicitly asked for it and was warned.
 - No real organization names, URLs, tokens, or paths beyond the shipped defaults.
@@ -305,6 +322,11 @@ All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manua
 
 **Admin:** yes
 
+**Assistant:** Remove code for other MDMs from this artifact? Reply `yes` or `no` (default `no`).
+`yes` removes the list-item arrays of Jamf Pro, Fleet, JumpCloud, Mosyle, Kandji / Iru, Addigy, and Filewave, their branches in every vendor `case` block (including `serverURL` detection), and vendor-only functions this selection doesn't call (`checkJamfProCheckIn`, `checkJamfProInventory`, `checkExternalJamfPro`, `updateComputerInventory`, `jamfHosts`, `checkMosyleCheckIn`). The generic fallback stays, so a Mac enrolled in another MDM runs the MDM-agnostic checks. Pruning suits a fleet on a single MDM; keep the unpruned artifact for a mixed fleet.
+
+**Admin:** yes
+
 **Assistant:** Wrote `Artifacts/Mac-Health-Check_microsoft-intune_2026-09-28-105327.zsh` and its sidecar `Artifacts/Mac-Health-Check_microsoft-intune_2026-09-28-105327.md` (written by the helper).
 
 | # | Check | Result |
@@ -312,10 +334,12 @@ All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manua
 | 1 | `zsh -n` | PASS |
 | 2 | `jq` on `microsoftMdmListitemJSON` | PASS |
 | 3 | 32 rows = 32 calls, indices 0–31, icons `01`–`32`, F1 absent, M15 last | PASS |
-| 4 | Diff: 2 hunks, inside the array and the `"Microsoft Intune" )` branch only | PASS |
+| 4 | Every line outside the array, the `"Microsoft Intune" )` branch, and the pruned ranges unchanged | PASS |
+| 4b | 7 arrays, 30 branches, 4 emptied blocks removed; generic fallback intact | PASS |
+| 4c | 6 vendor-only symbols removed, none still referenced | PASS |
 | 5 | Client-Side Cache simulation (`zsh -n`, `jq`, no `jamf recon`) | PASS |
 | 6 | `scriptVersion` `5.0.0b6` unchanged | PASS |
 | 7 | Source unchanged | PASS |
 | 8 | Artifact and sidecar git-ignored | PASS |
 
-*Notes:* `[all]` report key `electron_corner_mask` disappears from reports and dashboards; `[all]` test on an Intune-enrolled Mac, since a Jamf Pro-enrolled Mac runs the Jamf Pro branch; `[C8]` Touch ID errors on Macs without Touch ID hardware; `[C13]` set `vpnClientVendor` for your VPN client; the first Self Service run after deployment is a full run because the check set changed. *(Step 5 next steps follow, then: "Build another artifact for a different MDM?")*
+*Notes:* `[all]` report key `electron_corner_mask` disappears from reports and dashboards; `[prune]` only Intune and the generic fallback remain, so test on an Intune-enrolled Mac (a Jamf Pro-enrolled Mac now runs the generic checks); `[C8]` Touch ID errors on Macs without Touch ID hardware; `[C13]` set `vpnClientVendor` for your VPN client; the first Self Service run after deployment is a full run because the check set changed. *(Step 5 next steps follow, then: "Build another artifact for a different MDM?")*

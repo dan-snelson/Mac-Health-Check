@@ -8,6 +8,7 @@ The procedure is deterministic: find anchor lines, replace line ranges, validate
 
 - Never modify `Mac-Health-Check.zsh` in place. Read it; write only to `Artifacts/`. Check 7 proves the source is byte-identical before and after (SHA-256).
 - The artifact is an unmodified copy of the source with exactly two regions replaced (see **Regions**). If the admin's selection equals the MDM's shipped default, copy the source unchanged and say so in the sidecar.
+- Exception: when the admin accepts SKILL.md Step 4b, the artifact also drops the pruned ranges described in **Pruning other MDMs (optional)**. Nothing else changes.
 - Leave `scriptVersion` unchanged (check 6). A version change triggers targeted-recheck `version_mismatch`.
 - Build every artifact from the untouched source, even when a session produces several.
 - Use placeholders only (`<YOUR_WEBHOOK_URL>`, `<YOUR_ORGANIZATION_NETWORK>`, …). Never write real organization data.
@@ -38,6 +39,11 @@ C1|macOS Version
 C2|Available Updates
 …
 M15|Network Quality Test
+ENDOFSELECTION
+
+# Same, and remove every other MDM's code (SKILL.md Step 4b answered `yes`)
+zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --slug microsoft-intune --prune-other-mdms --selection - <<'ENDOFSELECTION'
+…
 ENDOFSELECTION
 ```
 
@@ -87,6 +93,39 @@ Anchor on exact whole lines, never on label text alone. `"Jamf Pro" )` and the o
 Region A always precedes Region B in the file.
 
 Leave `developmentListitemJSON` and the direct Development calls untouched; they keep the source defaults.
+
+## Pruning other MDMs (optional)
+
+Applies only with `--prune-other-mdms` (SKILL.md Step 4b answered `yes`). Pruned MDMs are every named MDM except the chosen one; for `generic`, all eight. The generic fallback (`* )` branches, `mdmVendor="None"`, `genericMdmListitemJSON`) is never pruned, so a Mac enrolled in a pruned MDM runs the generic branch. All ranges are found on the untouched source and never overlap Regions A and B.
+
+**Vendor `case` blocks.** Every line exactly `<indent>case ${mdmVendor} in` or `<indent>case "${mdmVendor}" in`, plus the column-1 `case "${serverURL}" in` detection block.
+
+- Branch labels sit at block indent + 4: `"<mdmVendor>" )` in vendor blocks, the **Detection pattern** from `health-checks.md` (for example `*jamf* | *jss* )`) in the detection block.
+- A branch ends on its own line when that line ends in `;;` (the dialog-selection one-liners); otherwise at the first line exactly block indent + 8 spaces + `;;`.
+- Remove each pruned branch. When the line before it is blank, also remove one blank line after it.
+- A block left with no branches (for example the Jamf Pro-only Configuration Profile Variables, help message, and quit-notice blocks on Fleet) is removed whole, `case` through `esac`. When it is its section's only content, its `# # #` section header goes too.
+- Any unknown label, a label-level line that is not a label, or a branch without `;;` is anchor drift: exit `2`, and update `health-checks.md` and the helper.
+
+**List-item arrays.** For each pruned MDM's array (from the anchors table), remove its `# # #` / `# <MDM> … List Items …` / `# # #` header through the `fi` that closes `# Validate <arrayName> is valid JSON`, plus the blank lines after it.
+
+**Vendor-owned symbols.** After the two steps above, remove each symbol in the **Vendor-owned symbols** table of `health-checks.md` whose owner is pruned and that nothing still references. A reference is any non-comment line naming the symbol outside its own definition and outside `installClientSideScript`, whose sanitizer patterns mention `updateComputerInventory` without calling it. A function goes with its `# # #` header and trailing blank lines; `jamfHosts` goes with the comment lines above it. Symbols the selection still calls stay, and the helper prints `INFO 4c <symbol> kept`.
+
+**Kept on purpose:** `checkEntraIDRegistration` and its `getEntra*` helpers, `checkClockSkew`, `jamfBinary`, the report's `jamfProID` / `jamfProSiteName` fields, targeted-recheck keys, webhook card text, and every other section header. The report and log contracts do not change.
+
+Manual checks for a pruned artifact (run after the **Validation** block, in the same session, so `artifact`, `arrayName`, and `failCheck` exist; set `otherArrays` to the pruned array names):
+
+```zsh
+# 4b. No pruned array remains; the chosen MDM and generic arrays still exist
+for name in ${=otherArrays}; do grep -qF -- "${name}" "${artifact}" && failCheck 4b "${name} remains"; done
+grep -qxF -- "${arrayName}='" "${artifact}" && grep -qxF -- "genericMdmListitemJSON='" "${artifact}" || failCheck 4b "chosen or generic array missing"
+# 4c. No removed symbol is still named (comments excepted)
+for name in checkJamfProCheckIn checkJamfProInventory checkExternalJamfPro updateComputerInventory jamfHosts checkMosyleCheckIn; do
+    grep -qxF -- "function ${name}() {" "${artifact}" || grep -qxF -- "${name}=(" "${artifact}" && continue   # kept
+    grep -v '^[[:space:]]*#' "${artifact}" | grep -v '/updateComputerInventory/ { next }' | grep -qw -- "${name}" && failCheck 4c "${name} still referenced"
+done
+```
+
+Check 4 changes for a pruned artifact: `diff` hunks slide across identical neighbouring lines (`;;`, blank lines, `fi`), so the helper instead compares every source line outside Regions A, B, and the pruned ranges with every artifact line outside the artifact's Regions A and B; they must be identical.
 
 ## Building replacement text
 
@@ -178,7 +217,9 @@ Every check prints `PASS <n> …` or `FAIL <n> …`; `fail` ends non-zero if any
 | 1 | `zsh -n` on the artifact |
 | 2 | Edited array, with splices substituted, passes `jq` |
 | 3a–3e | Rows = calls · indices `0..n-1` · icons `01..n` · F1 last or absent · M15 last, or directly before F1 |
-| 4 | Every `diff` hunk falls inside source Region A or Region B |
+| 4 | Every `diff` hunk falls inside source Region A or Region B; pruned: every line outside A, B, and the pruned ranges unchanged |
+| 4b | Pruned only: no pruned array, `case` branch, or detection pattern remains; chosen MDM and generic fallback intact |
+| 4c | Pruned only: no removed vendor-only symbol still referenced |
 | 5a–5c | Client-Side Cache replay: sanitized `zsh -n` · sanitized `jq` · no `jamf recon` text |
 | 6 | `scriptVersion` equal in source and artifact |
 | 7 | Source unchanged (SHA-256); `git diff --quiet -- Mac-Health-Check.zsh` as info |
@@ -300,6 +341,7 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 - Source: `Mac-Health-Check.zsh` (`scriptVersion` <x.y.z>, unchanged)
 - MDM: <MDM> (`mdmVendor` = `<value>`, slug `<slug>`)
 - Built by: `scripts/build-artifact.zsh` <version>
+- Other MDM code: kept (not pruned) *(or: removed (<pruned MDMs>); generic fallback kept)*
 
 ## Enabled (<n>)
 | Index | ID | Title | Report key |
@@ -315,8 +357,16 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 ## Report keys added vs shipped <MDM> default
 - None
 
+## Pruned MDM code *(pruned only)*
+- MDMs removed: <pruned MDMs>; generic fallback (`* )`, `genericMdmListitemJSON`) kept
+- List-item arrays removed: `<arrayName>`, …
+- Vendor `case` blocks: <n> branches removed, <m> emptied blocks removed (source lines <case lines>)
+- Vendor-only symbols removed: `<symbol>`, … *(or None)*
+- Vendor-only symbols kept (still called by this selection): `<symbol>`, … *(or None)*
+- Source lines: <before> → <after> (<k> ranges: <start>-<end>, …)
+
 ## Dependency notes
-- [all] … *(tags as in SKILL.md 4e: `[all]`, `[C8]`, `[C13]`, `[H6]`, `[vendor]`, `[Addigy]`, `[Kandji]`, `[generic]`, `[Jamf]`, `[A9]`, `[A4]`)*
+- [all] … *(tags as in SKILL.md 4f: `[all]`, `[prune]`, `[C8]`, `[C13]`, `[H6]`, `[vendor]`, `[Addigy]`, `[Kandji]`, `[generic]`, `[Jamf]`, `[A9]`, `[A4]`)*
 
 ## Validation
 | # | Check | Result |
@@ -324,7 +374,9 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 | 1 | zsh -n | PASS/FAIL |
 | 2 | Array jq | PASS/FAIL |
 | 3a–3e | Rows = calls, indices, icons, F1 last or absent, M15 last or before F1 | PASS/FAIL |
-| 4 | Diff limited to two regions | PASS/FAIL |
+| 4 | Diff limited to two regions *(pruned: and pruned ranges)* | PASS/FAIL |
+| 4b | Pruned MDMs absent *(pruned only)* | PASS/FAIL |
+| 4c | Pruned symbols unreferenced *(pruned only)* | PASS/FAIL |
 | 5a–5c | Client-Side Cache simulation | PASS/FAIL |
 | 6 | scriptVersion unchanged | PASS/FAIL |
 | 7 | Source unchanged | PASS/FAIL |
@@ -334,11 +386,12 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 ## Diff summary
 - Region A `<arrayName>`: source lines <a1>-<a2>, <old> rows → <new> rows
 - Region B `<label>`: source lines <b1>-<b2>, <old> calls → <new> calls
-- Hunk headers: `<diff output>`
+- Hunk headers: `<diff output>` *(pruned: "Pruned ranges: <k> (see **Pruned MDM code**); <h> diff hunks")*
 
 ## Next steps
 1. Review this sidecar and the diff; add organization-specific notes below.
 2. Run the five-mode test on one Mac enrolled in <MDM>; re-run the production policy afterwards to restore the Client-Side Cache copy and LaunchDaemon.
 3. Deploy the artifact as the MDM script; keep `scriptVersion` unchanged.
 4. Expect the first Self Service run to be a full run (`check_set_mismatch`).
+5. *(pruned only)* Optionally run once on a Mac not enrolled in <MDM> (an unenrolled Mac qualifies) to confirm the generic fallback.
 ```

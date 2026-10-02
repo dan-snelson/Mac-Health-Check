@@ -13,6 +13,7 @@
     - Removed the trailing space from `Run "…" as "<UID>" …` log lines
     - Client-Side Cache logs `generated LaunchDaemon plist validated` only when an install proceeds
 - `5.0.0b7` reports do not match the `5.0.0b8` script version, so the first `5.0.0b8` `Self Service` run on each Mac is a full run
+- Agent Experience: `mac-health-check-selector` now asks, after the selection is confirmed, whether to remove other MDMs' code from the artifact (default `no`); `build-artifact.zsh --prune-other-mdms` removes every other MDM's list-item array, its branches in each vendor `case` block (including `serverURL` detection), and unreferenced vendor-only functions (`checkJamfProCheckIn`, `checkJamfProInventory`, `checkExternalJamfPro`, `updateComputerInventory`, `jamfHosts`, `checkMosyleCheckIn`), keeps the generic fallback, and validates the result with new checks 4b and 4c; unpruned artifacts are unchanged
 
 ### 5.0.0b7 (01-Oct-2026)
 - `checkJamfProCheckIn()` now counts `startup`, `login` and `networkStateChange` triggers alongside `recurring check-in`, preventing false warnings on Macs powered off overnight, and parses `jamf.log` timestamps with the current year (falling back to the prior year for future dates), preventing false successes across the December-to-January rollover

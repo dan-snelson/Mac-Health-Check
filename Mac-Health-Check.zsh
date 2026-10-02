@@ -6795,8 +6795,7 @@ function quitScript() {
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
-    quitOut "And then one day you find,"
-    quitOut "ten years have got behind you …"
+    quitOut "And then one day you find, ten years have got behind you …"
 
     exit "${exitCode}"
 
