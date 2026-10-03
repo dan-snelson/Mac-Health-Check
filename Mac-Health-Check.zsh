@@ -8939,28 +8939,58 @@ function checkAPNs() {
 
     sleep "${anticipationDuration}"
 
-    apnsCheck=$( command log show --last 24h --predicate 'subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow")' | tail -1 | cut -d '.' -f 1 )
+    # ManagedClient HTTP 200 responses (MDM evidence), apsd courier connections and incoming-message
+    # acknowledgements (APNs evidence; topics are <private>-redacted), courier disconnects and MDM
+    # identity errors (thanks, @rtrouton!)
+    local apnsLogEntries=""
+    local lastMdmResponseTimestamp=""
+    local lastApnsActivityTimestamp=""
+    local lastIdentityErrorTimestamp=""
+    local courierDisconnectCount=0
+    local apnsStatusEpoch=""
+    local apnsStatus=""
 
-    if [[ "${apnsCheck}" == *"Timestamp"* ]] || [[ -z "${apnsCheck}" ]]; then
+    apnsLogEntries=$( command log show --last 24h --style compact --predicate '(process == "apsd" && (eventMessage CONTAINS "Connected to courier" || eventMessage CONTAINS "acknowledges incoming message" || eventMessage CONTAINS "Disconnecting in response to connection failure")) || (process == "mdmclient" && eventMessage CONTAINS "-25304") || (subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow"))' 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' )
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+    lastMdmResponseTimestamp=$( print -r -- "${apnsLogEntries}" | grep -iE 'Received HTTP response \(200\) \[(Acknowledged|NotNow)' | tail -1 | cut -c 1-19 )
+    lastApnsActivityTimestamp=$( print -r -- "${apnsLogEntries}" | grep -E 'Connected to courier|acknowledges incoming message' | tail -1 | cut -c 1-19 )
+    lastIdentityErrorTimestamp=$( print -r -- "${apnsLogEntries}" | grep -- '-25304' | tail -1 | cut -c 1-19 )
+    courierDisconnectCount=$( print -r -- "${apnsLogEntries}" | grep -c 'Disconnecting in response to connection failure' )
+
+    [[ -n "${lastApnsActivityTimestamp}" ]] && info "${humanReadableCheckName}: Last APNs activity: ${lastApnsActivityTimestamp}"
+    [[ -n "${lastMdmResponseTimestamp}" ]] && info "${humanReadableCheckName}: Last MDM response: ${lastMdmResponseTimestamp}"
+    (( courierDisconnectCount > 0 )) && info "${humanReadableCheckName}: Courier connection failures in last 24 hours: ${courierDisconnectCount}"
+
+    if [[ -n "${lastIdentityErrorTimestamp}" ]] && [[ "${lastIdentityErrorTimestamp}" > "${lastMdmResponseTimestamp}" ]]; then
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: MDM identity error"
         footerStatusColor="${statusColorFail}"
-        errorOut "${humanReadableCheckName} (${1}): ${apnsCheck}"
+        errorOut "${humanReadableCheckName} (${1}): MDM identity error (-25304) at ${lastIdentityErrorTimestamp}"
         overallHealth+="${humanReadableCheckName}; "
 
-    else
+    elif [[ -n "${lastMdmResponseTimestamp}" ]]; then
 
-        apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${apnsCheck}" +"%s" )
-        eventDate=$( date -r "${apnsStatusEpoch}" "+%Y-%m-%d" )
-        todayDate=$( date "+%Y-%m-%d" )
-        if [[ "${eventDate}" == "${todayDate}" ]]; then
+        apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${lastMdmResponseTimestamp}" +"%s" )
+        if [[ "$( date -r "${apnsStatusEpoch}" "+%Y-%m-%d" )" == "$( date "+%Y-%m-%d" )" ]]; then
             apnsStatus=$( date -r "${apnsStatusEpoch}" "+%-l:%M %p" )
         else
             apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
         fi
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${apnsStatus}"
         footerStatusColor="${statusColorSuccess}"
-        info "${humanReadableCheckName}: ${apnsCheck}"
+
+    elif [[ -n "${lastApnsActivityTimestamp}" ]]; then
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: No ${mdmVendor} response in 24 hours; contact ${supportTeamName} if issues persist, status: error, statustext: APNs active; no MDM response"
+        footerStatusColor="${statusColorError}"
+        warning "${humanReadableCheckName} (${1}): APNs active at ${lastApnsActivityTimestamp}; no MDM response in last 24 hours"
+
+    else
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+        footerStatusColor="${statusColorFail}"
+        errorOut "${humanReadableCheckName} (${1}): No APNs activity or MDM response in last 24 hours"
+        overallHealth+="${humanReadableCheckName}; "
 
     fi
 
@@ -10763,7 +10793,8 @@ if [[ "${operationMode}" == "Development" ]]; then
     developmentListitemJSON='
     [
         {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -10931,6 +10962,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     # set -x
     checkClockSkew "0"
     checkMemoryPressure "1"
+    checkAPNs "2"
     # set +x
 
 else

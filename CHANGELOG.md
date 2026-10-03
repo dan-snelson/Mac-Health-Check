@@ -5,6 +5,11 @@
 ### 5.0.0b8 (02-Oct-2026)
 - Nightly Client-Side Cache `Silent` reports now serve as targeted-recheck and cached-replay baselines for `Self Service`; check-set validation ignores `Computer Inventory` (which the sanitized client-side copy omits), targeted merges append the rechecked `Computer Inventory` result, and its absence from the base no longer counts as a status change for webhook messages, preventing a full run (and `[WARNING] Targeted Recheck: report check set does not match …`) after every nightly refresh
 - `Microsoft OneDrive Sync Date` now uses the local date instead of UTC, preventing evening runs from reporting tomorrow's date (affects the quit summary, help message, Inspect and the Splunk `oneDriveSyncDate` value)
+- `checkAPNs()` now also reads `apsd` courier connections and incoming-message acknowledgements (thanks, [Der Flounder](https://derflounder.wordpress.com/2026/08/29/checking-apns-communication-on-macos-tahoe/)!) in a single `log show` query; the ManagedClient `Received HTTP response (200)` match remains the MDM success evidence because `apsd` redacts push topics as `<private>`
+    - APNs activity without an MDM response in the last 24 hours now reports `APNs active; no MDM response` as a warning (previously `Failed`)
+    - MDM identity error `-25304` newer than the last MDM response now reports `MDM identity error` as a failure
+    - Logs the last APNs activity, last MDM response and courier connection-failure count
+    - Added to the curated `Development` subset
 - `checkWiFiStrength()` now logs `Fair` results as `[WARNING]` and `Poor` results as `[ERROR]`, matching their list-item statuses; statuses and report values are unchanged
 - SOFA cache refreshes now revalidate a stale feed with its stored ETag (HTTP `304` refreshes the cache age) instead of deleting the cache first, keep the stale feed when a download fails, and allow `10` seconds (previously `3`) for the initial download
 - Polished log output
