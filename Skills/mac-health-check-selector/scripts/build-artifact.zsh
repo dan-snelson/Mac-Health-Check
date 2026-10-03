@@ -46,6 +46,10 @@
 # - Added optional `--prune-other-mdms`, which removes other MDMs' arrays, `case` branches, detection,
 #   and unreferenced vendor-owned symbols (keeping the generic fallback), with validation checks 4b and 4c
 #
+# Version 5.0.0b9 03-Oct-2026, Dan K. Snelson (@dan-snelson)
+# - Refuses a source script that is world-writable or owned by neither the current user nor root,
+#   because parts of it are `source`d and `eval`ed
+#
 ####################################################################################################
 
 
@@ -58,7 +62,7 @@
 
 setopt extendedglob pipefail
 
-helperVersion="5.0.0b8"
+helperVersion="5.0.0b9"
 healthCheckHeader="# Generate Health Checks based on Operation Mode and MDM Vendor"
 placeholderNetwork="<YOUR_ORGANIZATION_NETWORK>"
 inventoryTitle="Computer Inventory"
@@ -629,6 +633,12 @@ fi
 [[ -r "${sourceScript}" ]] || buildError "source script not readable: ${sourceScript}"
 sourceScript="${sourceScript:A}"
 sourceDirectory="${sourceScript:h}"
+# Parts of the source are `source`d / `eval`ed below; trust only a file this user (or root) controls
+[[ -f "${sourceScript}" ]] || buildError "source script is not a regular file: ${sourceScript}"
+sourceOwnerUID=$( stat -f %u "${sourceScript}" 2>/dev/null )
+sourceMode=$( stat -f %Lp "${sourceScript}" 2>/dev/null )
+[[ "${sourceOwnerUID}" == "${UID}" || "${sourceOwnerUID}" == "0" ]] || buildError "source script must be owned by you or root: ${sourceScript}"
+[[ "${sourceMode}" == <-> ]] && (( ( 8#${sourceMode} & 8#002 ) == 0 )) || buildError "source script must not be world-writable: ${sourceScript}"
 command -v jq >/dev/null 2>&1 || buildError "jq is required"
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

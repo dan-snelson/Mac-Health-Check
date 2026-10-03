@@ -9,7 +9,7 @@ Mac Health Check is commonly deployed through MDM Self Service and support workf
 The latest stable release and the current prerelease line are actively supported for security updates.
 
 - Current stable: **v4.0.0**
-- Current prerelease line: **v4.0.0b\***
+- Current prerelease line: **v5.0.0b\*** (currently `5.0.0b9`)
 - Older releases receive no security patches.
 
 If you are running an older release, upgrade before requesting security support.

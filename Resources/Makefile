@@ -9,7 +9,8 @@ DATESTAMP := $(shell date '+%Y-%m-%d-%H%M%S')
 SCRIPT_VERSION := $(shell sed -n 's/.*scriptVersion="\([^"]*\)".*/\1/p' ../Mac-Health-Check.zsh)
 PKG = $(NAME)-$(SCRIPT_VERSION)-$(DATESTAMP).pkg
 SIGNED_PKG = $(PKG:%.pkg=%-signed.pkg)
-TMPBASE = /var/tmp/$(NAME)
+# Per-user private temp root ($TMPDIR on macOS), never a shared, predictable /var/tmp path
+TMPBASE = $(patsubst %/,%,$(or $(TMPDIR),/var/tmp))/$(NAME)
 ROOT = $(TMPBASE)/root-$(DATESTAMP)# Temp package root
 SCRIPTS = $(TMPBASE)/scripts-$(DATESTAMP)# Temp scripts dir for pkgbuild
 
@@ -22,8 +23,13 @@ INSTALL_DIR = /Library/Management/org.churchofjesuschrist
 # Default target
 all: pkg
 
+# Refuse a staging directory another user created or can write
+tmpbase:
+	@mkdir -p "$(TMPBASE)" && chmod 700 "$(TMPBASE)" && [ "$$(stat -f %u "$(TMPBASE)")" = "$$(id -u)" ] \
+		|| { echo "Error: $(TMPBASE) must be owned by you (mode 700)"; exit 1; }
+
 # Create package root and copy files
-$(ROOT):
+$(ROOT): | tmpbase
 	@echo "Preparing package root in $(ROOT)..."
 	mkdir -p "$(ROOT)$(INSTALL_DIR)"
 	chmod 755 "$(ROOT)$(INSTALL_DIR)"  # Root-owned install directory (never user-writable `/usr/local/bin`)
@@ -33,7 +39,7 @@ $(ROOT):
 	@echo "Main script copied to $(ROOT)."
 
 # Prepare scripts dir (copy postInstall.zsh from current dir)
-$(SCRIPTS): postInstall.zsh
+$(SCRIPTS): postInstall.zsh | tmpbase
 	@echo "Preparing scripts in $(SCRIPTS)..."
 	mkdir -p $(SCRIPTS)
 	cp postInstall.zsh $(SCRIPTS)/postinstall
@@ -77,7 +83,7 @@ clean: temp-clean
 	@echo "Cleaning .pkg from Resources/..."
 	rm -f *.pkg *-signed.pkg
 
-# Full clean: Everything under /var/tmp/$(NAME)/
+# Full clean: Everything under $(TMPBASE)/
 distclean: clean
 	@echo "Full cleanup: Removing all under $(TMPBASE)/..."
 	rm -rf $(TMPBASE)
@@ -91,11 +97,11 @@ help:
 	@echo "  sign     : Sign the latest .pkg (set CERT_NAME env var)"
 	@echo "  temp-clean : Remove temp dirs only (keeps .pkg)"
 	@echo "  clean    : Remove temp + .pkg"
-	@echo "  distclean: Nuke all under /var/tmp/$(NAME)/"
+	@echo "  distclean: Nuke all under $(TMPBASE)/"
 	@echo "  help     : Show this help"
 	@echo ""
 	@echo "Requirements: Xcode Command Line Tools (for pkgbuild)."
-	@echo "Notes: Builds in /var/tmp/$(NAME)/ for cleanliness; .pkg outputs to Resources/."
+	@echo "Notes: Builds in $(TMPBASE)/ (per-user \$$TMPDIR) for cleanliness; .pkg outputs to Resources/."
 	@echo "       Extracts version from ../Mac-Health-Check.zsh (scriptVersion var)."
 	@echo "       Main script installed as $(INSTALL_DIR)/$(NAME).zsh (root-owned)."
 	@echo "       .pkg filename uses script version + current timestamp."
@@ -103,4 +109,4 @@ help:
 	@echo "Optional: For signing, 'productsign --sign \"Developer ID Installer\" <latest.pkg> <latest-signed.pkg>'."
 	@echo "         Add preinstall script to Resources/ as 'preInstall.zsh' and update $(SCRIPTS) target to copy it too."
 
-.PHONY: all pkg sign temp-clean clean distclean help
+.PHONY: all pkg sign tmpbase temp-clean clean distclean help

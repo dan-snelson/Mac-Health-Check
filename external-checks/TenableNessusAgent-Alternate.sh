@@ -13,6 +13,10 @@
 #   Version 0.0.1, 11-Oct-2025, Howard Griffith (@HowardGMac)
 #   - Intial version of this external check
 #
+#   Version 0.0.2, 03-Oct-2026, Dan K. Snelson (@dan-snelson)
+#   - `Running: Yes` no longer overwrites an authentication-error or not-linked result
+#   - Reports `Not Running` (fail) when the agent is installed but not running
+#
 ###########################################################################################
 
 # Organization's Defaults Domain for External Checks
@@ -32,11 +36,13 @@ organizationDefaultsDomain="org.churchofjesuschrist.external"
             /usr/bin/defaults write $organizationDefaultsDomain checkStatus -string "Unhealthy"
             /usr/bin/defaults write $organizationDefaultsDomain checkType -string "error"
             /usr/bin/defaults write $organizationDefaultsDomain checkExtended -string "Agent not linked to a manager."
-        fi
-
-        if [[ "$nessusOverallHealth" =~ "Running: Yes" ]]; then
+        elif [[ "$nessusOverallHealth" =~ "Running: Yes" ]]; then
             /usr/bin/defaults write $organizationDefaultsDomain checkStatus -string "Running"
             /usr/bin/defaults write $organizationDefaultsDomain checkType -string "success"
+            /usr/bin/defaults write $organizationDefaultsDomain checkExtended -string ""
+        else
+            /usr/bin/defaults write $organizationDefaultsDomain checkStatus -string "Not Running"
+            /usr/bin/defaults write $organizationDefaultsDomain checkType -string "fail"
             /usr/bin/defaults write $organizationDefaultsDomain checkExtended -string ""
         fi
 

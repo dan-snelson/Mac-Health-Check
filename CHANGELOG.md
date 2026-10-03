@@ -2,6 +2,38 @@
 
 ## CHANGELOG
 
+### 5.0.0b9 (03-Oct-2026)
+- **Security:** `checkElectronCornerMask()` no longer copies arbitrary file contents into user-readable output. A standard user could link `~/Applications/<App>.app/…/Electron Framework.framework/…/version` to any root-only file (including `MacHealthCheck-Secrets.plist`), and root then echoed its contents into the dialog, the Inspect compliance plist, the client log and the Splunk report. To prevent this:
+    - Symlinked app bundles, frameworks and version files are skipped
+    - Version files are read with a 64-byte cap
+    - Every version value must be version-shaped (or `custom-<commit>`); anything else is reported as `version unknown`
+    - Removed the name-based `Visual Studio Code` / `Slack` "known fixed" allowlist; both now report their actual Electron framework version
+    - Rotate the Splunk HEC token and webhook URL on any macOS 26 Mac that ran a 5.0.0 beta with the secrets file in place
+- **Security:** `checkExternalJamfPro()` now treats `Not Running` as a failure; previously it matched the `Running` success pattern, so stopped Zscaler, Nessus and Splunk forwarder agents were reported as healthy
+    - Sample external checks now print `Failed: Not Running` (Zscaler, Nessus, Splunk Universal Forwarder), `Failed: …` / `Running` (Printer, Microsoft Office 365), and use `#!/bin/bash` instead of `#!/usr/bin/env bash`
+    - `TenableNessusAgent-Alternate.sh` no longer lets `Running: Yes` overwrite an authentication-error or not-linked result, and reports `Not Running` (fail) when the agent is installed but stopped
+    - `CrowdStrike Falcon Status.bash` restores `AppleLocale` when it is terminated, not only on normal exit
+    - Each external-check `jamf policy -event` call is now limited to `externalCheckTimeoutSeconds` (default `120`) and reports `Timed Out` instead of stalling the run
+- **Security:** user-writable logs can no longer make update checks look healthy
+    - `checkAppAutoPatch()` reads the per-user `~/Library/Logs/AppAutoPatch/aap.log` only when the system 4.x log is absent (logged as user-reported), and ignores `Discovery complete` timestamps more than five minutes in the future
+    - `checkAvailableSoftwareUpdates()` reads DDM enforcement from the root-written `/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist` (`TargetOSVersion` / `TargetLocalDateTime`; highest declared version wins), falling back to the `install.log` resolver (and its padded-date lookup) only when the plist is missing, untrusted or unrecognized; logs `DDM Resolver: source=statePlist`
+    - `checkAPNs()` only counts log entries from processes under `/System/` or `/usr/libexec/`
+- **Security:** defense in depth
+    - swiftDialog command and JSON files are now root-owned `600` with a read-only ACL for the console user (previously world-readable `644`)
+    - Splunk HEC and webhook `curl` calls use `--proto =https --tlsv1.2`; non-`https://` URLs are refused and logged
+    - `Silent` + `splunkOperationMode=production` runs whose only HEC token is a rejected Parameter 8 value now exit `1` before discovery (previously after a full run with the same exit code)
+- Client-Side Cache now installs or refreshes the client-side copy before the cached-upload shortcut, so content changes reach the nightly LaunchDaemon copy even without a `scriptVersion` bump, and refuses to install a sanitized copy that fails `zsh -n` or lacks the `Silent` default
+- Cached-upload runs skip the two whole-disk `mdfind` queries and `system_profiler` (their values are only logged by full runs)
+- `killProcess()` now matches exact process names (`pgrep -x`) and terminates every matching PID (previously two or more PIDs caused `illegal pid` and nothing was killed)
+- Cleanup removes only this run's swiftDialog command and JSON files, so a `Silent` run no longer deletes a concurrent `Self Service` run's files
+- An empty `dialogcli --version` no longer passes the swiftDialog minimum-version gate
+- `ipconfig setverbose` is enabled only when it was off and restored only when this run changed it
+- Fixed dark-mode detection for console usernames containing spaces, and replaced the undefined `result` call in `checkOS()` with a warning
+- Documented that the Dock-named swiftDialog copy is re-signed ad hoc (Team ID dropped); set `enableDockIntegration="false"` where PPPC or notification profiles key on swiftDialog's Team ID
+- `Resources/Makefile` stages packages under the per-user `$TMPDIR` and refuses a staging directory it does not own
+- `5.0.0b8` reports do not match the `5.0.0b9` script version, so the first `5.0.0b9` `Self Service` run on each Mac is a full run
+- Agent Experience: `build-artifact.zsh` refuses a source script that is world-writable or owned by neither the current user nor root; `references/health-checks.md` documents the `Not Running` and timeout behavior
+
 ### 5.0.0b8 (02-Oct-2026)
 - Nightly Client-Side Cache `Silent` reports now serve as targeted-recheck and cached-replay baselines for `Self Service`; check-set validation ignores `Computer Inventory` (which the sanitized client-side copy omits), targeted merges append the rechecked `Computer Inventory` result, and its absence from the base no longer counts as a status change for webhook messages, preventing a full run (and `[WARNING] Targeted Recheck: report check set does not match …`) after every nightly refresh
 - `Microsoft OneDrive Sync Date` now uses the local date instead of UTC, preventing evening runs from reporting tomorrow's date (affects the quit summary, help message, Inspect and the Splunk `oneDriveSyncDate` value)

@@ -1,8 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash
 ###############################################################################
 # A script to report the state of CrowdStrike Falcon (thanks, ZT and mrw!)    #
 # - If CrowdStrike Falcon is not installed, "Not Installed" will be returned. #
-# scriptVersion="0.0.15"                                                      #
+# scriptVersion="0.0.16"                                                      #
 ###############################################################################
 
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
@@ -57,6 +57,10 @@ restore_locale(){
 }
 
 trap restore_locale EXIT
+# Restore the locale when terminated (e.g., by Mac Health Check's external-check timeout)
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 
 if [[ "${lib_locale}" != "en_US" ]]; then
     lib_locale_changed="true"

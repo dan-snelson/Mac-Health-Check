@@ -13,6 +13,9 @@
 #   Version 0.0.3, 25-Apr-2023, Andrew Clark (@drtaru)
 #   - Changed Success result to Success to map to new SYM validation status
 #
+#   Version 0.0.4, 03-Oct-2026, Dan K. Snelson (@dan-snelson)
+#   - Prints `Failed: …` / `Running: …` so Mac Health Check's `checkExternalJamfPro` parser maps results correctly
+#
 ####################################################################################
 # A script to collect the installation status of Microsoft Office 365.             #
 #                                                                                  #
@@ -82,8 +85,8 @@ done
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 case "${appChecks}" in
-    *"NOT"* ) RESULT="Failure: ${appChecks}" ;;
-    *       ) RESULT="Success: ${appChecks}" ;;
+    *"NOT"* ) RESULT="Failed: ${appChecks}" ;;
+    *       ) RESULT="Running: ${appChecks}" ;;
 esac
 
 /bin/echo "<result>${RESULT}</result>"

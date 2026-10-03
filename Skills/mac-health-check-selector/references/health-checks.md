@@ -167,7 +167,7 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 
 `checkInternal` arguments: `<file or app to test for>` `<icon path>` `<display name>`. It verifies presence only.
 
-`checkExternalJamfPro` arguments: `<Jamf Pro policy custom trigger>` `<app path for icon>`. It runs `jamf policy -event <trigger>` and reads `Running`, `Warning`, `Failed`, or `Error` from output. It is Jamf Pro-only. On other MDMs, use `checkInternal` for presence or write a new `checkXxx` function.
+`checkExternalJamfPro` arguments: `<Jamf Pro policy custom trigger>` `<app path for icon>`. It runs `jamf policy -event <trigger>` (limited to `externalCheckTimeoutSeconds`, default `120`; longer runs report `Timed Out`) and reads `Failed` / `Not Running` (fail), `Running`, `Warning`, or `Error` from output, in that order. It is Jamf Pro-only. On other MDMs, use `checkInternal` for presence or write a new `checkXxx` function.
 
 Scripts shipped in `external-checks/`: BeyondTrust Privileged Access Management, Check Printer Install, Cisco Umbrella, CrowdStrike Falcon Status, Microsoft Defender Check, Microsoft Office 365, Nessus Agent Status, Palo Alto Networks GlobalProtect Status, Sophos Endpoint RTS, Splunk Universal Forwarder Check, TenableNessusAgent-Alternate, Zscaler Tunnel Status.
 

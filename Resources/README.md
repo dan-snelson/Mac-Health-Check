@@ -113,7 +113,7 @@ Clean generated `.pkg` and temp files:
 make clean
 ```
 
-Remove all build artifacts under `/var/tmp/Mac-Health-Check`:
+Remove all build artifacts under `$TMPDIR/Mac-Health-Check`:
 
 ```zsh
 make distclean
@@ -122,5 +122,5 @@ make distclean
 ### Output Locations
 
 - Generated `.pkg` files: this `Resources` directory
-- Temporary build paths: `/var/tmp/Mac-Health-Check/`
+- Temporary build paths: `$TMPDIR/Mac-Health-Check/` (per-user and private on macOS; falls back to `/var/tmp/Mac-Health-Check/` only when `TMPDIR` is unset). Beginning in `5.0.0b9`, `make` refuses a staging directory it does not own (mode `700`), so another local user cannot pre-create it and swap files before `pkgbuild`
 - Self-extracting script output: current working directory where `createSelfExtracting.zsh` is run

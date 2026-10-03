@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 5.0.0b8 02-Oct-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0b9 03-Oct-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -77,7 +77,7 @@ if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
 fi
 
 # Script Version
-scriptVersion="5.0.0b8"
+scriptVersion="5.0.0b9"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -467,6 +467,15 @@ function clientSideEarlyLog() {
 
 }
 
+# Reporting-first `Silent` cannot succeed without an HEC token; exit before slow discovery so a rejected
+# Parameter 8 value spends as little time as possible in the process list
+if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]] \
+    && [[ "${splunkHECTokenSource}" == "Parameter 8 (rejected)" ]] && [[ "${splunkHECTokenConfigured}" != "true" ]]; then
+    printf '%s\n' "${organizationScriptName} (${scriptVersion}): $( date +%Y-%m-%d\ %H:%M:%S ) - [ERROR]           Splunk Reporting: rejected Splunk HEC token supplied through Parameter 8; store it in ${reportingSecretsPath} (root:wheel, mode 600) and clear Parameters 5 and 8. Exiting before health checks." >> "${scriptLog}" 2>/dev/null
+    printf '%s\n' "Splunk Reporting: rejected Splunk HEC token supplied through Parameter 8; store it in ${reportingSecretsPath} and clear Parameters 5 and 8. Exiting before health checks."
+    exit 1
+fi
+
 # Client-Side Cache version check
 if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
 
@@ -564,7 +573,7 @@ dockIcon="https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733
 organizationDefaultsDomain="org.churchofjesuschrist.external"
 
 # Organization's Color Scheme
-if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
+if [[ $( defaults read "/Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist" AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
     # Dark Mode
     organizationColorScheme="weight=semibold,colour1=#D1D5DC,colour2=#F5F5F5"
 else
@@ -883,7 +892,12 @@ if [[ -z "${totalDiskBytes}" || "${totalDiskBytes}" == "0" ]]; then
     totalDiskBytes=$( echo "${rawStorage} * 1000000000" | bc 2>/dev/null || echo "0" )
 fi
 batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | awk -F' = ' '/"CycleCount" = /{ print $2; exit }' | tr -d '"[:space:]' )
-activationLockStatus=$( system_profiler SPHardwareDataType 2>/dev/null | awk '/Activation Lock Status/{print $NF}' )
+if [[ "${clientSideSkipChecks}" == "true" ]]; then
+    # Cached-upload runs exit before these values are logged; skip the slow `system_profiler` call
+    activationLockStatus="Skipped (cached upload)"
+else
+    activationLockStatus=$( system_profiler SPHardwareDataType 2>/dev/null | awk '/Activation Lock Status/{print $NF}' )
+fi
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
@@ -891,12 +905,19 @@ locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/c
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
-rosettaRequiredAppsRaw=$(
-    comm -23 \
-        <( mdfind 'kMDItemExecutableArchitectures == x86_64' | sort ) \
-        <( mdfind 'kMDItemExecutableArchitectures == arm64' | sort )
-)
-if [[ -n "${rosettaRequiredAppsRaw}" ]]; then
+rosettaRequiredAppsRaw=""
+if [[ "${clientSideSkipChecks}" != "true" ]]; then
+    rosettaRequiredAppsRaw=$(
+        comm -23 \
+            <( mdfind 'kMDItemExecutableArchitectures == x86_64' | sort ) \
+            <( mdfind 'kMDItemExecutableArchitectures == arm64' | sort )
+    )
+fi
+if [[ "${clientSideSkipChecks}" == "true" ]]; then
+    # Cached-upload runs skip the two whole-disk `mdfind` queries
+    rosettaRequiredAppCount="0"
+    rosettaRequiredApps="Skipped (cached upload)"
+elif [[ -n "${rosettaRequiredAppsRaw}" ]]; then
     rosettaRequiredAppCount=$( printf '%s\n' "${rosettaRequiredAppsRaw}" | sed '/^$/d' | wc -l | xargs )
     rosettaRequiredApps="${rosettaRequiredAppCount} app(s)"
 else
@@ -911,9 +932,11 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
-ipconfig setverbose 1
+# Verbose mode un-redacts the SSID; enable it only when it was off, and restore only what was changed
+ipconfigVerbosePrior=$( /usr/libexec/PlistBuddy -c "Print :Verbose" /Library/Preferences/SystemConfiguration/com.apple.IPConfiguration.control.plist 2>/dev/null )
+[[ "${ipconfigVerbosePrior}" != "true" ]] && ipconfig setverbose 1
 ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
-ipconfig setverbose 0
+[[ "${ipconfigVerbosePrior}" != "true" ]] && ipconfig setverbose 0
 [[ -z "${ssid}" ]] && ssid="Not connected"
 
 
@@ -1015,6 +1038,7 @@ fi
 inventoryEndUsername=""
 inventoryEndUsernameSource="None"
 inventorySubmissionTimeoutSeconds="90"
+externalCheckTimeoutSeconds="120"
 kerberosSSOeResult="Not configured"
 
 # Kerberos Single Sign-on Extension
@@ -1329,7 +1353,12 @@ dialogJSONFile=$( mktemp /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX 
 dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}.XXXX )
 
 # Set Permissions on Dialog Command Files
-chmod 644 "${dialogCommandFile}"
+# (root-owned 600 plus a read-only ACL for the console user, whom `dialogcli` launches swiftDialog as;
+# other local users can no longer read check text, and the user cannot replace the root-written file)
+chmod 600 "${dialogCommandFile}"
+if [[ -n "${loggedInUser}" && "${loggedInUser}" != "root" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    chmod +a "${loggedInUser} allow read" "${dialogCommandFile}" 2>/dev/null
+fi
 
 # Verify dialogCommandFile exists and is readable
 retryCount=0
@@ -2261,6 +2290,8 @@ function prepareDockNamedDialogApp() {
         # re-sign with an ad-hoc identity to restore a valid seal before launching.
         # --deep is intentionally omitted: inner binaries retain their original signatures;
         # only the outer bundle seal needs to be updated to include the new symlink.
+        # NOTE: the ad-hoc seal drops swiftDialog's Team ID, so PPPC / notification profiles keyed to that
+        # Team ID do not match this copy; set `enableDockIntegration="false"` where that matters.
         if ! codesign --force --sign - "${destinationApp}" 2>/dev/null; then
             notice "WARNING: Failed to re-sign ${destinationApp}; using ${dialogBinary}." 1>&2
             echo "${dialogBinary}"
@@ -3881,6 +3912,15 @@ function sendSplunkHECPayload() {
     setopt localoptions noxtrace
 
     sanitizedURL="$( sanitizeSplunkURLForLog "${splunkHECURL}" )"
+
+    # Never send the HEC token in cleartext
+    if [[ "${splunkHECURL:l}" != https://* ]]; then
+        reportTransmissionStatus="failed"
+        errorOut "Splunk Reporting: HEC URL (Parameter 7) must use https://; payload not sent to ${sanitizedURL}"
+        addReportingError "Splunk HEC URL does not use https://; payload not sent"
+        return 1
+    fi
+
     authorizationHeaderConfig="header = $( curlConfigQuote "Authorization: Splunk ${splunkHECToken}" )"
     payloadFile="$( mktemp /var/tmp/mhc-splunk-payload.XXXXXX )"
     responseFile="$( mktemp /var/tmp/mhc-splunk-response.XXXXXX )"
@@ -3898,6 +3938,7 @@ function sendSplunkHECPayload() {
 
         httpCode="$(
             printf '%s\n' "${authorizationHeaderConfig}" | curl --config - \
+                --proto '=https' --tlsv1.2 \
                 --silent --fail-with-body --max-time 15 \
                 --header "Content-Type: application/json" \
                 --data-binary "@${payloadFile}" \
@@ -4230,6 +4271,13 @@ function installClientSideScript() {
     sed -i '' '/"title" : "Network Quality Test"/ s/},$/}/' "${sanitizedClientScript}"
 
     rm -f "${temporaryClientScript}"
+
+    if ! grep -qF 'operationMode="${4:-"Silent"}"' "${sanitizedClientScript}" 2>/dev/null \
+        || ! /bin/zsh -n "${sanitizedClientScript}" 2>/dev/null; then
+        warning "Client-Side Cache: sanitized client-side script failed verification (Silent default or zsh -n); install failed."
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    fi
 
     if grep -q "jamf"" recon" "${sanitizedClientScript}" 2>/dev/null; then
         warning "Client-Side Cache: sanitized client-side script still contains Jamf inventory command text; install failed."
@@ -6372,6 +6420,13 @@ function sendWebhookPayload() {
     # Keep the webhook URL (a bearer credential) out of `set -x` output and the process list
     setopt localoptions noxtrace
 
+    # Never send the webhook URL in cleartext
+    if [[ "${webhookURL:l}" != https://* ]]; then
+        webhookResult="failed"
+        warning "${webhookServiceLabel} Webhook: webhook URL must use https://; message not sent."
+        return 1
+    fi
+
     payloadFile="$( mktemp /var/tmp/mhc-webhook-payload.XXXXXX )"
     responseFile="$( mktemp /var/tmp/mhc-webhook-response.XXXXXX )"
 
@@ -6387,6 +6442,7 @@ function sendWebhookPayload() {
 
         httpCode="$(
             printf '%s\n' "${webhookDeliveryConfig}" | curl --config - \
+                --proto '=https' --tlsv1.2 \
                 --silent --fail-with-body --max-time 15 \
                 --request POST \
                 --header "Content-Type: application/json" \
@@ -6777,12 +6833,9 @@ function quitScript() {
         dialogUpdate "quit:"
     fi
 
-    # Remove runtime artifacts created by this script.
-    rm -f "${dialogCommandFile}"
-    rm -f -- /var/tmp/dialogCommandFile_${organizationScriptName}.*(N)
-
-    rm -f "${dialogJSONFile}"
-    rm -f -- /var/tmp/dialogJSONFile_${organizationScriptName}.*(N)
+    # Remove runtime artifacts created by this run only (never a concurrent run's dialog files)
+    rm -f -- "${dialogCommandFile}"
+    rm -f -- "${dialogJSONFile}"
 
     rm -rf -- "${runtimeTemporaryDirectory}"
 
@@ -6808,12 +6861,15 @@ function quitScript() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function killProcess() {
-    process="$1"
-    if process_pid=$( pgrep -a "${process}" 2>/dev/null ) ; then
+    local process="$1"
+    local -a process_pid
+    # Exact-name match only; terminate every matching PID
+    process_pid=( ${(f)"$( pgrep -x "${process}" 2>/dev/null )"} )
+    if (( ${#process_pid} )); then
         info "Attempting to terminate the '$process' process …"
         info "(Termination message indicates success.)"
-        kill "$process_pid" 2> /dev/null
-        if pgrep -a "$process" >/dev/null ; then
+        kill "${process_pid[@]}" 2> /dev/null
+        if pgrep -x "$process" >/dev/null ; then
             error "'$process' could not be terminated."
         fi
     else
@@ -6967,6 +7023,15 @@ if [[ "${forceFreshRunDetected}" == "true" ]]; then
     preFlight "Client-Side Cache: Force Fresh Run requested via ${forceFreshRunSource}; bypassing cached-upload shortcut."
 fi
 
+# `Test` and `Development` never install the client-side copy (it would replace production state on the Mac);
+# runs before the cached-upload shortcut so content changes reach the nightly copy even without a version bump
+if [[ "${operationMode}" != (Test|Development) ]] \
+    && { [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; }; then
+    if ! installClientSideScript; then
+        warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
+    fi
+fi
+
 if [[ "${clientSideSkipChecks}" == "true" ]]; then
 
     notice "Client-Side Cache: cache is current; skipping health checks and uploading cached report only."
@@ -6978,14 +7043,6 @@ if [[ "${clientSideSkipChecks}" == "true" ]]; then
         exit 1
     fi
 
-fi
-
-# `Test` and `Development` never install the client-side copy (it would replace production state on the Mac)
-if [[ "${operationMode}" != (Test|Development) ]] \
-    && { [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; }; then
-    if ! installClientSideScript; then
-        warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
-    fi
 fi
 
 
@@ -7100,7 +7157,8 @@ function dialogCheck() {
     else
 
         dialogVersion=$("${dialogBinary}" --version)
-        if ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
+        # An empty version (e.g., a broken `dialogcli`) must not pass the minimum-version gate
+        if [[ -z "${dialogVersion}" ]] || ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
 
             latestProductionDialogURL="$( getLatestSwiftDialogPkgURL )"
             latestProductionDialogVersion="$( getSwiftDialogVersionFromPkgURL "${latestProductionDialogURL}" )"
@@ -7283,7 +7341,7 @@ function checkOS() {
         # exit if less than macOS 12
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
-            result "$osResult"
+            warning "${humanReadableCheckName}: ${osResult}"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${osResult}"
             footerStatusColor="${statusColorError}"
             # return 1
@@ -7505,6 +7563,54 @@ function checkStagedUpdate() {
             stagingMessage="Open System Settings > General > Software Update"
             ;;
     esac
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Resolve DDM Enforcement from the softwareupdated state plist
+# Prints "<TargetOSVersion>\t<TargetLocalDateTime>" for the highest declared version and returns 0;
+# returns 10 when the plist declares no enforcement; returns 1 when the plist is missing, untrusted,
+# or its layout is unrecognized (callers then fall back to the user-writable install.log resolver)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function resolveDDMEnforcementFromStatePlist() {
+
+    local ddmStatePlistPath="/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist"
+    local ddmStatePlistOwner=""
+    local declarationsJSON=""
+    local declarationLines=""
+    local declarationLine=""
+    local declarationVersion=""
+    local declarationDate=""
+    local selectedVersion=""
+    local selectedDate=""
+
+    [[ -f "${ddmStatePlistPath}" && ! -L "${ddmStatePlistPath}" ]] || return 1
+    ddmStatePlistOwner="$( stat -f %Su "${ddmStatePlistPath}" 2>/dev/null )"
+    [[ "${ddmStatePlistOwner}" == "root" || "${ddmStatePlistOwner}" == "_softwareupdate" ]] || return 1
+
+    [[ "$( /usr/bin/plutil -extract SUCorePersistedStateContentsType raw -o - "${ddmStatePlistPath}" 2>/dev/null )" == "SoftwareUpdateCorePersistedStateFile" ]] || return 1
+    declarationsJSON="$( /usr/bin/plutil -extract SUCorePersistedStatePolicyFields.Declarations json -o - "${ddmStatePlistPath}" 2>/dev/null )" || return 1
+    printf '%s' "${declarationsJSON}" | jq -e 'type == "object"' >/dev/null 2>&1 || return 1
+
+    declarationLines="$( printf '%s' "${declarationsJSON}" | jq -r 'to_entries[] | .value | [ (.TargetOSVersion // "" | tostring), (.TargetLocalDateTime // "" | tostring) ] | @tsv' 2>/dev/null )" || return 1
+    [[ -z "${declarationLines}" ]] && return 10
+
+    for declarationLine in "${(@f)declarationLines}"; do
+        declarationVersion="${declarationLine%%$'\t'*}"
+        declarationDate="${declarationLine#*$'\t'}"
+        # Any malformed declaration means the layout is not what this resolver understands
+        [[ "${declarationVersion}" =~ '^[0-9]{1,3}\.[0-9]{1,3}(\.[0-9]{1,3})?$' ]] || return 1
+        [[ "${declarationDate}" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z?$' ]] || return 1
+        if [[ -z "${selectedVersion}" ]] || ! is-at-least "${declarationVersion}" "${selectedVersion}"; then
+            selectedVersion="${declarationVersion}"
+            selectedDate="${declarationDate}"
+        fi
+    done
+
+    printf '%s\t%s\n' "${selectedVersion}" "${selectedDate}"
 
 }
 
@@ -7778,40 +7884,60 @@ function checkAvailableSoftwareUpdates() {
         info "${mdmClientAvailableOSUpdates}"
     fi
 
-    # DDM-enforced OS Version (priority-ranked resolver; fails closed on ambiguous or conflicting state)
+    # DDM-enforced OS Version: prefer the root-written softwareupdated state plist; fall back to the
+    # priority-ranked install.log resolver (fails closed on ambiguous or conflicting state) only when
+    # the plist is missing or its layout is unrecognized
     local ddmResolvedCandidate=""
     local ddmResolverExitCode=0
-    ddmResolvedCandidate="$( resolveDDMEnforcementFromInstallLog )"
-    ddmResolverExitCode=$?
+    local ddmStatePlistCandidate=""
+    local ddmStatePlistExitCode=0
+    ddmStatePlistCandidate="$( resolveDDMEnforcementFromStatePlist )"
+    ddmStatePlistExitCode=$?
 
     local ddmResolverSource="" ddmDeclarationLogTimestamp="" ddmEnforcedInstallDate="" ddmVersionString="" ddmBuildVersionString=""
     local ddmPaddedEnforcementDateRaw="" ddmEnforcedInstallDateDisplay="" ddmEnforcedInstallDateHumanReadable="" ddmDateSource="raw"
-    if (( ddmResolverExitCode == 0 )) && [[ -n "${ddmResolvedCandidate}" ]]; then
-        IFS=$'\t' read -r ddmResolverSource ddmDeclarationLogTimestamp ddmEnforcedInstallDate ddmVersionString ddmBuildVersionString <<< "${ddmResolvedCandidate}"
+    if (( ddmStatePlistExitCode == 0 )) && [[ -n "${ddmStatePlistCandidate}" ]]; then
+        ddmResolverSource="statePlist"
+        ddmVersionString="${ddmStatePlistCandidate%%$'\t'*}"
+        ddmEnforcedInstallDate="${ddmStatePlistCandidate#*$'\t'}"
         ddmEnforcedInstallDateDisplay="${ddmEnforcedInstallDate}"
-        ddmPaddedEnforcementDateRaw="$( resolvePaddedEnforcementDateForCandidate "${ddmDeclarationLogTimestamp}" "${ddmEnforcedInstallDate}|${ddmVersionString}|${ddmBuildVersionString}" )"
-        if [[ -n "${ddmPaddedEnforcementDateRaw}" ]]; then
-            ddmEnforcedInstallDateDisplay="${ddmPaddedEnforcementDateRaw}"
-            ddmDateSource="padded"
-            ddmEnforcedInstallDateHumanReadable="$(date -jf "%a %b %d %H:%M:%S %Y" "${ddmPaddedEnforcementDateRaw}" "+%d-%b-%Y" 2>/dev/null)"
-        else
-            ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
-        fi
-
+        ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
         [[ -z "${ddmEnforcedInstallDateHumanReadable}" ]] && ddmEnforcedInstallDateHumanReadable="${ddmEnforcedInstallDateDisplay}"
-        local ddmBuildVersionLog="${ddmBuildVersionString}"
-        [[ -z "${ddmBuildVersionLog}" || "${ddmBuildVersionLog}" == "(null)" ]] && ddmBuildVersionLog="unavailable"
-        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionLog}"
+        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=unavailable"
+    elif (( ddmStatePlistExitCode == 10 )); then
+        info "DDM Resolver: source=statePlist | no DDM enforcement declared"
     else
-        local ddmResolverExitReason=""
-        case "${ddmResolverExitCode}" in
-            20 ) ddmResolverExitReason="no DDM enforcement entries found in install.log" ;;
-            21 ) ddmResolverExitReason="conflicting or ambiguous DDM enforcement candidates" ;;
-            22 ) ddmResolverExitReason="DDM-enforced version string failed validation" ;;
-            23 ) ddmResolverExitReason="Apple reported no matching update for the DDM-requested version" ;;
-            * )  ddmResolverExitReason="unexpected resolver result" ;;
-        esac
-        info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode}: ${ddmResolverExitReason})"
+        info "DDM Resolver: softwareupdated state plist unavailable or unrecognized; falling back to install.log"
+        ddmResolvedCandidate="$( resolveDDMEnforcementFromInstallLog )"
+        ddmResolverExitCode=$?
+
+        if (( ddmResolverExitCode == 0 )) && [[ -n "${ddmResolvedCandidate}" ]]; then
+            IFS=$'\t' read -r ddmResolverSource ddmDeclarationLogTimestamp ddmEnforcedInstallDate ddmVersionString ddmBuildVersionString <<< "${ddmResolvedCandidate}"
+            ddmEnforcedInstallDateDisplay="${ddmEnforcedInstallDate}"
+            ddmPaddedEnforcementDateRaw="$( resolvePaddedEnforcementDateForCandidate "${ddmDeclarationLogTimestamp}" "${ddmEnforcedInstallDate}|${ddmVersionString}|${ddmBuildVersionString}" )"
+            if [[ -n "${ddmPaddedEnforcementDateRaw}" ]]; then
+                ddmEnforcedInstallDateDisplay="${ddmPaddedEnforcementDateRaw}"
+                ddmDateSource="padded"
+                ddmEnforcedInstallDateHumanReadable="$(date -jf "%a %b %d %H:%M:%S %Y" "${ddmPaddedEnforcementDateRaw}" "+%d-%b-%Y" 2>/dev/null)"
+            else
+                ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
+            fi
+
+            [[ -z "${ddmEnforcedInstallDateHumanReadable}" ]] && ddmEnforcedInstallDateHumanReadable="${ddmEnforcedInstallDateDisplay}"
+            local ddmBuildVersionLog="${ddmBuildVersionString}"
+            [[ -z "${ddmBuildVersionLog}" || "${ddmBuildVersionLog}" == "(null)" ]] && ddmBuildVersionLog="unavailable"
+            info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionLog}"
+        else
+            local ddmResolverExitReason=""
+            case "${ddmResolverExitCode}" in
+                20 ) ddmResolverExitReason="no DDM enforcement entries found in install.log" ;;
+                21 ) ddmResolverExitReason="conflicting or ambiguous DDM enforcement candidates" ;;
+                22 ) ddmResolverExitReason="DDM-enforced version string failed validation" ;;
+                23 ) ddmResolverExitReason="Apple reported no matching update for the DDM-requested version" ;;
+                * )  ddmResolverExitReason="unexpected resolver result" ;;
+            esac
+            info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode}: ${ddmResolverExitReason})"
+        fi
     fi
 
     # Software Update Recommended Updates
@@ -7944,16 +8070,27 @@ function checkAppAutoPatch() {
         info "${humanReadableCheckName}: Evaluating App Auto-Patch ${aap_log_format}.x log(s)"
     fi
 
-    # App Auto-Patch 4.0.0: newest ISO-8601 "Discovery complete" timestamp across system and per-user logs
+    # App Auto-Patch 4.0.0: newest ISO-8601 "Discovery complete" timestamp from the root-written system log;
+    # the user-writable per-user log is consulted only when the system log is absent
     # (log mtime is not used; the root helper writes to the log continuously)
     if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "4" ]]; then
-        for aap_v4_log in "${aap_log_path_current}" "${aap_log_path_user}"; do
+        local aap_v4_logs=( "${aap_log_path_current}" )
+        local aap_future_limit_epoch=$(( $(date "+%s") + 300 ))
+        if [[ ! -f "${aap_log_path_current}" ]]; then
+            aap_v4_logs=( "${aap_log_path_user}" )
+            info "${humanReadableCheckName}: System log not found; using user-reported per-user log"
+        fi
+        for aap_v4_log in "${aap_v4_logs[@]}"; do
             [[ -n "${aap_v4_log}" && -f "${aap_v4_log}" ]] || continue
             aap_ts_line=$( grep -E "Discovery complete" "${aap_v4_log}" 2>/dev/null | tail -1 )
             [[ -n "${aap_ts_line}" ]] || continue
             aap_ts=$( echo "${aap_ts_line%% *}" | sed -E 's/\.[0-9]+//; s/Z$/+0000/; s/([+-][0-9]{2}):([0-9]{2})$/\1\2/' )
             [[ "${aap_ts}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}$ ]] || continue
             aap_v4_epoch=$( date -j -f "%Y-%m-%dT%H:%M:%S%z" "${aap_ts}" "+%s" 2>/dev/null )
+            if [[ "${aap_v4_epoch}" =~ ^[0-9]+$ ]] && (( aap_v4_epoch > aap_future_limit_epoch )); then
+                warning "${humanReadableCheckName}: Ignoring future-dated Discovery complete timestamp (${aap_ts}) in ${aap_v4_log}"
+                continue
+            fi
             if [[ "${aap_v4_epoch}" =~ ^[0-9]+$ ]] && (( aap_v4_epoch > ${last_run_epoch:-0} )); then
                 last_run_epoch="${aap_v4_epoch}"
             fi
@@ -8941,7 +9078,8 @@ function checkAPNs() {
 
     # ManagedClient HTTP 200 responses (MDM evidence), apsd courier connections and incoming-message
     # acknowledgements (APNs evidence; topics are <private>-redacted), courier disconnects and MDM
-    # identity errors (thanks, @rtrouton!)
+    # identity errors (thanks, @rtrouton!); only from SSV-protected system binaries, so a user process
+    # cannot spoof healthy-looking entries
     local apnsLogEntries=""
     local lastMdmResponseTimestamp=""
     local lastApnsActivityTimestamp=""
@@ -8950,7 +9088,7 @@ function checkAPNs() {
     local apnsStatusEpoch=""
     local apnsStatus=""
 
-    apnsLogEntries=$( command log show --last 24h --style compact --predicate '(process == "apsd" && (eventMessage CONTAINS "Connected to courier" || eventMessage CONTAINS "acknowledges incoming message" || eventMessage CONTAINS "Disconnecting in response to connection failure")) || (process == "mdmclient" && eventMessage CONTAINS "-25304") || (subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow"))' 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' )
+    apnsLogEntries=$( command log show --last 24h --style compact --predicate '(processImagePath BEGINSWITH "/System/" || processImagePath BEGINSWITH "/usr/libexec/") && ((process == "apsd" && (eventMessage CONTAINS "Connected to courier" || eventMessage CONTAINS "acknowledges incoming message" || eventMessage CONTAINS "Disconnecting in response to connection failure")) || (process == "mdmclient" && eventMessage CONTAINS "-25304") || (subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow")))' 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' )
 
     lastMdmResponseTimestamp=$( print -r -- "${apnsLogEntries}" | grep -iE 'Received HTTP response \(200\) \[(Acknowledged|NotNow)' | tail -1 | cut -c 1-19 )
     lastApnsActivityTimestamp=$( print -r -- "${apnsLogEntries}" | grep -E 'Connected to courier|acknowledges incoming message' | tail -1 | cut -c 1-19 )
@@ -10020,9 +10158,9 @@ function checkExternalJamfPro() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
-    externalPolicyOutput=$( "${jamfBinary}" policy -event "${trigger}" 2>&1 )
+    externalPolicyOutput="$( captureCommandOutputWithTimeout "${externalCheckTimeoutSeconds}" "${jamfBinary}" policy -event "${trigger}" )"
     externalPolicyExitCode=$?
-    if (( externalPolicyExitCode != 0 )); then
+    if (( externalPolicyExitCode != 0 && externalPolicyExitCode != 124 )); then
         info "External Check: Jamf policy trigger '${trigger}' exited ${externalPolicyExitCode}; evaluating available result output."
     fi
     externalValidation=$( printf '%s\n' "${externalPolicyOutput}" | sed -n 's/.*Script result:[[:space:]]*//p' | tail -1 )
@@ -10038,8 +10176,17 @@ function checkExternalJamfPro() {
     (( externalPolicyExitCode != 0 )) && fallbackErrorDetail="Policy exit ${externalPolicyExitCode}"
     [[ -n "${externalCheckResult}" ]] && fallbackErrorDetail="${externalCheckResult}"
     
+    # A hung policy must not stall the run
+    if (( externalPolicyExitCode == 124 )); then
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: error, statustext: Timed Out"
+        errorOut "${appDisplayName} Error: Jamf policy trigger '${trigger}' timed out after ${externalCheckTimeoutSeconds} seconds"
+        overallHealth+="${appDisplayName}; "
+        footerCheckIcon="SF=exclamationmark.triangle.fill"
+        footerStatusColor="${statusColorError}"
+
     # Leverage the organization defaults domain
-    if [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
+    elif [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
 
         checkStatus=$( defaults read "${organizationDefaultsDomain}" checkStatus )
         checkType=$( defaults read "${organizationDefaultsDomain}" checkType )
@@ -10089,7 +10236,8 @@ function checkExternalJamfPro() {
 
         case ${externalCheckResult:l} in
 
-            *"failed"* )
+            # `Not Running` must fail before the `*"running"*` success pattern matches it
+            *"failed"* | *"not running"* )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
                 errorOut "${appDisplayName} Failed"
                 overallHealth+="${appDisplayName}; "
@@ -10303,6 +10451,23 @@ function checkHomebrewStatus() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Validate an Electron / app version string read from a (possibly user-controlled) bundle
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function isElectronVersionString() {
+
+    local candidateVersion="${1}"
+
+    (( ${#candidateVersion} <= 64 )) || return 1
+    [[ "${candidateVersion}" =~ '^[0-9]+(\.[0-9]+){1,3}([-+][A-Za-z0-9.]+)?$' ]] && return 0
+    [[ "${candidateVersion}" =~ '^custom-[0-9a-f]{7}$' ]] && return 0
+    return 1
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Check Electron Apps for the macOS "Corner Mask" Slowdown Bug (Electron < 36.9.2 on macOS 26+)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -10328,12 +10493,6 @@ function checkElectronCornerMask() {
         # Electron versions where the bug is fixed
         local fixedVersions=( "36.9.2" "37.6.0" "38.2.0" "39.0.0-alpha.7" )
 
-        # Known-safe Electron apps and their verified runtime versions
-        declare -A knownSafeElectronApps=(
-            ["Visual Studio Code.app"]="37.6.0"
-            ["Slack.app"]="38.2.0"
-        )
-
         local foundElectronApps=0
         local vulnerableApps=()
         local safeApps=()
@@ -10341,23 +10500,13 @@ function checkElectronCornerMask() {
 
         setopt null_glob
 
-        local appSearchRoots=(
-            /Applications
-            /Applications/Utilities
-            /Users/"${loggedInUser}"/Applications
-        )
         local frameworkPaths=(
             /Applications/*.app/Contents/Frameworks/Electron\ Framework.framework
             /Applications/Utilities/*.app/Contents/Frameworks/Electron\ Framework.framework
             /Users/"${loggedInUser}"/Applications/*.app/Contents/Frameworks/Electron\ Framework.framework
         )
-        local knownSafeElectronAppNames=(
-            "Visual Studio Code.app"
-            "Slack.app"
-        )
         local app=""
         local appName=""
-        local appSearchRoot=""
         local appVersion=""
         local frameworkPath=""
         local versionFile=""
@@ -10372,21 +10521,11 @@ function checkElectronCornerMask() {
         local fixed=""
         local vulnerable=""
 
-        for appName in "${knownSafeElectronAppNames[@]}"; do
-            appVersion="${knownSafeElectronApps[$appName]}"
-            for appSearchRoot in "${appSearchRoots[@]}"; do
-                app="${appSearchRoot}/${appName}"
-                if [[ -d "${app}" ]]; then
-                    ((foundElectronApps++))
-                    processedElectronApps["${app}"]=1
-                    safeApps+=("${appName} (${appVersion}) [known fixed]")
-                fi
-            done
-        done
-
         for frameworkPath in "${frameworkPaths[@]}"; do
             app="${frameworkPath:h:h:h}"
             [[ ! -d "${app}" ]] && continue
+            # Root reads files inside these bundles; never follow links a user could point elsewhere
+            [[ -L "${app}" || -L "${frameworkPath}" ]] && continue
             if [[ -n "${processedElectronApps[$app]}" ]]; then
                 continue
             fi
@@ -10412,10 +10551,9 @@ function checkElectronCornerMask() {
             versionTxt="${app}/Contents/Resources/app/version.txt"
             appInfoPlist="${app}/Contents/Info.plist"
 
-            if [[ -f "${versionFile}" ]]; then
-                appVersion="${$(<"${versionFile}")//$'\n'/}"
-                appVersion="${appVersion//$'\r'/}"
-                appVersion="${appVersion//$'\t'/}"
+            if [[ -f "${versionFile}" && ! -L "${versionFile}" ]]; then
+                appVersion="$( /usr/bin/head -c 64 -- "${versionFile}" 2>/dev/null )"
+                appVersion="${appVersion//[[:space:]]/}"
             elif [[ -f "${frameworkPlist}" ]]; then
                 appVersion=$(/usr/bin/plutil -extract CFBundleVersion raw -expect string "${frameworkPlist}" 2>/dev/null)
                 if [[ -z "${appVersion}" ]]; then
@@ -10431,20 +10569,26 @@ function checkElectronCornerMask() {
                     local commit=$(grep -Eo '"commit"[^,]*' "${productJson}" | awk -F'"' '{print $4}')
                     [[ -n "${commit}" ]] && appVersion="custom-${commit:0:7}"
                 fi
-            elif [[ -f "${versionTxt}" ]]; then
-                appVersion="${$(<"${versionTxt}")//$'\n'/}"
-                appVersion="${appVersion//$'\r'/}"
-                appVersion="${appVersion//$'\t'/}"
+            elif [[ -f "${versionTxt}" && ! -L "${versionTxt}" ]]; then
+                appVersion="$( /usr/bin/head -c 64 -- "${versionTxt}" 2>/dev/null )"
+                appVersion="${appVersion//[[:space:]]/}"
             fi
 
             appVersion="${appVersion#"${appVersion%%[![:space:]]*}"}"
             appVersion="${appVersion%"${appVersion##*[![:space:]]}"}"
 
+            # Accept only version-shaped values; hard links defeat `-L`, so content validation is what keeps
+            # root-only file contents out of the dialog, Inspect plist, log and report
+            if ! isElectronVersionString "${appVersion}"; then
+                appVersion="Unknown"
+            fi
+
             if [[ -z "${appVersion}" || "${appVersion}" == "Unknown" ]]; then
-                if [[ -f "${appInfoPlist}" ]]; then
+                if [[ -f "${appInfoPlist}" && ! -L "${appInfoPlist}" ]]; then
                     appVersion=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -expect string "${appInfoPlist}" 2>/dev/null)
                     appVersion="${appVersion#"${appVersion%%[![:space:]]*}"}"
                     appVersion="${appVersion%"${appVersion##*[![:space:]]}"}"
+                    isElectronVersionString "${appVersion}" || appVersion=""
                 fi
 
                 if [[ -z "${appVersion}" ]]; then
@@ -10858,8 +11002,11 @@ completedCheckIndicesCsv=","
 
 echo "$combinedJSON" > "$dialogJSONFile"
 
-# Set Permissions on dialogJSONFile
-chmod 644 "${dialogJSONFile}"
+# Set Permissions on dialogJSONFile (root-owned 600 plus a read-only ACL for the console user)
+chmod 600 "${dialogJSONFile}"
+if [[ -n "${loggedInUser}" && "${loggedInUser}" != "root" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    chmod +a "${loggedInUser} allow read" "${dialogJSONFile}" 2>/dev/null
+fi
 
 # Verify dialogJSONFile exists and is readable
 retryCount=0
