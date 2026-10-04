@@ -1,5 +1,5 @@
 # Mac Health Check
-## Version 4.0.0
+## Version 5.0.0
 
 
 
@@ -33,3 +33,9 @@ Icon?
 ### Project temp
 .deploy*
 VERSION.txt
+
+
+
+### Selector skill artifacts
+Artifacts/*
+!Artifacts/README.md

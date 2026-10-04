@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 ###############################################################################
 # Script Name: Zscaler Tunnel Status
 # Author: Tony Young
@@ -17,10 +17,12 @@
 #   Prints a single line status (no <result> tags), suitable for Jamf "External"
 #   scripts or log parsing, e.g.:
 #       Running
-#       Not Running
+#       Failed: Not Running
 #       Not Installed
 #
 # Changelog:
+#   2026-10-03 - v1.1.2 - Prints `Failed: Not Running` (Mac Health Check reported `Not Running` as healthy) and uses `#!/bin/bash` (Mac Health Check 5.0.0).
+#   2026-09-29 - v1.1.1 - Removed `/usr/local/bin` from `PATH` (Mac Health Check 5.0.0b6).
 #   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
 #   2025-09-29 - v1.0.0 - Initial version created for GitHub release.
 #
@@ -30,11 +32,11 @@
 ###############################################################################
 
 set -euo pipefail
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 # Zscaler Client Connector tunnel process
 if pgrep -x "ZscalerTunnel" >/dev/null 2>&1; then
     echo "Running"
 else
-    echo "Not Running"
+    echo "Failed: Not Running"
 fi

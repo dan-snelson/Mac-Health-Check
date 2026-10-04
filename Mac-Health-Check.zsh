@@ -17,7 +17,7 @@
 #
 # HISTORY
 #
-# Version 4.2.0b6 28-Sep-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0 04-Oct-2026, Dan K. Snelson (@dan-snelson)
 # - See CHANGELOG.md for details
 #
 ####################################################################################################
@@ -30,10 +30,54 @@
 #
 ####################################################################################################
 
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
+# `/usr/local/bin` is intentionally excluded: Homebrew can make it user-writable, and this script runs as root
+# (swiftDialog, Jamf and `jq` are called through the root-owned absolute paths resolved below)
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+function isTrustedRootPath() {
+
+    local candidatePath="${1}"
+    local resolvedPath=""
+    local pathComponent=""
+    local pathComponentMode=""
+
+    [[ -n "${candidatePath}" ]] && [[ -e "${candidatePath}" ]] || return 1
+    resolvedPath="${candidatePath:A}"
+    [[ -f "${resolvedPath}" ]] || return 1
+
+    # The resolved file and every parent directory must be root-owned and not group- or world-writable
+    # (a sticky directory such as `/private/var/tmp` is accepted because other users cannot replace root's entries)
+    pathComponent="${resolvedPath}"
+    while [[ -n "${pathComponent}" ]]; do
+        [[ "$( stat -f %u "${pathComponent}" 2>/dev/null )" == "0" ]] || return 1
+        pathComponentMode="$( stat -f %Lp "${pathComponent}" 2>/dev/null )"
+        [[ "${pathComponentMode}" == <-> ]] || return 1
+        if (( ( 8#${pathComponentMode} & 8#022 ) != 0 )); then
+            [[ -d "${pathComponent}" ]] && (( ( 8#${pathComponentMode} & 8#1000 ) != 0 )) || return 1
+        fi
+        [[ "${pathComponent}" == "/" ]] && break
+        pathComponent="${pathComponent:h}"
+    done
+
+    return 0
+
+}
+
+# jq: prefer the macOS-bundled binary (macOS 15+); otherwise accept only a root-owned install
+jqBinary=""
+for jqCandidate in "/usr/bin/jq" "/usr/local/bin/jq" "/opt/homebrew/bin/jq"; do
+    if [[ -x "${jqCandidate}" ]] && isTrustedRootPath "${jqCandidate}"; then
+        jqBinary="${jqCandidate}"
+        break
+    fi
+done
+unset jqCandidate
+if [[ -n "${jqBinary}" ]] && [[ "${jqBinary}" != "/usr/bin/jq" ]]; then
+    function jq() { "${jqBinary}" "$@"; }
+fi
 
 # Script Version
-scriptVersion="4.2.0b6"
+scriptVersion="5.0.0"
 
 # Client-side Log
 scriptLog="/var/log/org.churchofjesuschrist.log"
@@ -42,7 +86,7 @@ scriptLog="/var/log/org.churchofjesuschrist.log"
 autoload -Uz is-at-least
 
 # Minimum Required Version of swiftDialog
-swiftDialogMinimumRequiredVersion="3.1.0.4994"
+swiftDialogMinimumRequiredVersion="3.1.1.4997"
 
 # Force locale to English (so `date` does not error on localization formatting)
 LANG="en_us_88591"
@@ -59,15 +103,10 @@ SECONDS="0"
 # Parameter 4: Operation Mode [ Debug | Development | Self Service | Silent | Test ]
 operationMode="${4:-"Self Service"}"
 
-    # Enable `set -x` if operation mode is "Debug" to help identify issues
-    [[ "${operationMode}" == "Debug" ]] && set -x
-
 # Parameter 5: Microsoft Teams or Slack Webhook URL [ Leave blank to disable (default) | https://microsoftTeams.webhook.com/URL | https://hooks.slack.com/services/URL ]
 webhookURL="${5:-""}"
 
 
-
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Client-Side Cache Jitter
@@ -131,6 +170,18 @@ splunkHECSourcetype="${10:-""}"
 # Parameter 11: Force fresh run [ true | false ]
 forceFreshRun="${11:-"false"}"
 
+# Secret-free configuration flags (evaluated before `set -x` so secrets never reach xtrace output)
+webhookConfigured="false"
+webhookService="teams"
+[[ -n "${webhookURL}" ]] && webhookConfigured="true"
+[[ "${webhookURL}" == *"slack"* ]] && webhookService="slack"
+splunkHECTokenConfigured="false"
+[[ -n "${splunkHECToken}" ]] && splunkHECTokenConfigured="true"
+
+    # Enable `set -x` if operation mode is "Debug" to help identify issues
+    # (Enabled after parameter parsing so the webhook URL and Splunk HEC token are not traced)
+    [[ "${operationMode}" == "Debug" ]] && set -x
+
 # Reporting debug mode [ true | false ]
 reportDebug="false"
 
@@ -165,13 +216,148 @@ forceFreshRunTriggerFilePath="/var/tmp/MacHealthCheck-Force-Fresh-Run"
 forceFreshRunDetected="false"
 forceFreshRunSource="not_requested"
 
+function isTrustedForceFreshRunTrigger() {
+
+    # Honor only a root-owned regular file; any local user can create files in world-writable `/var/tmp`
+    [[ -f "${forceFreshRunTriggerFilePath}" ]] && [[ ! -L "${forceFreshRunTriggerFilePath}" ]] \
+        && [[ "$( stat -f %u "${forceFreshRunTriggerFilePath}" 2>/dev/null )" == "0" ]]
+
+}
+
+function removeUntrustedForceFreshRunTrigger() {
+
+    if { [[ -e "${forceFreshRunTriggerFilePath}" ]] || [[ -L "${forceFreshRunTriggerFilePath}" ]]; } \
+        && ! isTrustedForceFreshRunTrigger; then
+        [[ $(id -u) -eq 0 ]] && rm -f -- "${forceFreshRunTriggerFilePath}" 2>/dev/null
+        return 0
+    fi
+
+    return 1
+
+}
+
+# Per-run, root-owned temporary directory for downloaded icons and other transient files
+# (`mktemp -d` creates a unique directory that local users cannot pre-plant or redirect)
+runtimeTemporaryDirectory="$( mktemp -d "/var/tmp/${organizationScriptName}.XXXXXX" 2>/dev/null )"
+if [[ -z "${runtimeTemporaryDirectory}" ]] || [[ ! -d "${runtimeTemporaryDirectory}" ]]; then
+    echo "Error: Unable to create a per-run temporary directory; exiting."
+    exit 1
+fi
+chmod 755 "${runtimeTemporaryDirectory}" 2>/dev/null
+trap 'rm -rf -- "${runtimeTemporaryDirectory}"' EXIT
+
+# Optional root-only reporting secrets file (keeps the Splunk HEC token and webhook URL out of the process list)
+# Keys: `splunkHECToken`, `webhookURL`; must be a root-owned, `600` regular file inside `organizationDirectory`
+reportingSecretsPath="${organizationDirectory}/MacHealthCheck-Secrets.plist"
+splunkHECTokenSource="not configured"
+webhookURLSource="not configured"
+reportingSecretsFileStatus="missing"
+
+# Allow Parameters 5 and 8 to supply reporting secrets [ true | false (default) ]
+# (Legacy opt-in only; parameter values remain visible to local users in the process list)
+allowParameterSecrets="false"
+
+function refreshReportingSecretFlags() {
+
+    webhookConfigured="false"
+    webhookService="teams"
+    [[ -n "${webhookURL}" ]] && webhookConfigured="true"
+    [[ "${webhookURL}" == *"slack"* ]] && webhookService="slack"
+    splunkHECTokenConfigured="false"
+    [[ -n "${splunkHECToken}" ]] && splunkHECTokenConfigured="true"
+
+}
+
+function loadReportingSecrets() {
+
+    local secretsFileMode=""
+    local secretsDirectoryMode=""
+    local secretValue=""
+
+    # Keep secret values out of `set -x` output
+    setopt localoptions noxtrace
+
+    [[ "${splunkHECTokenConfigured}" == "true" ]] && splunkHECTokenSource="Parameter 8"
+    [[ "${webhookConfigured}" == "true" ]] && webhookURLSource="Parameter 5"
+
+    if [[ ! -e "${reportingSecretsPath}" ]] && [[ ! -L "${reportingSecretsPath}" ]]; then
+        return 0
+    fi
+
+    secretsFileMode="$( stat -f %Lp "${reportingSecretsPath}" 2>/dev/null )"
+    secretsDirectoryMode="$( stat -f %Lp "${organizationDirectory}" 2>/dev/null )"
+    if [[ -L "${reportingSecretsPath}" ]] || [[ ! -f "${reportingSecretsPath}" ]] \
+        || [[ "$( stat -f %u "${reportingSecretsPath}" 2>/dev/null )" != "0" ]] \
+        || [[ "${secretsFileMode}" != <-> ]] || (( ( 8#${secretsFileMode} & 8#077 ) != 0 )) \
+        || [[ -L "${organizationDirectory}" ]] || [[ "$( stat -f %u "${organizationDirectory}" 2>/dev/null )" != "0" ]] \
+        || [[ "${secretsDirectoryMode}" != <-> ]] || (( ( 8#${secretsDirectoryMode} & 8#022 ) != 0 )); then
+        reportingSecretsFileStatus="untrusted"
+        return 1
+    fi
+
+    reportingSecretsFileStatus="trusted"
+
+    secretValue="$( /usr/libexec/PlistBuddy -c "Print :splunkHECToken" "${reportingSecretsPath}" 2>/dev/null )"
+    if [[ -n "${secretValue}" ]]; then
+        [[ "${splunkHECTokenSource}" == "Parameter 8" ]] && splunkHECTokenSource="secrets file (Parameter 8 ignored)" || splunkHECTokenSource="secrets file"
+        splunkHECToken="${secretValue}"
+    fi
+
+    secretValue="$( /usr/libexec/PlistBuddy -c "Print :webhookURL" "${reportingSecretsPath}" 2>/dev/null )"
+    if [[ -n "${secretValue}" ]]; then
+        [[ "${webhookURLSource}" == "Parameter 5" ]] && webhookURLSource="secrets file (Parameter 5 ignored)" || webhookURLSource="secrets file"
+        webhookURL="${secretValue}"
+    fi
+
+    # Refresh the secret-free configuration flags
+    refreshReportingSecretFlags
+
+    return 0
+
+}
+
+function enforceReportingSecretsSource() {
+
+    # Keep secret values out of `set -x` output
+    setopt localoptions noxtrace
+
+    [[ "${allowParameterSecrets}" == "true" ]] && return 0
+
+    # Fail closed: discard reporting secrets supplied only through script parameters
+    if [[ "${splunkHECTokenSource}" == "Parameter 8" ]]; then
+        splunkHECToken=""
+        splunkHECTokenSource="Parameter 8 (rejected)"
+    fi
+
+    if [[ "${webhookURLSource}" == "Parameter 5" ]]; then
+        webhookURL=""
+        webhookURLSource="Parameter 5 (rejected)"
+    fi
+
+    refreshReportingSecretFlags
+
+}
+
+loadReportingSecrets
+enforceReportingSecretsSource
+
 # Splunk and JSON reporting defaults
-splunkJSONReportPath="/var/tmp/MacHealthCheck-Report.json"
-splunkJSONReportLockDirectory="/var/tmp/MacHealthCheck-Report.lock"
+# (Persistent root-written state lives in the root-owned `organizationDirectory`, never in world-writable `/var/tmp`)
+splunkJSONReportPath="${organizationDirectory}/MacHealthCheck-Report.json"
+splunkJSONReportLockDirectory="${organizationDirectory}/MacHealthCheck-Report.lock"
 cachedReportJSON=""
 cachedReportModificationEpoch="0"
 cachedReportAgeSeconds="0"
 cachedReportValidationStatus="not_checked"
+
+function isProductionReportOperationMode() {
+
+    case "${1}" in
+        "Self Service" | "Silent" ) return 0 ;;
+        * ) return 1 ;;
+    esac
+
+}
 
 function validateCachedSplunkReport() {
 
@@ -182,7 +368,14 @@ function validateCachedSplunkReport() {
     cachedReportAgeSeconds="0"
     cachedReportValidationStatus="missing"
 
-    if [[ ! -f "${cachedReportPath}" ]]; then
+    if [[ ! -f "${cachedReportPath}" ]] && [[ ! -L "${cachedReportPath}" ]]; then
+        return 1
+    fi
+
+    # Only trust a root-owned regular file (never a symlink or a file a local user could have planted)
+    if [[ -L "${cachedReportPath}" ]] || [[ ! -f "${cachedReportPath}" ]] \
+        || [[ "$( stat -f %u "${cachedReportPath}" 2>/dev/null )" != "0" ]]; then
+        cachedReportValidationStatus="untrusted_owner"
         return 1
     fi
 
@@ -195,6 +388,12 @@ function validateCachedSplunkReport() {
     cachedReportJSON="$( < "${cachedReportPath}" )"
     if ! printf '%s' "${cachedReportJSON}" | jq -e . >/dev/null 2>&1; then
         cachedReportValidationStatus="invalid_json"
+        return 1
+    fi
+
+    # Never upload a report produced by a non-production mode (e.g., `Test` marks every check successful)
+    if ! isProductionReportOperationMode "$( printf '%s' "${cachedReportJSON}" | jq -r '.metadata.operationMode // empty' 2>/dev/null )"; then
+        cachedReportValidationStatus="non_production_mode"
         return 1
     fi
 
@@ -223,6 +422,9 @@ function validateCachedSplunkReport() {
 
 }
 
+splunkOperationModeRequested="${splunkOperationMode}"
+splunkOperationModeUnrecognized="false"
+
 case "${splunkOperationMode:l}" in
     "off" )
         splunkOperationMode="off"
@@ -230,8 +432,13 @@ case "${splunkOperationMode:l}" in
     "test" )
         splunkOperationMode="test"
         ;;
-    * )
+    "production" )
         splunkOperationMode="production"
+        ;;
+    * )
+        # Fail safe: an unrecognized value (e.g., a typo) must never enable production reporting
+        splunkOperationModeUnrecognized="true"
+        splunkOperationMode="test"
         ;;
 esac
 
@@ -260,16 +467,29 @@ function clientSideEarlyLog() {
 
 }
 
+# Reporting-first `Silent` cannot succeed without an HEC token; exit before slow discovery so a rejected
+# Parameter 8 value spends as little time as possible in the process list
+if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]] \
+    && [[ "${splunkHECTokenSource}" == "Parameter 8 (rejected)" ]] && [[ "${splunkHECTokenConfigured}" != "true" ]]; then
+    printf '%s\n' "${organizationScriptName} (${scriptVersion}): $( date +%Y-%m-%d\ %H:%M:%S ) - [ERROR]           Splunk Reporting: rejected Splunk HEC token supplied through Parameter 8; store it in ${reportingSecretsPath} (root:wheel, mode 600) and clear Parameters 5 and 8. Exiting before health checks." >> "${scriptLog}" 2>/dev/null
+    printf '%s\n' "Splunk Reporting: rejected Splunk HEC token supplied through Parameter 8; store it in ${reportingSecretsPath} and clear Parameters 5 and 8. Exiting before health checks."
+    exit 1
+fi
+
 # Client-Side Cache version check
 if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "production" ]]; then
 
-    if [[ -f "${forceFreshRunTriggerFilePath}" ]] || [[ "${forceFreshRun:l}" == "true" ]]; then
+    if removeUntrustedForceFreshRunTrigger; then
+        clientSideEarlyLog "Ignored untrusted Force Fresh Run trigger at ${forceFreshRunTriggerFilePath} (must be a root-owned regular file)."
+    fi
+
+    if isTrustedForceFreshRunTrigger || [[ "${forceFreshRun:l}" == "true" ]]; then
 
         forceFreshRunDetected="true"
 
-        if [[ -f "${forceFreshRunTriggerFilePath}" ]] && [[ "${forceFreshRun:l}" == "true" ]]; then
+        if isTrustedForceFreshRunTrigger && [[ "${forceFreshRun:l}" == "true" ]]; then
             forceFreshRunSource="trigger file and Parameter 11"
-        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        elif isTrustedForceFreshRunTrigger; then
             forceFreshRunSource="trigger file"
         else
             forceFreshRunSource="Parameter 11"
@@ -278,7 +498,7 @@ if [[ "${operationMode}" == "Silent" ]] && [[ "${splunkOperationMode}" == "produ
         clientSideSkipChecks="false"
         clientSideEarlyLog "FORCE FRESH RUN triggered via ${forceFreshRunSource} — bypassing cache and forcing complete health check run."
 
-        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        if isTrustedForceFreshRunTrigger; then
             rm -f "${forceFreshRunTriggerFilePath}"
         fi
 
@@ -353,7 +573,7 @@ dockIcon="https://usw2.ics.services.jamfcloud.com/icon/hash_08f287b1d7a9da36b733
 organizationDefaultsDomain="org.churchofjesuschrist.external"
 
 # Organization's Color Scheme
-if [[ $( defaults read /Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
+if [[ $( defaults read "/Users/$(stat -f %Su /dev/console)/Library/Preferences/.GlobalPreferences.plist" AppleInterfaceStyle 2>/dev/null ) == "Dark" ]]; then
     # Dark Mode
     organizationColorScheme="weight=semibold,colour1=#D1D5DC,colour2=#F5F5F5"
 else
@@ -424,16 +644,24 @@ excessiveUptimeAlertStyle="warning"
 # Completion Timer (in seconds)
 completionTimer="60"
 
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 # Inspect Mode Defaults
 # Toggle detached inspect summary generation and cached replay [ on | off ]
 inspectSummaryPreset="on"
-inspectConfigPath="/var/tmp/MacHealthCheck-Inspect-Config.json"
-inspectCompliancePlistPath="/var/tmp/MacHealthCheck-Inspect-Compliance.plist"
-inspectTriggerFilePath="/var/tmp/MacHealthCheck-Inspect.trigger"
-inspectReadinessFilePath="/var/tmp/MacHealthCheck-Inspect.ready"
-inspectResultFilePath="/var/tmp/MacHealthCheck-Inspect-Result.json"
-inspectLaunchLogPath="/var/tmp/MacHealthCheck-Inspect-Summary.log"
+# Root-written, user-readable (root:wheel 0644) Inspect assets live in a root:wheel 0755 tree the
+# logged-in user can traverse; `/Library/Management` may be 0700 root, so the report, secrets and
+# cache stay root-only in `organizationDirectory`
+inspectAssetsParentDirectory="/Library/Application Support/${reverseDomainNameNotation}"
+inspectAssetsDirectory="${inspectAssetsParentDirectory}/Inspect"
+inspectConfigPath="${inspectAssetsDirectory}/MacHealthCheck-Inspect-Config.json"
+inspectCompliancePlistPath="${inspectAssetsDirectory}/MacHealthCheck-Inspect-Compliance.plist"
+# User-writable Inspect control files live in a per-user directory root never writes into
+# (trigger, readiness, result and launch-log paths are set after the logged-in user is determined)
+inspectUserRootDirectory="${inspectAssetsDirectory}/Users"
+inspectUserDirectory=""
+inspectTriggerFilePath=""
+inspectReadinessFilePath=""
+inspectResultFilePath=""
+inspectLaunchLogPath=""
 inspectReplayMaximumAgeSeconds="900" # 15 minutes
 targetedRecheckMaximumAgeSeconds="129600" # 36 hours
 # swiftDialog PR #684 uses a renderer-owned 12pt spacing scale: 6pt intra, 12pt inner,
@@ -462,6 +690,7 @@ reportBaseTimestamp=""
 targetedRecheckMode="false"
 targetedRecheckEligibilityStatus="not_checked"
 targetedBaseReportJSON=""
+targetedInventoryAppended="false"
 targetedBaseReportIdentity=""
 targetedBaseFullRunTimestamp=""
 targetedBaseFullRunTimestampEpoch=""
@@ -496,6 +725,7 @@ typeset -a reportWarningChecks
 typeset -a reportFailChecks
 typeset -a reportErrorChecks
 typeset -a targetedCheckKeys
+typeset -a targetedFindingKeys
 typeset -a targetedOriginalIndices
 
 entraIDRegistrationStatus="unknown"
@@ -661,8 +891,13 @@ totalDiskBytes=$( diskutil info / | grep "Container Total Space" | sed -E 's/.*\
 if [[ -z "${totalDiskBytes}" || "${totalDiskBytes}" == "0" ]]; then
     totalDiskBytes=$( echo "${rawStorage} * 1000000000" | bc 2>/dev/null || echo "0" )
 fi
-batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | grep '"CycleCount" = ' | awk '{ print $3 }' | sed s/\"//g )
-activationLockStatus=$( system_profiler SPHardwareDataType 2>/dev/null | awk '/Activation Lock Status/{print $NF}' )
+batteryCycleCount=$( ioreg -r -c "AppleSmartBattery" | awk -F' = ' '/"CycleCount" = /{ print $2; exit }' | tr -d '"[:space:]' )
+if [[ "${clientSideSkipChecks}" == "true" ]]; then
+    # Cached-upload runs exit before these values are logged; skip the slow `system_profiler` call
+    activationLockStatus="Skipped (cached upload)"
+else
+    activationLockStatus=$( system_profiler SPHardwareDataType 2>/dev/null | awk '/Activation Lock Status/{print $NF}' )
+fi
 bootstrapTokenStatus=$( profiles status -type bootstraptoken | awk '{sub(/^profiles: /, ""); printf "%s", $0; if (NR < 2) printf "; "}' | sed 's/; $//' )
 sshStatus=$( systemsetup -getremotelogin | awk -F ": " '{ print $2 }' )
 networkTimeServer=$( systemsetup -getnetworktimeserver )
@@ -670,12 +905,19 @@ locationServices=$( defaults read /var/db/locationd/Library/Preferences/ByHost/c
 locationServicesStatus=$( [ "${locationServices}" = "1" ] && echo "Enabled" || echo "Disabled" )
 sudoStatus=$( visudo -c )
 sudoAllLines=$( awk '/\(ALL\)/' /etc/sudoers | tr '\t\n#' ' ' )
-rosettaRequiredAppsRaw=$(
-    comm -23 \
-        <( mdfind 'kMDItemExecutableArchitectures == x86_64' | sort ) \
-        <( mdfind 'kMDItemExecutableArchitectures == arm64' | sort )
-)
-if [[ -n "${rosettaRequiredAppsRaw}" ]]; then
+rosettaRequiredAppsRaw=""
+if [[ "${clientSideSkipChecks}" != "true" ]]; then
+    rosettaRequiredAppsRaw=$(
+        comm -23 \
+            <( mdfind 'kMDItemExecutableArchitectures == x86_64' | sort ) \
+            <( mdfind 'kMDItemExecutableArchitectures == arm64' | sort )
+    )
+fi
+if [[ "${clientSideSkipChecks}" == "true" ]]; then
+    # Cached-upload runs skip the two whole-disk `mdfind` queries
+    rosettaRequiredAppCount="0"
+    rosettaRequiredApps="Skipped (cached upload)"
+elif [[ -n "${rosettaRequiredAppsRaw}" ]]; then
     rosettaRequiredAppCount=$( printf '%s\n' "${rosettaRequiredAppsRaw}" | sed '/^$/d' | wc -l | xargs )
     rosettaRequiredApps="${rosettaRequiredAppCount} app(s)"
 else
@@ -690,9 +932,11 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 wirelessInterface=$( networksetup -listnetworkserviceorder | sed -En 's/^\(Hardware Port: (Wi-Fi|AirPort), Device: (en.)\)$/\2/p' )
-ipconfig setverbose 1
+# Verbose mode un-redacts the SSID; enable it only when it was off, and restore only what was changed
+ipconfigVerbosePrior=$( /usr/libexec/PlistBuddy -c "Print :Verbose" /Library/Preferences/SystemConfiguration/com.apple.IPConfiguration.control.plist 2>/dev/null )
+[[ "${ipconfigVerbosePrior}" != "true" ]] && ipconfig setverbose 1
 ssid=$( ipconfig getsummary "${wirelessInterface}" | awk -F ' SSID : ' '/ SSID : / {print $2}')
-ipconfig setverbose 0
+[[ "${ipconfigVerbosePrior}" != "true" ]] && ipconfig setverbose 0
 [[ -z "${ssid}" ]] && ssid="Not connected"
 
 
@@ -746,6 +990,17 @@ else
     loggedInUserHomeDirectory=""
 fi
 
+# Per-user Inspect control-file paths (directory is created and owned by the user; root never writes inside it)
+if [[ -n "${loggedInUserID}" ]]; then
+    inspectUserDirectory="${inspectUserRootDirectory}/${loggedInUser}"
+else
+    inspectUserDirectory="${inspectUserRootDirectory}/loginwindow"
+fi
+inspectTriggerFilePath="${inspectUserDirectory}/MacHealthCheck-Inspect.trigger"
+inspectReadinessFilePath="${inspectUserDirectory}/MacHealthCheck-Inspect.ready"
+inspectResultFilePath="${inspectUserDirectory}/MacHealthCheck-Inspect-Result.json"
+inspectLaunchLogPath="${inspectUserDirectory}/MacHealthCheck-Inspect-Summary.log"
+
 if [[ ${loggedInUserGroupMembership} == *"admin"* ]]; then localAdminWarning="WARNING: '$loggedInUser' IS A MEMBER OF 'admin'; "; fi
 
 # Volume Owners
@@ -783,17 +1038,19 @@ fi
 inventoryEndUsername=""
 inventoryEndUsernameSource="None"
 inventorySubmissionTimeoutSeconds="90"
+externalCheckTimeoutSeconds="120"
 kerberosSSOeResult="Not configured"
 
 # Kerberos Single Sign-on Extension
 if [[ -n "${kerberosRealm}" ]]; then
-    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > /var/tmp/app-sso.plist 2>/dev/null
-    if [[ -f /var/tmp/app-sso.plist ]] && xmllint --noout /var/tmp/app-sso.plist >/dev/null 2>&1; then
-        ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" /var/tmp/app-sso.plist 2>&1 )
+    appSSOPlistPath="${runtimeTemporaryDirectory}/app-sso.plist"
+    su \- "${loggedInUser}" -c "app-sso kerberos --realminfo ${kerberosRealm}" > "${appSSOPlistPath}" 2>/dev/null
+    if [[ -f "${appSSOPlistPath}" ]] && xmllint --noout "${appSSOPlistPath}" >/dev/null 2>&1; then
+        ssoLoginTest=$( /usr/libexec/PlistBuddy -c "Print:login_date" "${appSSOPlistPath}" 2>&1 )
         if [[ ${ssoLoginTest} == *"Does Not Exist"* ]]; then
             kerberosSSOeResult="${loggedInUser} NOT logged in"
         else
-            username=$( /usr/libexec/PlistBuddy -c "Print:upn" /var/tmp/app-sso.plist 2>/dev/null | awk -F@ '{print $1}' )
+            username=$( /usr/libexec/PlistBuddy -c "Print:upn" "${appSSOPlistPath}" 2>/dev/null | awk -F@ '{print $1}' )
             if [[ -n "${username}" ]]; then
                 kerberosSSOeResult="${username}"
                 inventoryEndUsername="${username}"
@@ -805,7 +1062,7 @@ if [[ -n "${kerberosRealm}" ]]; then
     else
         kerberosSSOeResult="Kerberos SSO not configured"
     fi
-    rm -f /var/tmp/app-sso.plist 2>/dev/null
+    rm -f "${appSSOPlistPath}" 2>/dev/null
 fi
 
 # Platform Single Sign-on Extension
@@ -826,8 +1083,8 @@ fi
 if [[ -d "${loggedInUserHomeDirectory}/Library/Application Support/OneDrive/settings/Business1/" ]]; then
     DataFile=$( ls -t "${loggedInUserHomeDirectory}"/Library/Application\ Support/OneDrive/settings/Business1/*.ini | head -n 1 )
     EpochTime=$( stat -f %m "$DataFile" )
-    UTCDate=$( date -u -r $EpochTime '+%d-%b-%Y' )
-    oneDriveSyncDate="${UTCDate}"
+    # Local date, matching log timestamps (UTC showed tomorrow's date on evening runs)
+    oneDriveSyncDate=$( date -r "${EpochTime}" '+%d-%b-%Y' )
 else
     oneDriveSyncDate="Not Configured"
 fi
@@ -845,7 +1102,7 @@ else
     if [[ -z $tmBackupDates ]]; then
         tmLastBackup="Last backup date(s) unknown; connect destination(s)"
     else
-        tmLastBackup="; Date(s): ${tmBackupDates//$'\n'/, }"
+        tmLastBackup="Date(s): ${tmBackupDates//$'\n'/, }"
     fi
 fi
 
@@ -1068,8 +1325,12 @@ fi
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # swiftDialog Binary Path
+# (Call `dialogcli` inside the root-owned app bundle instead of the `/usr/local/bin/dialog` symlink, which may live in a user-writable directory)
 dialogAppBundle="/Library/Application Support/Dialog/Dialog.app"
-dialogBinary="/usr/local/bin/dialog"
+dialogBinary="${dialogAppBundle}/Contents/MacOS/dialogcli"
+
+# Jamf Pro Binary Path (the `/usr/local/bin/jamf` symlink is intentionally bypassed)
+jamfBinary="/usr/local/jamf/bin/jamf"
 
 # Enable debugging options for swiftDialog
 dialogBinaryDebugArgs=()
@@ -1077,10 +1338,11 @@ dialogBinaryDebugArgs=()
 
 # Dock-enabled launch defaults
 dialogDockNamedApp="/Library/Application Support/Dialog/${humanReadableScriptName}.app"
+dialogDockNamedAppCreatedByRun="false"
 dialogLaunchBinary="${dialogBinary}"
 dialogDockIcon="default"
-dialogDockIconFile="/var/tmp/dockicon.png"
-dialogOverlayIconFile="/var/tmp/overlayicon_${organizationScriptName}_$$.png"
+dialogDockIconFile="${runtimeTemporaryDirectory}/dockicon.png"
+dialogOverlayIconFile="${runtimeTemporaryDirectory}/overlayicon.png"
 listitemLength="0"
 remainingChecks="0"
 completedCheckIndicesCsv=","
@@ -1092,7 +1354,12 @@ dialogJSONFile=$( mktemp /var/tmp/dialogJSONFile_${organizationScriptName}.XXXX 
 dialogCommandFile=$( mktemp /var/tmp/dialogCommandFile_${organizationScriptName}.XXXX )
 
 # Set Permissions on Dialog Command Files
-chmod 644 "${dialogCommandFile}"
+# (root-owned 600 plus a read-only ACL for the console user, whom `dialogcli` launches swiftDialog as;
+# other local users can no longer read check text, and the user cannot replace the root-written file)
+chmod 600 "${dialogCommandFile}"
+if [[ -n "${loggedInUser}" && "${loggedInUser}" != "root" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    chmod +a "${loggedInUser} allow read" "${dialogCommandFile}" 2>/dev/null
+fi
 
 # Verify dialogCommandFile exists and is readable
 retryCount=0
@@ -1599,7 +1866,8 @@ kandjiMdmListitemJSON='
     {"title" : "Netskope", "subtitle" : "Netskope Connection Software.", "icon" : "SF=29.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},        
     {"title" : "Wi-Fi Strength", "subtitle" : "Checks current Wi-Fi signal strength and gives a simple quality rating.", "icon" : "SF=30.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
     {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=31.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}]
+    {"title" : "Network Quality Test", "subtitle" : "Various networking-related tests of your Mac’s Internet connection", "icon" : "SF=32.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+]
 '
 # Validate kandjiMdmListitemJSON is valid JSON
 if ! validateJson "${kandjiMdmListitemJSON}"; then
@@ -1817,7 +2085,7 @@ mosyleListitemJSON='
 
 # Validate mosyleListitemJSON is valid JSON
 if ! validateJson "${mosyleListitemJSON}"; then
-  echo "Error: mosyletitemJSON is invalid JSON"
+  echo "Error: mosyleListitemJSON is invalid JSON"
   echo "$mosyleListitemJSON"
   exit 1
 fi
@@ -2023,6 +2291,8 @@ function prepareDockNamedDialogApp() {
         # re-sign with an ad-hoc identity to restore a valid seal before launching.
         # --deep is intentionally omitted: inner binaries retain their original signatures;
         # only the outer bundle seal needs to be updated to include the new symlink.
+        # NOTE: the ad-hoc seal drops swiftDialog's Team ID, so PPPC / notification profiles keyed to that
+        # Team ID do not match this copy; set `enableDockIntegration="false"` where that matters.
         if ! codesign --force --sign - "${destinationApp}" 2>/dev/null; then
             notice "WARNING: Failed to re-sign ${destinationApp}; using ${dialogBinary}." 1>&2
             echo "${dialogBinary}"
@@ -2102,7 +2372,7 @@ function runAsUser() {
     local commandPreview=""
 
     commandPreview="$( formatCommandForLog "$@" )"
-    info "Run \"${commandPreview}\" as \"$loggedInUserID\" … " 1>&2
+    info "Run \"${commandPreview}\" as \"$loggedInUserID\" …" 1>&2
     launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" "$@"
 
 }
@@ -2114,7 +2384,7 @@ function captureRunAsUserOutput() {
     local commandExitCode=0
 
     commandPreview="$( formatCommandForLog "$@" )"
-    info "Run \"${commandPreview}\" as \"$loggedInUserID\" … " 1>&2
+    info "Run \"${commandPreview}\" as \"$loggedInUserID\" …" 1>&2
     commandOutput="$( launchctl asuser "$loggedInUserID" sudo -u "$loggedInUser" "$@" 2>&1 )"
     commandExitCode=$?
 
@@ -2184,7 +2454,7 @@ function runHomebrewAsUser() {
     local commandPreview=""
 
     commandPreview="$( formatCommandForLog "${brewBinary}" "$@" )"
-    info "Run Homebrew \"${commandPreview}\" as \"${loggedInUserID}\" … " 1>&2
+    info "Run Homebrew \"${commandPreview}\" as \"${loggedInUserID}\" …" 1>&2
     launchctl asuser "${loggedInUserID}" sudo -H -u "${loggedInUser}" env \
         HOME="${loggedInUserHomeDirectory}" \
         USER="${loggedInUser}" \
@@ -2240,7 +2510,6 @@ function get_json_value() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 # Result-collection Helpers
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -2428,18 +2697,22 @@ function detectSelfServiceForceFreshRun() {
         return 1
     fi
 
-    if [[ "${forceFreshRun:l}" == "true" ]] || [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+    if removeUntrustedForceFreshRunTrigger; then
+        warning "Targeted Recheck: ignored untrusted Force Fresh Run trigger at ${forceFreshRunTriggerFilePath} (must be a root-owned regular file)."
+    fi
+
+    if [[ "${forceFreshRun:l}" == "true" ]] || isTrustedForceFreshRunTrigger; then
         forceFreshRunDetected="true"
 
-        if [[ "${forceFreshRun:l}" == "true" ]] && [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        if [[ "${forceFreshRun:l}" == "true" ]] && isTrustedForceFreshRunTrigger; then
             forceFreshRunSource="trigger file and Parameter 11"
-        elif [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        elif isTrustedForceFreshRunTrigger; then
             forceFreshRunSource="trigger file"
         else
             forceFreshRunSource="Parameter 11"
         fi
 
-        if [[ -f "${forceFreshRunTriggerFilePath}" ]]; then
+        if isTrustedForceFreshRunTrigger; then
             rm -f "${forceFreshRunTriggerFilePath}"
         fi
 
@@ -2448,6 +2721,13 @@ function detectSelfServiceForceFreshRun() {
     fi
 
     return 1
+
+}
+
+# Client-Side Cache copies omit `Computer Inventory`, which targeted rechecks always re-run
+function filterComparableCheckKeysJSON() {
+
+    jq -c 'map(select(. != "computer_inventory")) | sort'
 
 }
 
@@ -2477,6 +2757,8 @@ function prepareTargetedRecheckIfEligible() {
 
     targetedRecheckMode="false"
     targetedCheckKeys=()
+    targetedFindingKeys=()
+    targetedInventoryAppended="false"
     targetedOriginalIndices=()
     targetedSelectedOriginalIndex=()
     targetedDisplayIndexByOriginalIndex=()
@@ -2494,6 +2776,12 @@ function prepareTargetedRecheckIfEligible() {
     if [[ ! -r "${splunkJSONReportPath}" ]]; then
         targetedRecheckEligibilityStatus="missing"
         info "Targeted Recheck: no readable canonical report; running full health check."
+        return 1
+    fi
+
+    if ! isTrustedRootFile "${splunkJSONReportPath}"; then
+        targetedRecheckEligibilityStatus="untrusted_owner"
+        warning "Targeted Recheck: canonical report is not a root-owned regular file; running full health check."
         return 1
     fi
 
@@ -2530,6 +2818,12 @@ function prepareTargetedRecheckIfEligible() {
     baseReportOverallStatus="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.summary.overallStatus // empty' )"
     baseReportHasReportingErrors="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '((.summary.errorCount // 0) > 0) or ((.summary.reportingErrors // []) | length > 0)' )"
     baseReportRunScope="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.runScope // "legacy"' )"
+
+    if ! isProductionReportOperationMode "$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.operationMode // empty' )"; then
+        targetedRecheckEligibilityStatus="non_production_mode"
+        info "Targeted Recheck: canonical report was not produced by Self Service or Silent; running full health check."
+        return 1
+    fi
 
     if [[ "${baseReportScriptVersion}" != "${scriptVersion}" ]]; then
         targetedRecheckEligibilityStatus="version_mismatch"
@@ -2587,8 +2881,8 @@ function prepareTargetedRecheckIfEligible() {
     for (( i=0; i<fullListitemLength; i++ )); do
         currentCheckKeys+=( "${fullCheckKeyByIndex[${i}]}" )
     done
-    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | jq -c 'sort' )"
-    baseCheckKeysJSON="$( printf '%s' "${targetedBaseReportJSON}" | jq -c '[.checks[].key] | sort' )"
+    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | filterComparableCheckKeysJSON )"
+    baseCheckKeysJSON="$( printf '%s' "${targetedBaseReportJSON}" | jq -c '[.checks[].key]' | filterComparableCheckKeysJSON )"
     if [[ "${baseCheckKeysJSON}" != "${currentCheckKeysJSON}" ]]; then
         targetedRecheckEligibilityStatus="check_set_mismatch"
         warning "Targeted Recheck: report check set does not match current ${mdmVendor} configuration; running full health check."
@@ -2610,6 +2904,15 @@ function prepareTargetedRecheckIfEligible() {
 
     for candidateKey in "${targetedCheckKeys[@]}"; do
         targetKeySet[${candidateKey}]="true"
+    done
+    targetedFindingKeys=( "${targetedCheckKeys[@]}" )
+
+    # Refresh MDM inventory so verified remediation reaches the server
+    for (( i=0; i<fullListitemLength; i++ )); do
+        if [[ "${fullCheckTitleByIndex[${i}]}" == "Computer Inventory" ]] && [[ "${targetKeySet[${fullCheckKeyByIndex[${i}]}]}" != "true" ]]; then
+            targetKeySet[${fullCheckKeyByIndex[${i}]}]="true"
+            targetedInventoryAppended="true"
+        fi
     done
 
     targetedCheckKeys=()
@@ -2665,7 +2968,8 @@ function prepareTargetedRecheckIfEligible() {
     reportFullRunTimestamp="${targetedBaseFullRunTimestamp}"
     reportFullRunTimestampEpoch="${targetedBaseFullRunTimestampEpoch}"
     reportBaseTimestamp="$( printf '%s' "${targetedBaseReportJSON}" | jq -r '.metadata.timestamp // empty' )"
-    notice "Targeted Recheck: rechecking ${#targetedCheckKeys[@]} recent warning(s), failure(s) or error(s): ${(j:, :)targetedCheckKeys}."
+    notice "Targeted Recheck: rechecking ${#targetedFindingKeys[@]} recent warning(s), failure(s) or error(s): ${(j:, :)targetedFindingKeys}."
+    [[ "${targetedInventoryAppended}" == "true" ]] && info "Targeted Recheck: including Computer Inventory to submit verified results."
     return 0
 
 }
@@ -2744,14 +3048,16 @@ function validateTargetedMergeBaseReportJSON() {
     for (( i=0; i<fullListitemLength; i++ )); do
         currentCheckKeys+=( "${fullCheckKeyByIndex[${i}]}" )
     done
-    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | jq -c 'sort' )"
-    mergeCheckKeysJSON="$( printf '%s' "${reportJSON}" | jq -c '[.checks[].key] | sort' )"
+    currentCheckKeysJSON="$( buildJSONStringArray "${currentCheckKeys[@]}" | filterComparableCheckKeysJSON )"
+    mergeCheckKeysJSON="$( printf '%s' "${reportJSON}" | jq -c '[.checks[].key]' | filterComparableCheckKeysJSON )"
     if [[ "${mergeCheckKeysJSON}" != "${currentCheckKeysJSON}" ]]; then
         warning "Targeted Recheck: current report check set does not match current ${mdmVendor} configuration; preserving current report."
         return 1
     fi
 
     for candidateKey in "${targetedCheckKeys[@]}"; do
+        # Client-Side Cache reports omit `Computer Inventory`; `mergeTargetedReportJSON` appends it
+        [[ "${candidateKey}" == "computer_inventory" ]] && continue
         if ! printf '%s' "${reportJSON}" | jq -e --arg key "${candidateKey}" 'any(.checks[]; .key == $key)' >/dev/null 2>&1; then
             warning "Targeted Recheck: current report does not contain targeted key ${candidateKey}; preserving current report."
             return 1
@@ -2917,7 +3223,6 @@ function getCheckStatusByTitle() {
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# --- New in `4.0.0` ------------------------------------------------------------------------------
 # Splunk Reporting Helpers
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -3195,7 +3500,8 @@ function mergeTargetedReportJSON() {
         def replacement($key): ([$run.checks[] | select(.key == $key)][0] // null);
 
         . as $base
-        | ($base.checks | map(
+        | ($base.checks | map(.key)) as $baseKeys
+        | (($base.checks | map(
             . as $old
             | replacement($old.key) as $new
             | (($old.checkedAtEpoch // $base.metadata.timestampEpoch // $fullRunTimestampEpoch // 0) | tonumber? // 0) as $oldEpoch
@@ -3216,7 +3522,10 @@ function mergeTargetedReportJSON() {
                 }
               end)
             | .index = $indexMap[.key]
-        ) | sort_by(.index)) as $mergedChecks
+        ))
+        # Client-Side Cache reports omit `Computer Inventory`; append targeted results absent from the base
+        + [$run.checks[] | select(.key as $key | targeted($key) and ($baseKeys | index($key)) == null) | .index = $indexMap[.key]]
+        | sort_by(.index)) as $mergedChecks
         | ($mergedChecks | map(select(.status == "healthy"))) as $healthyChecks
         | ($mergedChecks | map(select(.status == "warning"))) as $warningChecks
         | ($mergedChecks | map(select(.status == "fail"))) as $failedChecks
@@ -3393,6 +3702,97 @@ function buildFallbackReportJSON() {
 
 }
 
+function ensureSecureRootDirectory() {
+
+    local targetDirectory="${1}"
+    local targetMode="${2:-755}"
+    local targetDirectoryMode=""
+
+    if [[ "${targetDirectory}" != /* ]] || [[ -L "${targetDirectory}" ]]; then
+        return 1
+    fi
+
+    if [[ ! -d "${targetDirectory}" ]]; then
+        mkdir -p -m "${targetMode}" "${targetDirectory}" 2>/dev/null || return 1
+    fi
+
+    if [[ -L "${targetDirectory}" ]] || [[ ! -d "${targetDirectory}" ]]; then
+        return 1
+    fi
+
+    chown root:wheel "${targetDirectory}" 2>/dev/null
+    chmod "${targetMode}" "${targetDirectory}" 2>/dev/null
+
+    if [[ "$( stat -f %u "${targetDirectory}" 2>/dev/null )" != "0" ]]; then
+        return 1
+    fi
+
+    targetDirectoryMode="$( stat -f %Lp "${targetDirectory}" 2>/dev/null )"
+    if [[ "${targetDirectoryMode}" != <-> ]] || (( ( 8#${targetDirectoryMode} & 8#022 ) != 0 )); then
+        return 1
+    fi
+
+    return 0
+
+}
+
+function removeLegacyTemporaryArtifacts() {
+
+    # Pre-5.0.0 builds kept state at fixed `/var/tmp` paths and 5.0.0 betas kept Inspect assets in
+    # `organizationDirectory`; remove only root-owned, non-symlink leftovers
+    # (user-owned or symlinked leftovers are ignored, since nothing reads them any longer)
+    local legacyArtifactPath=""
+    local legacyArtifactPaths=(
+        "/var/tmp/MacHealthCheck-Report.json"
+        "/var/tmp/MacHealthCheck-Report.lock"
+        "/var/tmp/MacHealthCheck-Inspect-Config.json"
+        "/var/tmp/MacHealthCheck-Inspect-Compliance.plist"
+        "/var/tmp/MacHealthCheck-Inspect.trigger"
+        "/var/tmp/MacHealthCheck-Inspect_final.trigger"
+        "/var/tmp/MacHealthCheck-Inspect.ready"
+        "/var/tmp/MacHealthCheck-Inspect-Result.json"
+        "/var/tmp/MacHealthCheck-Inspect-Summary.log"
+        "/var/tmp/networkQualityTest"
+        "/var/tmp/dockicon.png"
+        "/var/tmp/sofa"
+        "${organizationDirectory}/MacHealthCheck-Inspect-Config.json"
+        "${organizationDirectory}/MacHealthCheck-Inspect-Compliance.plist"
+        "${organizationDirectory}/Inspect"
+    )
+
+    for legacyArtifactPath in "${legacyArtifactPaths[@]}"; do
+        if [[ -e "${legacyArtifactPath}" ]] && [[ ! -L "${legacyArtifactPath}" ]] \
+            && [[ "$( stat -f %u "${legacyArtifactPath}" 2>/dev/null )" == "0" ]]; then
+            if rm -rf -- "${legacyArtifactPath}" 2>/dev/null; then
+                info "Removed legacy temporary artifact: ${legacyArtifactPath}"
+            fi
+        fi
+    done
+
+}
+
+function isTrustedRootFile() {
+
+    local targetPath="${1}"
+
+    [[ -f "${targetPath}" ]] && [[ ! -L "${targetPath}" ]] \
+        && [[ "$( stat -f %u "${targetPath}" 2>/dev/null )" == "0" ]]
+
+}
+
+function curlConfigQuote() {
+
+    local configValue="${1}"
+
+    configValue="${configValue//\\/\\\\}"
+    configValue="${configValue//\"/\\\"}"
+    configValue="${configValue//$'\n'/}"
+    configValue="${configValue//$'\r'/}"
+
+    printf '"%s"' "${configValue}"
+
+}
+
 function writeSecureJSONFile() {
 
     local targetPath="${1}"
@@ -3433,16 +3833,34 @@ function writeReadableTextFile() {
     local targetPath="${1}"
     local filePayload="${2}"
     local previousUmask=""
+    local temporaryPath=""
 
     previousUmask="$( umask )"
-    umask 022
-    printf '%s\n' "${filePayload}" > "${targetPath}"
+    umask 077
+    temporaryPath="$( mktemp "${targetPath}.XXXXXX" )" || {
+        umask "${previousUmask}"
+        return 1
+    }
+
+    if ! printf '%s\n' "${filePayload}" > "${temporaryPath}"; then
+        rm -f "${temporaryPath}"
+        umask "${previousUmask}"
+        return 1
+    fi
     umask "${previousUmask}"
 
-    chmod 644 "${targetPath}" 2>/dev/null
+    chmod 644 "${temporaryPath}" 2>/dev/null
     if [[ $(id -u) -eq 0 ]]; then
-        chown root:wheel "${targetPath}" 2>/dev/null
+        chown root:wheel "${temporaryPath}" 2>/dev/null
     fi
+
+    # `mv` replaces (never follows) any pre-existing symlink at the target path
+    if ! mv -f "${temporaryPath}" "${targetPath}"; then
+        rm -f "${temporaryPath}"
+        return 1
+    fi
+
+    return 0
 
 }
 
@@ -3489,8 +3907,22 @@ function sendSplunkHECPayload() {
     local curlExitCode=0
     local retryDelay=1
     local curlArgs=()
+    local authorizationHeaderConfig=""
+
+    # Keep the Splunk HEC token out of `set -x` output and the process list
+    setopt localoptions noxtrace
 
     sanitizedURL="$( sanitizeSplunkURLForLog "${splunkHECURL}" )"
+
+    # Never send the HEC token in cleartext
+    if [[ "${splunkHECURL:l}" != https://* ]]; then
+        reportTransmissionStatus="failed"
+        errorOut "Splunk Reporting: HEC URL (Parameter 7) must use https://; payload not sent to ${sanitizedURL}"
+        addReportingError "Splunk HEC URL does not use https://; payload not sent"
+        return 1
+    fi
+
+    authorizationHeaderConfig="header = $( curlConfigQuote "Authorization: Splunk ${splunkHECToken}" )"
     payloadFile="$( mktemp /var/tmp/mhc-splunk-payload.XXXXXX )"
     responseFile="$( mktemp /var/tmp/mhc-splunk-response.XXXXXX )"
 
@@ -3506,8 +3938,9 @@ function sendSplunkHECPayload() {
         info "Splunk Reporting: POST attempt ${attempt} to ${sanitizedURL}"
 
         httpCode="$(
-            curl --silent --fail-with-body --max-time 15 \
-                --header "Authorization: Splunk ${splunkHECToken}" \
+            printf '%s\n' "${authorizationHeaderConfig}" | curl --config - \
+                --proto '=https' --tlsv1.2 \
+                --silent --fail-with-body --max-time 15 \
                 --header "Content-Type: application/json" \
                 --data-binary "@${payloadFile}" \
                 --output "${responseFile}" \
@@ -3554,6 +3987,7 @@ function generateAndSendSplunkReport() {
     local currentReportIdentity=""
     local currentReportIdentityAfter=""
     local canonicalReportLockHeld="false"
+    local nonProductionReportPath=""
 
     notice "Generating Splunk JSON report …"
 
@@ -3679,6 +4113,20 @@ function generateAndSendSplunkReport() {
 
     reportHECPayload="$( compactJson "$( buildSplunkHECPayload "$( compactJson "${reportJSON}" )" )" )"
 
+    # `Test` and `Development` results are synthetic or curated; keep them out of the canonical report and Splunk HEC
+    if [[ "${operationMode}" == "Test" ]] || [[ "${operationMode}" == "Development" ]]; then
+        nonProductionReportPath="${organizationDirectory}/MacHealthCheck-Report-${operationMode}.json"
+        if writeSecureJSONFile "${nonProductionReportPath}" "${reportFilePayload}"; then
+            reportGenerated="true"
+            notice "Splunk Reporting: ${operationMode} mode; local report written to ${nonProductionReportPath} (canonical report and Splunk HEC delivery skipped)."
+        else
+            addReportingError "Failed to write local JSON report to ${nonProductionReportPath}"
+            warning "Splunk Reporting: failed to write local report to ${nonProductionReportPath}"
+        fi
+        reportTransmissionStatus="skipped_non_production_mode"
+        return 0
+    fi
+
     if [[ "${canonicalReportLockHeld}" != "true" ]]; then
         if acquireCanonicalReportLock; then
             canonicalReportLockHeld="true"
@@ -3712,7 +4160,7 @@ function generateAndSendSplunkReport() {
         return 0
     fi
 
-    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+    if [[ -z "${splunkHECURL}" || "${splunkHECTokenConfigured}" != "true" ]]; then
         reportTransmissionStatus="not_configured"
         info "Splunk Reporting: HEC URL or token not configured; local report only."
         return 0
@@ -3745,7 +4193,7 @@ function sendCachedSplunkReport() {
         return 1
     fi
 
-    if [[ -z "${splunkHECURL}" || -z "${splunkHECToken}" ]]; then
+    if [[ -z "${splunkHECURL}" || "${splunkHECTokenConfigured}" != "true" ]]; then
         reportTransmissionStatus="not_configured"
         warning "Client-Side Cache: HEC URL or token not configured; unable to upload cached report."
         return 1
@@ -3765,7 +4213,7 @@ function installClientSideScript() {
     local launchctlOutput=""
     local launchDaemonValidationOutput=""
 
-    notice "Client-Side Cache: installing client-side script at ${clientSideScriptPath}"
+    notice "Client-Side Cache: evaluating client-side script at ${clientSideScriptPath}"
 
     if [[ "${currentScriptPath}" == "${clientSideScriptPath}" ]]; then
         notice "Client-Side Cache: running from client-side script path; install skipped."
@@ -3774,6 +4222,12 @@ function installClientSideScript() {
 
     if [[ ! -r "${currentScriptPath}" ]]; then
         warning "Client-Side Cache: current script path is not readable (${currentScriptPath}); install skipped."
+        return 1
+    fi
+
+    # The copy becomes the root LaunchDaemon's script; only copy a root-owned file no other user could have replaced
+    if ! isTrustedRootPath "${currentScriptPath}"; then
+        warning "Client-Side Cache: current script path is not a root-owned file in root-controlled directories (${currentScriptPath}); install skipped."
         return 1
     fi
 
@@ -3819,6 +4273,14 @@ function installClientSideScript() {
 
     rm -f "${temporaryClientScript}"
 
+    # Whole-line match: the `sed` expression above also contains the Silent default text
+    if ! grep -qxF -- 'operationMode="${4:-"Silent"}"' "${sanitizedClientScript}" 2>/dev/null \
+        || ! /bin/zsh -n "${sanitizedClientScript}" 2>/dev/null; then
+        warning "Client-Side Cache: sanitized client-side script failed verification (Silent default or zsh -n); install failed."
+        rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
+        return 1
+    fi
+
     if grep -q "jamf"" recon" "${sanitizedClientScript}" 2>/dev/null; then
         warning "Client-Side Cache: sanitized client-side script still contains Jamf inventory command text; install failed."
         rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
@@ -3843,7 +4305,7 @@ function installClientSideScript() {
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local:/usr/local/bin</string>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>launchDaemonRun</key>
         <string>true</string>
     </dict>
@@ -3868,8 +4330,6 @@ ENDOFLAUNCHDAEMON
         warning "Client-Side Cache: generated LaunchDaemon plist failed validation at ${launchDaemonPath}: ${launchDaemonValidationOutput}"
         rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
         return 1
-    else
-        info "Client-Side Cache: generated LaunchDaemon plist validated at ${launchDaemonPath}"
     fi
 
     if [[ -f "${clientSideScriptPath}" ]] && [[ -f "${launchDaemonPath}" ]] \
@@ -3882,6 +4342,8 @@ ENDOFLAUNCHDAEMON
         notice "Client-Side Cache: client-side assets already current; install skipped."
         return 0
     fi
+
+    info "Client-Side Cache: generated LaunchDaemon plist validated at ${launchDaemonPath}"
 
     cp "${sanitizedClientScript}" "${clientSideScriptPath}" || {
         warning "Client-Side Cache: unable to update ${clientSideScriptPath}"
@@ -5584,7 +6046,7 @@ function buildInspectConfigJSON() {
     printf '%s' "\"preset\":\"6\","
     printf '%s' "\"title\":$( jsonString "$( getInspectWindowTitle )" ),"
     printf '%s' "\"highlightColor\":$( jsonString "${inspectHighlightColor}" ),"
-    printf '%s' "\"moveable\":true,"
+    printf '%s' "\"options\":{\"moveable\":true,\"ontop\":true,\"windowbuttons\":\"min\"},"
     printf '%s' "\"triggerFile\":$( jsonString "${inspectTriggerFilePath}" ),"
     printf '%s' "\"readinessFile\":$( jsonString "${inspectReadinessFilePath}" ),"
     printf '%s' "\"resultFile\":$( jsonString "${inspectResultFilePath}" ),"
@@ -5606,6 +6068,7 @@ function validateInspectConfigFile() {
         and (.title | length > 0)
         and (.highlightColor | type == "string")
         and (.highlightColor | length > 0)
+        and ((.options // {}) | type == "object")
         and (.triggerFile | type == "string")
         and (.triggerFile | length > 0)
         and (.readinessFile | type == "string")
@@ -5698,35 +6161,19 @@ function validateInspectConfigFile() {
 
 }
 
-function prepareInspectConfigForUser() {
+function prepareInspectRootReadableFile() {
 
-    local inspectConfigToPrepare="${1:-${inspectConfigPath}}"
+    local inspectFileToPrepare="${1}"
+    local inspectFileDescription="${2:-Inspect file}"
 
-    if [[ ! -e "${inspectConfigToPrepare}" ]]; then
-        warning "Inspect Summary: config file is unavailable at ${inspectConfigToPrepare}."
+    if [[ -L "${inspectFileToPrepare}" ]] || [[ ! -f "${inspectFileToPrepare}" ]]; then
+        warning "Inspect Summary: ${inspectFileDescription} is unavailable or not a regular file at ${inspectFileToPrepare}."
         return 1
     fi
 
-    if [[ -z "${loggedInUser}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
-        if [[ "${operationMode}" == "Silent" ]]; then
-            if ! chmod 644 "${inspectConfigToPrepare}" 2>/dev/null; then
-                warning "Inspect Summary: failed to set readable permissions on ${inspectConfigToPrepare} for Silent mode."
-                return 1
-            fi
-            notice "Inspect Summary: no valid GUI user found; leaving ${inspectConfigToPrepare} root-owned and readable for Silent mode."
-            return 0
-        fi
-        warning "Inspect Summary: no valid logged-in user available for ${inspectConfigToPrepare}."
-        return 1
-    fi
-
-    if ! chown "${loggedInUser}" "${inspectConfigToPrepare}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set ownership on ${inspectConfigToPrepare} for ${loggedInUser}."
-        return 1
-    fi
-
-    if ! chmod 600 "${inspectConfigToPrepare}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set permissions on ${inspectConfigToPrepare} for ${loggedInUser}."
+    # Keep root-written Inspect assets root-owned; swiftDialog (as the logged-in user) only needs read access
+    if ! chown root:wheel "${inspectFileToPrepare}" 2>/dev/null || ! chmod 644 "${inspectFileToPrepare}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set root-owned, readable permissions on ${inspectFileToPrepare}."
         return 1
     fi
 
@@ -5734,20 +6181,39 @@ function prepareInspectConfigForUser() {
 
 }
 
-function prepareInspectLaunchLogForUser() {
+function prepareInspectConfigForUser() {
 
-    if ! : > "${inspectLaunchLogPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to create ${inspectLaunchLogPath}."
+    prepareInspectRootReadableFile "${1:-${inspectConfigPath}}" "config file"
+
+}
+
+function prepareInspectUserDirectory() {
+
+    if [[ -z "${loggedInUser}" ]] || [[ -z "${loggedInUserID}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
+        warning "Inspect Summary: no valid logged-in user available for ${inspectUserDirectory}."
         return 1
     fi
 
-    if ! chown "${loggedInUser}" "${inspectLaunchLogPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set ownership on ${inspectLaunchLogPath} for ${loggedInUser}."
+    if ! ensureSecureRootDirectory "${inspectUserRootDirectory}" 755; then
+        warning "Inspect Summary: unable to secure ${inspectUserRootDirectory}."
         return 1
     fi
 
-    if ! chmod 600 "${inspectLaunchLogPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set permissions on ${inspectLaunchLogPath} for ${loggedInUser}."
+    if [[ -L "${inspectUserDirectory}" ]]; then
+        warning "Inspect Summary: refusing symbolic link at ${inspectUserDirectory}."
+        return 1
+    fi
+
+    if [[ ! -d "${inspectUserDirectory}" ]]; then
+        if ! mkdir -m 700 "${inspectUserDirectory}" 2>/dev/null; then
+            warning "Inspect Summary: failed to create ${inspectUserDirectory}."
+            return 1
+        fi
+    fi
+
+    # Only the directory itself is handed to the user; root never writes inside it
+    if ! chown "${loggedInUser}" "${inspectUserDirectory}" 2>/dev/null || ! chmod 700 "${inspectUserDirectory}" 2>/dev/null; then
+        warning "Inspect Summary: failed to set ownership on ${inspectUserDirectory} for ${loggedInUser}."
         return 1
     fi
 
@@ -5757,35 +6223,7 @@ function prepareInspectLaunchLogForUser() {
 
 function prepareInspectCompliancePlistForUser() {
 
-    if [[ ! -e "${inspectCompliancePlistPath}" ]]; then
-        warning "Inspect Summary: compliance plist is unavailable at ${inspectCompliancePlistPath}."
-        return 1
-    fi
-
-    if [[ -z "${loggedInUser}" ]] || ! id "${loggedInUser}" >/dev/null 2>&1; then
-        if [[ "${operationMode}" == "Silent" ]]; then
-            if ! chmod 644 "${inspectCompliancePlistPath}" 2>/dev/null; then
-                warning "Inspect Summary: failed to set readable permissions on ${inspectCompliancePlistPath} for Silent mode."
-                return 1
-            fi
-            notice "Inspect Summary: no valid GUI user found; leaving ${inspectCompliancePlistPath} root-owned and readable for Silent mode."
-            return 0
-        fi
-        warning "Inspect Summary: no valid logged-in user available for ${inspectCompliancePlistPath}."
-        return 1
-    fi
-
-    if ! chown "${loggedInUser}" "${inspectCompliancePlistPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set ownership on ${inspectCompliancePlistPath} for ${loggedInUser}."
-        return 1
-    fi
-
-    if ! chmod 600 "${inspectCompliancePlistPath}" 2>/dev/null; then
-        warning "Inspect Summary: failed to set permissions on ${inspectCompliancePlistPath}."
-        return 1
-    fi
-
-    return 0
+    prepareInspectRootReadableFile "${inspectCompliancePlistPath}" "compliance plist"
 
 }
 
@@ -5794,7 +6232,10 @@ function generateInspectCompliancePlist() {
     local inspectCompliancePlistXML=""
 
     inspectCompliancePlistXML="$( buildInspectCompliancePlistXML )"
-    writeReadableTextFile "${inspectCompliancePlistPath}" "${inspectCompliancePlistXML}"
+    if ! writeReadableTextFile "${inspectCompliancePlistPath}" "${inspectCompliancePlistXML}"; then
+        warning "Inspect Summary: failed to write ${inspectCompliancePlistPath}."
+        return 1
+    fi
 
     if ! /usr/bin/plutil -lint "${inspectCompliancePlistPath}" >/dev/null 2>&1; then
         warning "Inspect Summary: generated compliance plist failed validation at ${inspectCompliancePlistPath}."
@@ -5829,7 +6270,10 @@ function generateInspectSummaryAssets() {
         return 1
     fi
 
-    writeReadableTextFile "${inspectConfigPath}" "${inspectConfigJSON}"
+    if ! writeReadableTextFile "${inspectConfigPath}" "${inspectConfigJSON}"; then
+        warning "Inspect Summary: failed to write ${inspectConfigPath}."
+        return 1
+    fi
     if ! validateInspectConfigFile "${inspectConfigPath}"; then
         warning "Inspect Summary: failed to validate ${inspectConfigPath}."
         return 1
@@ -5872,11 +6316,13 @@ function launchInspectSummary() {
         return 1
     fi
 
-    if ! prepareInspectLaunchLogForUser; then
+    if ! prepareInspectUserDirectory; then
         return 1
     fi
 
-    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} DIALOG_DEBUG=1 ${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} --ontop --moveable >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
+    local inspectDebugEnvironment=""
+    [[ "${operationMode}" == "Debug" ]] && inspectDebugEnvironment="DIALOG_DEBUG=1 "
+    launchCommand="/usr/bin/nohup /usr/bin/env DIALOG_INSPECT_CONFIG=${(q)inspectConfigToLaunch} ${inspectDebugEnvironment}${(q)dialogBinary} --inspect-mode --inspect-config ${(q)inspectConfigToLaunch} --ontop --moveable >${(q)inspectLaunchLogPath} 2>&1 </dev/null & print -r -- \$!"
     inspectPID="$( runAsUser /bin/zsh -lc "${launchCommand}" 2>/dev/null | tr -d '[:space:]' )"
 
     if [[ ! "${inspectPID}" == <-> ]]; then
@@ -5894,8 +6340,10 @@ function replayCachedInspectSummaryIfEligible() {
     local configJSON=""
     local configFileEpoch=""
     local configFileAgeSeconds="0"
+    local configResultFilePath=""
 
     if ! inspectSummaryIsEnabled; then
+        info "Inspect Summary Replay: Inspect Summary is off; running full health check."
         return 1
     fi
 
@@ -5904,6 +6352,12 @@ function replayCachedInspectSummaryIfEligible() {
     fi
 
     if [[ ! -r "${inspectConfigPath}" ]]; then
+        info "Inspect Summary Replay: no cached config at ${inspectConfigPath}; running full health check."
+        return 1
+    fi
+
+    if ! isTrustedRootFile "${inspectConfigPath}"; then
+        warning "Inspect Summary Replay: cached config is not a root-owned regular file; running full health check."
         return 1
     fi
 
@@ -5930,6 +6384,12 @@ function replayCachedInspectSummaryIfEligible() {
         return 1
     fi
 
+    configResultFilePath="$( printf '%s' "${configJSON}" | jq -r '.resultFile // empty' 2>/dev/null )"
+    if [[ "${configResultFilePath:h}" != "${inspectUserDirectory}" ]]; then
+        info "Inspect Summary Replay: cached config was generated for a different user context; running full health check."
+        return 1
+    fi
+
     notice "Inspect Summary Replay: launching cached Preset 6 summary from the last ${inspectReplayMaximumAgeSeconds} seconds."
     if launchInspectSummary "${inspectConfigPath}"; then
         return 0
@@ -5946,7 +6406,99 @@ function replayCachedInspectSummaryIfEligible() {
 # Webhook Message (Microsoft Teams or Slack) (thanks, @robjschroeder! and @TechTrekkie!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+function sendWebhookPayload() {
+
+    local webhookServiceLabel="${1}"
+    local webhookPayload="${2}"
+    local webhookDeliveryConfig="${3}"
+    local payloadFile=""
+    local responseFile=""
+    local responseExcerpt=""
+    local httpCode=""
+    local curlExitCode=0
+    local retryDelay=1
+    local attempt=0
+
+    # Keep the webhook URL (a bearer credential) out of `set -x` output and the process list
+    setopt localoptions noxtrace
+
+    # Never send the webhook URL in cleartext
+    if [[ "${webhookURL:l}" != https://* ]]; then
+        webhookResult="failed"
+        warning "${webhookServiceLabel} Webhook: webhook URL must use https://; message not sent."
+        return 1
+    fi
+
+    payloadFile="$( mktemp /var/tmp/mhc-webhook-payload.XXXXXX )"
+    responseFile="$( mktemp /var/tmp/mhc-webhook-response.XXXXXX )"
+
+    if ! writeSecureJSONFile "${payloadFile}" "${webhookPayload}"; then
+        rm -f "${payloadFile}" "${responseFile}"
+        webhookResult="failed"
+        warning "${webhookServiceLabel} Webhook: payload could not be written; message not sent."
+        return 1
+    fi
+
+    for attempt in 1 2 3; do
+        info "${webhookServiceLabel} Webhook: POST attempt ${attempt}"
+
+        httpCode="$(
+            printf '%s\n' "${webhookDeliveryConfig}" | curl --config - \
+                --proto '=https' --tlsv1.2 \
+                --silent --fail-with-body --max-time 15 \
+                --request POST \
+                --header "Content-Type: application/json" \
+                --data-binary "@${payloadFile}" \
+                --output "${responseFile}" \
+                --write-out "%{http_code}" 2>/dev/null
+        )"
+        curlExitCode=$?
+
+        if (( curlExitCode == 0 )) && [[ "${httpCode}" == 2* ]]; then
+            webhookResult="success"
+            info "${webhookServiceLabel} Webhook Result: delivered (HTTP ${httpCode})"
+            rm -f "${payloadFile}" "${responseFile}"
+            return 0
+        fi
+
+        if [[ "${httpCode}" == 5* ]] || [[ "${httpCode:-000}" == "000" ]]; then
+            if (( attempt < 3 )); then
+                warning "${webhookServiceLabel} Webhook: attempt ${attempt} failed (HTTP ${httpCode:-000}, curl ${curlExitCode}); retrying in ${retryDelay}s."
+                sleep "${retryDelay}"
+                retryDelay=$(( retryDelay * 2 ))
+                continue
+            fi
+        else
+            warning "${webhookServiceLabel} Webhook: request failed without retry (HTTP ${httpCode:-000}, curl ${curlExitCode})."
+            break
+        fi
+    done
+
+    responseExcerpt="$( head -c 200 "${responseFile}" 2>/dev/null | tr -d '\r\n' )"
+    [[ -n "${responseExcerpt}" ]] && warning "${webhookServiceLabel} Webhook: response body: ${responseExcerpt}"
+
+    webhookResult="failed"
+    warning "${webhookServiceLabel} Webhook: delivery failed after ${attempt} attempt(s) (HTTP ${httpCode:-000}, curl ${curlExitCode})"
+
+    rm -f "${payloadFile}" "${responseFile}"
+    return 1
+
+}
+
 function webHookMessage() {
+
+    local webhookDeliveryConfig=""
+    local webhookStatusJSON=""
+    local webhookComputerNameJSON=""
+    local webhookSerialNumberJSON=""
+    local webhookTimestampJSON=""
+    local webhookUserJSON=""
+    local webhookOSJSON=""
+    local webhookHealthIssuesJSON=""
+    local webhookMdmURLJSON=""
+
+    # Keep the webhook URL (a bearer credential) out of `set -x` output and the process list
+    setopt localoptions noxtrace
 
     # Generate MDM-specific `computerMdmURL`
     case "${mdmVendor}" in
@@ -5963,7 +6515,18 @@ function webHookMessage() {
             ;;
     esac
 
-    if [[ $webhookURL == *"slack"* ]]; then
+    # JSON-escape every interpolated value so names containing quotes or backslashes keep the payload valid
+    webhookStatusJSON="$( jsonEscape "${webhookStatus}" )"
+    webhookComputerNameJSON="$( jsonEscape "$( scutil --get ComputerName )" )"
+    webhookSerialNumberJSON="$( jsonEscape "${serialNumber}" )"
+    webhookTimestampJSON="$( jsonEscape "${timestamp}" )"
+    webhookUserJSON="$( jsonEscape "${loggedInUser}" )"
+    webhookOSJSON="$( jsonEscape "${osVersion} (${osBuild})" )"
+    webhookHealthIssuesJSON="$( jsonEscape "${overallHealth%%; }" )"
+    webhookMdmURLJSON="$( jsonEscape "${computerMdmURL}" )"
+    webhookDeliveryConfig="url = $( curlConfigQuote "${webhookURL}" )"
+
+    if [[ "${webhookService}" == "slack" ]]; then
         
         info "Generating Slack Message …"
         
@@ -5974,19 +6537,19 @@ function webHookMessage() {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": "Mac Health Check: '${webhookStatus}'",
+                        "text": "Mac Health Check: '${webhookStatusJSON}'",
                         "emoji": true
                     }
                 },
                 {
                     "type": "section",
                     "fields": [
-                        { "type": "mrkdwn", "text": "*Computer Name:*\n$( scutil --get ComputerName )" },
-                        { "type": "mrkdwn", "text": "*Serial:*\n${serialNumber}" },
-                        { "type": "mrkdwn", "text": "*Timestamp:*\n${timestamp}" },
-                        { "type": "mrkdwn", "text": "*User:*\n${loggedInUser}" },
-                        { "type": "mrkdwn", "text": "*OS Version:*\n${osVersion} (${osBuild})" },
-                        { "type": "mrkdwn", "text": "*Health Issues:*\n${overallHealth%%; }" }
+                        { "type": "mrkdwn", "text": "*Computer Name:*\n${webhookComputerNameJSON}" },
+                        { "type": "mrkdwn", "text": "*Serial:*\n${webhookSerialNumberJSON}" },
+                        { "type": "mrkdwn", "text": "*Timestamp:*\n${webhookTimestampJSON}" },
+                        { "type": "mrkdwn", "text": "*User:*\n${webhookUserJSON}" },
+                        { "type": "mrkdwn", "text": "*OS Version:*\n${webhookOSJSON}" },
+                        { "type": "mrkdwn", "text": "*Health Issues:*\n${webhookHealthIssuesJSON}" }
                     ]
                 },
                 {
@@ -5999,7 +6562,7 @@ function webHookMessage() {
                                 "text": "View in Jamf Pro"
                             },
                             "style": "primary",
-                            "url": "${computerMdmURL}"
+                            "url": "${webhookMdmURLJSON}"
                         }
                     ]
                 }
@@ -6008,13 +6571,16 @@ function webHookMessage() {
 EOF
 )
 
+        if ! validateJson "${webHookdata}"; then
+            warning "Slack webhook payload failed JSON validation; message not sent."
+            return 1
+        fi
+
         # Send the message to Slack
         info "Send the message to Slack …"
-        info "${webHookdata}"
+        [[ "${operationMode}" == "Debug" ]] && info "${webHookdata}"
         # Submit the data to Slack
-        curl -sSX POST -H 'Content-type: application/json' --data "${webHookdata}" $webhookURL 2>&1
-        webhookResult="$?"
-        info "Slack Webhook Result: ${webhookResult}"
+        sendWebhookPayload "Slack" "${webHookdata}" "${webhookDeliveryConfig}"
 
     else
         
@@ -6034,7 +6600,7 @@ EOF
                                 "type": "TextBlock",
                                 "size": "Large",
                                 "weight": "Bolder",
-                                "text": "Mac Health Check: ${webhookStatus}"
+                                "text": "Mac Health Check: ${webhookStatusJSON}"
                             },
                             {
                                 "type": "ColumnSet",
@@ -6057,13 +6623,13 @@ EOF
                                             {
                                                 "type": "TextBlock",
                                                 "weight": "Bolder",
-                                                "text": "$( scutil --get ComputerName )",
+                                                "text": "${webhookComputerNameJSON}",
                                                 "wrap": true
                                             },
                                             {
                                                 "type": "TextBlock",
                                                 "spacing": "None",
-                                                "text": "${serialNumber}",
+                                                "text": "${webhookSerialNumberJSON}",
                                                 "isSubtle": true,
                                                 "wrap": true
                                             }
@@ -6075,10 +6641,10 @@ EOF
                             {
                                 "type": "FactSet",
                                 "facts": [
-                                    { "title": "Timestamp", "value": "${timestamp}" },
-                                    { "title": "User", "value": "${loggedInUser}" },
-                                    { "title": "Operating System", "value": "${osVersion} (${osBuild})" },
-                                    { "title": "Health Issues", "value": "${overallHealth%%; }" }
+                                    { "title": "Timestamp", "value": "${webhookTimestampJSON}" },
+                                    { "title": "User", "value": "${webhookUserJSON}" },
+                                    { "title": "Operating System", "value": "${webhookOSJSON}" },
+                                    { "title": "Health Issues", "value": "${webhookHealthIssuesJSON}" }
                                 ]
                             }
                         ],
@@ -6086,7 +6652,7 @@ EOF
                             {
                                 "type": "Action.OpenUrl",
                                 "title": "View in Jamf Pro",
-                                "url": "${computerMdmURL}"
+                                "url": "${webhookMdmURLJSON}"
                             }
                         ],
                         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
@@ -6098,17 +6664,14 @@ EOF
 EOF
 )
 
+        if ! validateJson "${webHookdata}"; then
+            warning "Microsoft Teams webhook payload failed JSON validation; message not sent."
+            return 1
+        fi
+
     # Send the message to Microsoft Teams
         info "Send the message to Microsoft Teams …"
-        curl --silent \
-            --request POST \
-            --url "${webhookURL}" \
-            --header 'Content-Type: application/json' \
-            --data "${webHookdata}" \
-            --output /dev/null
-
-        webhookResult="$?"
-        info "Microsoft Teams Webhook Result: ${webhookResult}"
+        sendWebhookPayload "Microsoft Teams" "${webHookdata}" "${webhookDeliveryConfig}"
     fi
 
 }
@@ -6116,6 +6679,24 @@ EOF
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Quit Script (thanks, @bartreadon!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function targetedResultsChangedFromBase() {
+
+    local index=""
+    local baseStatus=""
+
+    [[ "${targetedRecheckMode}" != "true" ]] && return 0
+
+    for (( index=0; index<listitemLength; index++ )); do
+        baseStatus="$( printf '%s' "${targetedBaseReportJSON}" | jq -r --arg key "${checkKeyByIndex[${index}]}" 'first(.checks[] | select(.key == $key) | .status) // empty' 2>/dev/null )"
+        # Keys absent from the base (i.e., `Computer Inventory` from Client-Side Cache reports) are not status changes
+        [[ -z "${baseStatus}" ]] && continue
+        [[ "${checkNormalizedStatusByIndex[${index}]}" != "${baseStatus}" ]] && return 0
+    done
+
+    return 1
+
+}
 
 function quitScript() {
 
@@ -6125,8 +6706,15 @@ function quitScript() {
     local inspectSummaryLaunched="false"
     local reportGenerationSucceeded="true"
     local timeMachineSummary="${tmStatus}"
+    local sendWebhook="${webhookConfigured}"
 
-    [[ -n "${tmLastBackup}" ]] && timeMachineSummary+=" ${tmLastBackup}"
+    # The nightly Client-Side Cache LaunchDaemon run refreshes the cached report only; it never sends webhook messages
+    if [[ "${sendWebhook}" == "true" && "${launchDaemonRun}" == "true" ]]; then
+        sendWebhook="false"
+        info "Client-Side Cache: LaunchDaemon run; skipping webhook message."
+    fi
+
+    [[ -n "${tmLastBackup}" ]] && timeMachineSummary+="; ${tmLastBackup}"
 
     rebuildOverallHealthFromRecordedResults
     calculateOverallReportStatus
@@ -6146,6 +6734,11 @@ function quitScript() {
 
     esac
 
+    if [[ "${sendWebhook}" == "true" ]] && ! targetedResultsChangedFromBase; then
+        sendWebhook="false"
+        info "Targeted Recheck: results unchanged from previous report; skipping webhook message."
+    fi
+
     case "${reportOverallStatus}" in
 
         "warning" )
@@ -6153,7 +6746,7 @@ function quitScript() {
                 dialogUpdate "icon: SF=exclamationmark.triangle.fill, weight=bold, colour1=${statusColorError}, colour2=${statusColorError}"
                 dialogUpdate "title: Computer Needs Attention <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
             fi
-            if [[ -n "${webhookURL}" ]]; then
+            if [[ "${sendWebhook}" == "true" ]]; then
                 info "Sending webhook message"
                 webhookStatus="Warnings Detected (${problemCheckCount} issues)"
                 webHookMessage
@@ -6167,7 +6760,7 @@ function quitScript() {
                 dialogUpdate "icon: SF=xmark.circle, weight=bold, colour1=#BB1717, colour2=#F31F1F"
                 dialogUpdate "title: Computer Unhealthy <br>as of $( date '+%A, %B %d at %I:%M %p %Z' )"
             fi
-            if [[ -n "${webhookURL}" ]]; then
+            if [[ "${sendWebhook}" == "true" ]]; then
                 info "Sending webhook message"
                 webhookStatus="Failures Detected (${problemCheckCount} issues)"
                 webHookMessage
@@ -6248,27 +6841,26 @@ function quitScript() {
         dialogUpdate "quit:"
     fi
 
-    # Remove runtime artifacts created by this script.
-    rm -f "${dialogCommandFile}"
-    rm -f -- /var/tmp/dialogCommandFile_${organizationScriptName}.*(N)
+    # Remove runtime artifacts created by this run only (never a concurrent run's dialog files)
+    rm -f -- "${dialogCommandFile}"
+    rm -f -- "${dialogJSONFile}"
 
-    rm -f "${dialogJSONFile}"
-    rm -f -- /var/tmp/dialogJSONFile_${organizationScriptName}.*(N)
+    rm -rf -- "${runtimeTemporaryDirectory}"
 
-    rm -f "${dialogOverlayIconFile}"
-    rm -f "${dialogDockIconFile}"
-
-    # Remove copied Dock-named swiftDialog app bundle (never remove source Dialog.app).
-    if [[ -n "${dialogDockNamedApp}" ]] && [[ "${dialogDockNamedApp}" != "${dialogAppBundle}" ]] && [[ -d "${dialogDockNamedApp}" ]]; then
+    # Remove copied Dock-named swiftDialog app bundle only when this run created it (never remove source Dialog.app
+    # or a concurrent run's copy)
+    if [[ "${dialogDockNamedAppCreatedByRun}" == "true" ]] && [[ -n "${dialogDockNamedApp}" ]] && [[ "${dialogDockNamedApp}" != "${dialogAppBundle}" ]] && [[ -d "${dialogDockNamedApp}" ]]; then
         rm -Rf "${dialogDockNamedApp}"
     fi
 
-    rm -f "/var/tmp/app-sso.plist"
-    rm -f /var/tmp/dialog.log
+    # `Silent` never launches swiftDialog; leave a concurrent run's dialog log in place
+    if [[ "${operationMode}" != "Silent" ]]; then
+        rm -f /var/tmp/dialog.log
+    fi
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
-    quitOut "Good manners don’t cost nothing, do they, eh?"
+    quitOut "And then one day you find, ten years have got behind you …"
 
     exit "${exitCode}"
 
@@ -6281,12 +6873,15 @@ function quitScript() {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function killProcess() {
-    process="$1"
-    if process_pid=$( pgrep -a "${process}" 2>/dev/null ) ; then
+    local process="$1"
+    local -a process_pid
+    # Exact-name match only; terminate every matching PID
+    process_pid=( ${(f)"$( pgrep -x "${process}" 2>/dev/null )"} )
+    if (( ${#process_pid} )); then
         info "Attempting to terminate the '$process' process …"
         info "(Termination message indicates success.)"
-        kill "$process_pid" 2> /dev/null
-        if pgrep -a "$process" >/dev/null ; then
+        kill "${process_pid[@]}" 2> /dev/null
+        if pgrep -x "$process" >/dev/null ; then
             error "'$process' could not be terminated."
         fi
     else
@@ -6379,18 +6974,74 @@ fi
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pre-flight Check: Secure runtime state (organizationDirectory, client-side log and legacy /var/tmp artifacts)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if ! ensureSecureRootDirectory "${organizationDirectory}" 755; then
+    fatal "Unable to secure '${organizationDirectory}' (must be a root-owned directory that is not group- or world-writable); exiting."
+fi
+
+if ! ensureSecureRootDirectory "${inspectAssetsParentDirectory}" 755 \
+    || ! ensureSecureRootDirectory "${inspectAssetsDirectory}" 755 \
+    || ! ensureSecureRootDirectory "${inspectUserRootDirectory}" 755; then
+    warning "Unable to secure '${inspectUserRootDirectory}'; Inspect Summary launch will be unavailable."
+fi
+
+# Restrict the client-side log (user, serial, network and admin details) to root and admins
+if [[ -f "${scriptLog}" ]] && [[ ! -L "${scriptLog}" ]]; then
+    chown root:admin "${scriptLog}" 2>/dev/null
+    chmod 640 "${scriptLog}" 2>/dev/null
+fi
+
+removeLegacyTemporaryArtifacts
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Pre-flight Check: Confirm JSON tooling availability
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-if command -v jq &> /dev/null; then
-    preFlight "jq found; using jq for JSON validation and formatting."
+if [[ -n "${jqBinary}" ]]; then
+    preFlight "jq found at ${jqBinary}; using jq for JSON validation and formatting."
     reportJSONTool="jq"
 else
-    fatal "jq is required for JSON validation and formatting; install jq before running Mac Health Check on Macs that do not bundle it by default."
+    fatal "jq is required for JSON validation and formatting; install a root-owned jq (not a user-owned Homebrew copy) before running Mac Health Check on Macs that do not bundle it by default."
+fi
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Pre-flight Check: Reporting secrets source
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [[ "${reportingSecretsFileStatus}" == "untrusted" ]]; then
+    warning "Reporting Secrets: ignored ${reportingSecretsPath}; it must be a root-owned, mode 600 regular file."
+fi
+
+if [[ "${splunkOperationModeUnrecognized}" == "true" ]]; then
+    errorOut "Splunk Reporting: unrecognized splunkOperationMode \"${splunkOperationModeRequested}\" (Parameter 6); using test (local report only, no HEC transmission). Valid values: off, test, production."
+fi
+
+preFlight "Reporting Secrets: Splunk HEC token source: ${splunkHECTokenSource}; webhook URL source: ${webhookURLSource}"
+
+if [[ "${splunkHECTokenSource}" == *"(rejected)" ]] || [[ "${webhookURLSource}" == *"(rejected)" ]]; then
+    errorOut "Reporting Secrets: rejected secrets supplied through script parameters; store the Splunk HEC token and webhook URL in ${reportingSecretsPath} (root:wheel, mode 600) and clear Parameters 5 and 8, or set allowParameterSecrets=\"true\" (not recommended)."
+elif [[ "${splunkHECTokenSource}" == Parameter* ]] || [[ "${webhookURLSource}" == Parameter* ]] \
+    || [[ "${splunkHECTokenSource}" == *"ignored"* ]] || [[ "${webhookURLSource}" == *"ignored"* ]]; then
+    warning "Reporting Secrets: script parameters are visible to local users in the process list; store the Splunk HEC token and webhook URL in ${reportingSecretsPath} and clear Parameters 5 and 8."
 fi
 
 if [[ "${forceFreshRunDetected}" == "true" ]]; then
     preFlight "Client-Side Cache: Force Fresh Run requested via ${forceFreshRunSource}; bypassing cached-upload shortcut."
+fi
+
+# `Test` and `Development` never install the client-side copy (it would replace production state on the Mac);
+# runs before the cached-upload shortcut so content changes reach the nightly copy even without a version bump
+if [[ "${operationMode}" != (Test|Development) ]] \
+    && { [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; }; then
+    if ! installClientSideScript; then
+        warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
+    fi
 fi
 
 if [[ "${clientSideSkipChecks}" == "true" ]]; then
@@ -6404,12 +7055,6 @@ if [[ "${clientSideSkipChecks}" == "true" ]]; then
         exit 1
     fi
 
-fi
-
-if [[ "${operationMode}" != "Silent" ]] || [[ "${splunkOperationMode}" == "production" ]]; then
-    if ! installClientSideScript; then
-        warning "Client-Side Cache: client-side script installation did not complete; continuing with current run."
-    fi
 fi
 
 
@@ -6489,7 +7134,7 @@ function dialogInstall() {
 
         installer -pkg "$tempDirectory/Dialog.pkg" -target /
         sleep 2
-        dialogVersion=$( /usr/local/bin/dialog --version )
+        dialogVersion=$( "${dialogBinary}" --version )
         preFlight "swiftDialog version ${dialogVersion} installed; proceeding..."
 
     else
@@ -6524,13 +7169,15 @@ function dialogCheck() {
     else
 
         dialogVersion=$("${dialogBinary}" --version)
-        if ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
+        # An empty version (e.g., a broken `dialogcli`) must not pass the minimum-version gate
+        if [[ -z "${dialogVersion}" ]] || ! is-at-least "${swiftDialogMinimumRequiredVersion}" "${dialogVersion}"; then
 
             latestProductionDialogURL="$( getLatestSwiftDialogPkgURL )"
             latestProductionDialogVersion="$( getSwiftDialogVersionFromPkgURL "${latestProductionDialogURL}" )"
 
-            if [[ -n "${latestProductionDialogVersion}" ]] && is-at-least "${latestProductionDialogVersion}" "${dialogVersion}"; then
-                preFlight "swiftDialog version ${dialogVersion} found. Latest production release is ${latestProductionDialogVersion}; skipping automatic download because configured minimum ${swiftDialogMinimumRequiredVersion} targets a newer non-production build."
+            # `is-at-least` treats an empty version as the zsh version, so require a non-empty `dialogVersion`
+            if [[ -n "${dialogVersion}" && -n "${latestProductionDialogVersion}" ]] && is-at-least "${latestProductionDialogVersion}" "${dialogVersion}"; then
+                warning "swiftDialog version ${dialogVersion} found. Latest production release is ${latestProductionDialogVersion}; skipping automatic download because configured minimum ${swiftDialogMinimumRequiredVersion} targets a newer non-production build."
                 return 0
             fi
             
@@ -6631,13 +7278,13 @@ function checkOS() {
         online_json_url="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
         user_agent="Mac-Health-Check-checkOS/3.0.0"
 
-        # local store
-        json_cache_dir="/var/tmp/sofa"
+        # local store (root-owned; never world-writable `/var/tmp`)
+        json_cache_dir="${organizationDirectory}/sofa"
         json_cache="$json_cache_dir/macos_data_feed.json"
         etag_cache="$json_cache_dir/macos_data_feed_etag.txt"
 
         # ensure local cache folder exists
-        mkdir -p "$json_cache_dir"
+        ensureSecureRootDirectory "$json_cache_dir" 755 || warning "Unable to secure SOFA cache directory at $json_cache_dir"
 
         # use cached SOFA data if still fresh; otherwise fall through to ETag check or download
         sofaDataCached="false"
@@ -6648,28 +7295,37 @@ function checkOS() {
                 logComment "Using cached SOFA data (age within ${sofaCacheMaximumAge})"
                 sofaDataCached="true"
             else
-                logComment "Cached SOFA data is stale; removing …"
-                rm -Rf "$json_cache_dir"
-                mkdir -p "$json_cache_dir"
+                # Keep the stale feed and its ETag so the download below can revalidate (HTTP 304) instead of re-downloading
+                logComment "Cached SOFA data is stale; revalidating …"
             fi
         fi
 
         # check local vs online using etag (skipped if using fresh cache)
         if [[ "${sofaDataCached}" != "true" ]]; then
+            # Download into same-directory temporary files; promote only a valid, non-empty feed via `mv`
+            json_download=$( mktemp "$json_cache_dir/.macos_data_feed.json.XXXXXX" 2>/dev/null )
+            etag_download=$( mktemp "$json_cache_dir/.macos_data_feed_etag.txt.XXXXXX" 2>/dev/null )
             if [[ -f "$etag_cache" && -f "$json_cache" ]]; then
                 logComment "e-tag stored, will download only if e-tag doesn’t match"
-                etag_old=$(cat "$etag_cache")
-                curl --compressed --silent --etag-compare "$etag_cache" --etag-save "$etag_cache" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_cache"
-                etag_new=$(cat "$etag_cache")
-                if [[ "$etag_old" == "$etag_new" ]]; then
-                    logComment "Cached ETag matched online ETag - cached json file is up to date"
-                else
-                    logComment "Cached ETag did not match online ETag, so downloaded new SOFA json file"
-                fi
+                sofaHTTPStatus=$( curl --compressed --location --fail --max-time 10 --silent --etag-compare "$etag_cache" --etag-save "$etag_download" --header "User-Agent: $user_agent" "$online_json_url" --output "$json_download" --write-out '%{http_code}' )
             else
                 logComment "No e-tag cached, proceeding to download SOFA json file"
-                curl --compressed --location --max-time 3 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_cache" --output "$json_cache"
+                sofaHTTPStatus=$( curl --compressed --location --fail --max-time 10 --silent --header "User-Agent: $user_agent" "$online_json_url" --etag-save "$etag_download" --output "$json_download" --write-out '%{http_code}' )
             fi
+            if [[ -s "$json_download" ]] && jq -e . "$json_download" >/dev/null 2>&1; then
+                chmod 644 "$json_download" "$etag_download" 2>/dev/null
+                mv -f "$json_download" "$json_cache"
+                [[ -s "$etag_download" ]] && mv -f "$etag_download" "$etag_cache"
+                logComment "Downloaded new SOFA json file"
+            elif [[ -f "$json_cache" ]] && [[ "${sofaHTTPStatus}" == "304" ]]; then
+                touch "$json_cache"
+                logComment "Cached ETag matched online ETag; keeping cached json file"
+            elif [[ -f "$json_cache" ]]; then
+                logComment "SOFA download failed (HTTP ${sofaHTTPStatus:-000}); keeping stale cached json file"
+            else
+                logComment "Unable to download a valid SOFA json file"
+            fi
+            rm -f "$json_download" "$etag_download" 2>/dev/null
         fi
 
         # 1. Get model (DeviceID)
@@ -6698,7 +7354,7 @@ function checkOS() {
         # exit if less than macOS 12
         if [[ "$system_os" -lt 12 ]]; then
             osResult="Unsupported macOS"
-            result "$osResult"
+            warning "${humanReadableCheckName}: ${osResult}"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: ${osResult}"
             footerStatusColor="${statusColorError}"
             # return 1
@@ -6920,6 +7576,54 @@ function checkStagedUpdate() {
             stagingMessage="Open System Settings > General > Software Update"
             ;;
     esac
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Resolve DDM Enforcement from the softwareupdated state plist
+# Prints "<TargetOSVersion>\t<TargetLocalDateTime>" for the highest declared version and returns 0;
+# returns 10 when the plist declares no enforcement; returns 1 when the plist is missing, untrusted,
+# or its layout is unrecognized (callers then fall back to the user-writable install.log resolver)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function resolveDDMEnforcementFromStatePlist() {
+
+    local ddmStatePlistPath="/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist"
+    local ddmStatePlistOwner=""
+    local declarationsJSON=""
+    local declarationLines=""
+    local declarationLine=""
+    local declarationVersion=""
+    local declarationDate=""
+    local selectedVersion=""
+    local selectedDate=""
+
+    [[ -f "${ddmStatePlistPath}" && ! -L "${ddmStatePlistPath}" ]] || return 1
+    ddmStatePlistOwner="$( stat -f %Su "${ddmStatePlistPath}" 2>/dev/null )"
+    [[ "${ddmStatePlistOwner}" == "root" || "${ddmStatePlistOwner}" == "_softwareupdate" ]] || return 1
+
+    [[ "$( /usr/bin/plutil -extract SUCorePersistedStateContentsType raw -o - "${ddmStatePlistPath}" 2>/dev/null )" == "SoftwareUpdateCorePersistedStateFile" ]] || return 1
+    declarationsJSON="$( /usr/bin/plutil -extract SUCorePersistedStatePolicyFields.Declarations json -o - "${ddmStatePlistPath}" 2>/dev/null )" || return 1
+    printf '%s' "${declarationsJSON}" | jq -e 'type == "object"' >/dev/null 2>&1 || return 1
+
+    declarationLines="$( printf '%s' "${declarationsJSON}" | jq -r 'to_entries[] | .value | [ (.TargetOSVersion // "" | tostring), (.TargetLocalDateTime // "" | tostring) ] | @tsv' 2>/dev/null )" || return 1
+    [[ -z "${declarationLines}" ]] && return 10
+
+    for declarationLine in "${(@f)declarationLines}"; do
+        declarationVersion="${declarationLine%%$'\t'*}"
+        declarationDate="${declarationLine#*$'\t'}"
+        # Any malformed declaration means the layout is not what this resolver understands
+        [[ "${declarationVersion}" =~ '^[0-9]{1,3}\.[0-9]{1,3}(\.[0-9]{1,3})?$' ]] || return 1
+        [[ "${declarationDate}" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z?$' ]] || return 1
+        if [[ -z "${selectedVersion}" ]] || ! is-at-least "${declarationVersion}" "${selectedVersion}"; then
+            selectedVersion="${declarationVersion}"
+            selectedDate="${declarationDate}"
+        fi
+    done
+
+    printf '%s\t%s\n' "${selectedVersion}" "${selectedDate}"
 
 }
 
@@ -7187,36 +7891,66 @@ function checkAvailableSoftwareUpdates() {
     # sleep "${anticipationDuration}"
 
     # MDM Client Available OS Updates
-    mdmClientAvailableOSUpdates=$( /usr/libexec/mdmclient AvailableOSUpdates | awk '/Available updates/,/^\)/{if(/HumanReadableName =/){n=$0;sub(/.*= "/,"",n);sub(/".*/,"",n)}if(/DeferredUntil =/){d=$0;sub(/.*= "/,"",d);sub(/ 00:00:00.*/,"",d)}if(n!=""&&d!=""){print n" | "d;n="";d=""}}' )
+    mdmClientAvailableOSUpdates=$( /usr/libexec/mdmclient AvailableOSUpdates 2>/dev/null | awk '/Available updates/,/^\)/{if(/HumanReadableName =/){n=$0;sub(/.*= "/,"",n);sub(/".*/,"",n)}if(/DeferredUntil =/){d=$0;sub(/.*= "/,"",d);sub(/ 00:00:00.*/,"",d)}if(n!=""&&d!=""){print n" | "d;n="";d=""}}' )
     if [[ -n "${mdmClientAvailableOSUpdates}" ]]; then
         notice "MDM Client Available OS Updates | Deferred Until"
         info "${mdmClientAvailableOSUpdates}"
     fi
 
-    # DDM-enforced OS Version (priority-ranked resolver; fails closed on ambiguous or conflicting state)
+    # DDM-enforced OS Version: prefer the root-written softwareupdated state plist; fall back to the
+    # priority-ranked install.log resolver (fails closed on ambiguous or conflicting state) only when
+    # the plist is missing or its layout is unrecognized
     local ddmResolvedCandidate=""
     local ddmResolverExitCode=0
-    ddmResolvedCandidate="$( resolveDDMEnforcementFromInstallLog )"
-    ddmResolverExitCode=$?
+    local ddmStatePlistCandidate=""
+    local ddmStatePlistExitCode=0
+    ddmStatePlistCandidate="$( resolveDDMEnforcementFromStatePlist )"
+    ddmStatePlistExitCode=$?
 
     local ddmResolverSource="" ddmDeclarationLogTimestamp="" ddmEnforcedInstallDate="" ddmVersionString="" ddmBuildVersionString=""
     local ddmPaddedEnforcementDateRaw="" ddmEnforcedInstallDateDisplay="" ddmEnforcedInstallDateHumanReadable="" ddmDateSource="raw"
-    if (( ddmResolverExitCode == 0 )) && [[ -n "${ddmResolvedCandidate}" ]]; then
-        IFS=$'\t' read -r ddmResolverSource ddmDeclarationLogTimestamp ddmEnforcedInstallDate ddmVersionString ddmBuildVersionString <<< "${ddmResolvedCandidate}"
+    if (( ddmStatePlistExitCode == 0 )) && [[ -n "${ddmStatePlistCandidate}" ]]; then
+        ddmResolverSource="statePlist"
+        ddmVersionString="${ddmStatePlistCandidate%%$'\t'*}"
+        ddmEnforcedInstallDate="${ddmStatePlistCandidate#*$'\t'}"
         ddmEnforcedInstallDateDisplay="${ddmEnforcedInstallDate}"
-        ddmPaddedEnforcementDateRaw="$( resolvePaddedEnforcementDateForCandidate "${ddmDeclarationLogTimestamp}" "${ddmEnforcedInstallDate}|${ddmVersionString}|${ddmBuildVersionString}" )"
-        if [[ -n "${ddmPaddedEnforcementDateRaw}" ]]; then
-            ddmEnforcedInstallDateDisplay="${ddmPaddedEnforcementDateRaw}"
-            ddmDateSource="padded"
-            ddmEnforcedInstallDateHumanReadable="$(date -jf "%a %b %d %H:%M:%S %Y" "${ddmPaddedEnforcementDateRaw}" "+%d-%b-%Y" 2>/dev/null)"
-        else
-            ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
-        fi
-
+        ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
         [[ -z "${ddmEnforcedInstallDateHumanReadable}" ]] && ddmEnforcedInstallDateHumanReadable="${ddmEnforcedInstallDateDisplay}"
-        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionString}"
+        info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=unavailable"
+    elif (( ddmStatePlistExitCode == 10 )); then
+        info "DDM Resolver: source=statePlist | no DDM enforcement declared"
     else
-        info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode})"
+        info "DDM Resolver: softwareupdated state plist unavailable or unrecognized; falling back to install.log"
+        ddmResolvedCandidate="$( resolveDDMEnforcementFromInstallLog )"
+        ddmResolverExitCode=$?
+
+        if (( ddmResolverExitCode == 0 )) && [[ -n "${ddmResolvedCandidate}" ]]; then
+            IFS=$'\t' read -r ddmResolverSource ddmDeclarationLogTimestamp ddmEnforcedInstallDate ddmVersionString ddmBuildVersionString <<< "${ddmResolvedCandidate}"
+            ddmEnforcedInstallDateDisplay="${ddmEnforcedInstallDate}"
+            ddmPaddedEnforcementDateRaw="$( resolvePaddedEnforcementDateForCandidate "${ddmDeclarationLogTimestamp}" "${ddmEnforcedInstallDate}|${ddmVersionString}|${ddmBuildVersionString}" )"
+            if [[ -n "${ddmPaddedEnforcementDateRaw}" ]]; then
+                ddmEnforcedInstallDateDisplay="${ddmPaddedEnforcementDateRaw}"
+                ddmDateSource="padded"
+                ddmEnforcedInstallDateHumanReadable="$(date -jf "%a %b %d %H:%M:%S %Y" "${ddmPaddedEnforcementDateRaw}" "+%d-%b-%Y" 2>/dev/null)"
+            else
+                ddmEnforcedInstallDateHumanReadable="$(date -jf "%Y-%m-%dT%H:%M:%S" "${ddmEnforcedInstallDate%Z}" "+%d-%b-%Y" 2>/dev/null)"
+            fi
+
+            [[ -z "${ddmEnforcedInstallDateHumanReadable}" ]] && ddmEnforcedInstallDateHumanReadable="${ddmEnforcedInstallDateDisplay}"
+            local ddmBuildVersionLog="${ddmBuildVersionString}"
+            [[ -z "${ddmBuildVersionLog}" || "${ddmBuildVersionLog}" == "(null)" ]] && ddmBuildVersionLog="unavailable"
+            info "DDM Resolver: source=${ddmResolverSource} | date=${ddmEnforcedInstallDateDisplay} | dateSource=${ddmDateSource} | version=${ddmVersionString} | build=${ddmBuildVersionLog}"
+        else
+            local ddmResolverExitReason=""
+            case "${ddmResolverExitCode}" in
+                20 ) ddmResolverExitReason="no DDM enforcement entries found in install.log" ;;
+                21 ) ddmResolverExitReason="conflicting or ambiguous DDM enforcement candidates" ;;
+                22 ) ddmResolverExitReason="DDM-enforced version string failed validation" ;;
+                23 ) ddmResolverExitReason="Apple reported no matching update for the DDM-requested version" ;;
+                * )  ddmResolverExitReason="unexpected resolver result" ;;
+            esac
+            info "DDM Resolver: no trustworthy DDM enforcement state resolved (exit ${ddmResolverExitCode}: ${ddmResolverExitReason})"
+        fi
     fi
 
     # Software Update Recommended Updates
@@ -7317,12 +8051,26 @@ function checkAppAutoPatch() {
     local aap_warning_threshold=7
     local aap_critical_threshold=30
 
-    # Path to App Auto-Patch log
-    local aap_log_path="/Library/Management/AppAutoPatch/logs/aap.log"
+    # Paths to App Auto-Patch logs (3.x; 4.0.0 system log and per-user fallback)
+    local aap_log_path_legacy="/Library/Management/AppAutoPatch/logs/aap.log"
+    local aap_log_path_current="/Library/Application Support/AppAutoPatch/logs/aap.log"
+    local aap_log_path_user=""
+    [[ -n "${loggedInUserHomeDirectory}" ]] && aap_log_path_user="${loggedInUserHomeDirectory}/Library/Logs/AppAutoPatch/aap.log"
+    local aap_log_path="" aap_log_format=""
     local canEvaluateLastRun="true"
 
+    # Prefer root-written logs (4.0.0 system log, then the 3.x log); use the user-writable per-user log only when neither exists
+    if [[ -f "${aap_log_path_current}" ]]; then
+        aap_log_format="4"
+    elif [[ -f "${aap_log_path_legacy}" ]]; then
+        aap_log_format="3"
+        aap_log_path="${aap_log_path_legacy}"
+    elif [[ -n "${aap_log_path_user}" && -f "${aap_log_path_user}" ]]; then
+        aap_log_format="4"
+    fi
+
     # Check if log file exists
-    if [[ ! -f "${aap_log_path}" ]]; then
+    if [[ -z "${aap_log_format}" ]]; then
         errorOut "${humanReadableCheckName}: Log file not found"
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please run App Auto-Patch from the ${organizationSelfServiceMarketingName}, status: fail, statustext: Log not found"
         overallHealth+="${humanReadableCheckName}; "
@@ -7330,17 +8078,49 @@ function checkAppAutoPatch() {
         canEvaluateLastRun="false"
     fi
 
-    # Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
     local aap_ts_line aap_ts last_run_epoch now_epoch seconds_since_last_run days_since_last_run
+    local aap_v4_log aap_v4_epoch
 
     if [[ "${canEvaluateLastRun}" == "true" ]]; then
+        info "${humanReadableCheckName}: Evaluating App Auto-Patch ${aap_log_format}.x log(s)"
+    fi
+
+    # App Auto-Patch 4.0.0: newest ISO-8601 "Discovery complete" timestamp from the root-written system log;
+    # the user-writable per-user log is consulted only when the system log is absent
+    # (log mtime is not used; the root helper writes to the log continuously)
+    if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "4" ]]; then
+        local aap_v4_logs=( "${aap_log_path_current}" )
+        local aap_future_limit_epoch=$(( $(date "+%s") + 300 ))
+        if [[ ! -f "${aap_log_path_current}" ]]; then
+            aap_v4_logs=( "${aap_log_path_user}" )
+            info "${humanReadableCheckName}: System log not found; using user-reported per-user log"
+        fi
+        for aap_v4_log in "${aap_v4_logs[@]}"; do
+            [[ -n "${aap_v4_log}" && -f "${aap_v4_log}" ]] || continue
+            aap_ts_line=$( grep -E "Discovery complete" "${aap_v4_log}" 2>/dev/null | tail -1 )
+            [[ -n "${aap_ts_line}" ]] || continue
+            aap_ts=$( echo "${aap_ts_line%% *}" | sed -E 's/\.[0-9]+//; s/Z$/+0000/; s/([+-][0-9]{2}):([0-9]{2})$/\1\2/' )
+            [[ "${aap_ts}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}$ ]] || continue
+            aap_v4_epoch=$( date -j -f "%Y-%m-%dT%H:%M:%S%z" "${aap_ts}" "+%s" 2>/dev/null )
+            if [[ "${aap_v4_epoch}" =~ ^[0-9]+$ ]] && (( aap_v4_epoch > aap_future_limit_epoch )); then
+                warning "${humanReadableCheckName}: Ignoring future-dated Discovery complete timestamp (${aap_ts}) in ${aap_v4_log}"
+                continue
+            fi
+            if [[ "${aap_v4_epoch}" =~ ^[0-9]+$ ]] && (( aap_v4_epoch > ${last_run_epoch:-0} )); then
+                last_run_epoch="${aap_v4_epoch}"
+            fi
+        done
+    fi
+
+    # App Auto-Patch 3.x — Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
+    if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" ]]; then
         aap_ts_line=$(grep -E "Current time stamp:" "${aap_log_path}" | tail -1)
     fi
 
-    if [[ "${canEvaluateLastRun}" == "true" && -z "${aap_ts_line}" ]]; then
+    if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" && -z "${aap_ts_line}" ]]; then
         # Fallback: use log mtime if the timestamp line is missing
         last_run_epoch=$(stat -f %m "${aap_log_path}" 2>/dev/null)
-    elif [[ "${canEvaluateLastRun}" == "true" ]]; then
+    elif [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" ]]; then
         aap_ts=$(echo "${aap_ts_line}" | awk '{print $NF}')
 
         # Validate expected format (14 digits)
@@ -7934,14 +8714,14 @@ function checkMemoryPressure() {
                     resultColor="${statusColorError}"
                     resultText="Elevated on ${adverseDays} of last ${memoryPressureLookbackDays} days"
                     resultSubtitle="Close unused apps; check Activity Monitor > Memory; restart if slowdowns persist"
-                    warning "${humanReadableCheckName}: ${adverseDays} adverse days in last ${memoryPressureLookbackDays}; current level ${pressureLevel}."
+                    warning "${humanReadableCheckName}: ${adverseDays} adverse day$( (( adverseDays == 1 )) || print -n "s" ) in last ${memoryPressureLookbackDays}; current level ${pressureLevel}."
                 else
                     resultText="No recurring pressure"
                     resultSubtitle="Memory pressure history shows no repeated warning"
-                    info "${humanReadableCheckName}: ${adverseDays} adverse days across ${validDays} observed days."
+                    info "${humanReadableCheckName}: ${adverseDays} adverse day$( (( adverseDays == 1 )) || print -n "s" ) across ${validDays} observed day$( (( validDays == 1 )) || print -n "s" )."
                 fi
             else
-                info "${humanReadableCheckName}: insufficient history (${validDays} valid days)."
+                info "${humanReadableCheckName}: insufficient history (${validDays} valid day$( (( validDays == 1 )) || print -n "s" ))."
             fi
         else
             warning "${humanReadableCheckName}: unable to evaluate history."
@@ -7987,15 +8767,17 @@ function checkUserDirectorySizeItems() {
         dirBytes=$( echo "${dirBlocks} * 512" | bc 2>/dev/null || echo "0" )
         percentage=$( echo "scale=2; if (${totalDiskBytes} > 0) ${dirBytes} * 100 / ${totalDiskBytes} else 0" | bc -l 2>/dev/null || echo "0" )
         userDirectoryResult="${userDirectorySize} (${userDirectoryItems} items) — ${percentage}% of disk"
+        # Log-only copy with a leading zero (`bc` prints `.06`); statustext and report values stay unchanged
+        local userDirectoryLogResult="${userDirectorySize} (${userDirectoryItems} items) — $( printf "%.2f" "${percentage}" 2>/dev/null || print -n "${percentage}" )% of disk"
         if (( $( echo ${percentage}'>'${allowedMaximumDirectoryPercentage} | bc -l 2>/dev/null ) )); then
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName} if you need assistance, status: error, statustext: ${userDirectoryResult}"
             footerStatusColor="${statusColorError}"
-            warning "${humanReadableCheckName}: ${userDirectoryResult}"
+            warning "${humanReadableCheckName}: ${userDirectoryLogResult}"
             # overallHealth+="${humanReadableCheckName}; " # Uncomment to treat as an error
         else
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${userDirectoryResult}"
             footerStatusColor="${statusColorSuccess}"
-            info "${humanReadableCheckName}: ${userDirectoryResult}"
+            info "${humanReadableCheckName}: ${userDirectoryLogResult}"
         fi
     fi
 
@@ -8309,28 +9091,59 @@ function checkAPNs() {
 
     sleep "${anticipationDuration}"
 
-    apnsCheck=$( command log show --last 24h --predicate 'subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow")' | tail -1 | cut -d '.' -f 1 )
+    # ManagedClient HTTP 200 responses (MDM evidence), apsd courier connections and incoming-message
+    # acknowledgements (APNs evidence; topics are <private>-redacted), courier disconnects and MDM
+    # identity errors (thanks, @rtrouton!); only from SSV-protected system binaries, so a user process
+    # cannot spoof healthy-looking entries
+    local apnsLogEntries=""
+    local lastMdmResponseTimestamp=""
+    local lastApnsActivityTimestamp=""
+    local lastIdentityErrorTimestamp=""
+    local courierDisconnectCount=0
+    local apnsStatusEpoch=""
+    local apnsStatus=""
 
-    if [[ "${apnsCheck}" == *"Timestamp"* ]] || [[ -z "${apnsCheck}" ]]; then
+    apnsLogEntries=$( command log show --last 24h --style compact --predicate '(processImagePath BEGINSWITH "/System/" || processImagePath BEGINSWITH "/usr/libexec/") && ((process == "apsd" && (eventMessage CONTAINS "Connected to courier" || eventMessage CONTAINS "acknowledges incoming message" || eventMessage CONTAINS "Disconnecting in response to connection failure")) || (process == "mdmclient" && eventMessage CONTAINS "-25304") || (subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow")))' 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' )
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+    lastMdmResponseTimestamp=$( print -r -- "${apnsLogEntries}" | grep -iE 'Received HTTP response \(200\) \[(Acknowledged|NotNow)' | tail -1 | cut -c 1-19 )
+    lastApnsActivityTimestamp=$( print -r -- "${apnsLogEntries}" | grep -E 'Connected to courier|acknowledges incoming message' | tail -1 | cut -c 1-19 )
+    lastIdentityErrorTimestamp=$( print -r -- "${apnsLogEntries}" | grep -- '-25304' | tail -1 | cut -c 1-19 )
+    courierDisconnectCount=$( print -r -- "${apnsLogEntries}" | grep -c 'Disconnecting in response to connection failure' )
+
+    [[ -n "${lastApnsActivityTimestamp}" ]] && info "${humanReadableCheckName}: Last APNs activity: ${lastApnsActivityTimestamp}"
+    [[ -n "${lastMdmResponseTimestamp}" ]] && info "${humanReadableCheckName}: Last MDM response: ${lastMdmResponseTimestamp}"
+    (( courierDisconnectCount > 0 )) && info "${humanReadableCheckName}: Courier connection failures in last 24 hours: ${courierDisconnectCount}"
+
+    if [[ -n "${lastIdentityErrorTimestamp}" ]] && [[ "${lastIdentityErrorTimestamp}" > "${lastMdmResponseTimestamp}" ]]; then
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: MDM identity error"
         footerStatusColor="${statusColorFail}"
-        errorOut "${humanReadableCheckName} (${1}): ${apnsCheck}"
+        errorOut "${humanReadableCheckName} (${1}): MDM identity error (-25304) at ${lastIdentityErrorTimestamp}"
         overallHealth+="${humanReadableCheckName}; "
 
-    else
+    elif [[ -n "${lastMdmResponseTimestamp}" ]]; then
 
-        apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${apnsCheck}" +"%s" )
-        eventDate=$( date -r "${apnsStatusEpoch}" "+%Y-%m-%d" )
-        todayDate=$( date "+%Y-%m-%d" )
-        if [[ "${eventDate}" == "${todayDate}" ]]; then
+        apnsStatusEpoch=$( date -j -f "%Y-%m-%d %H:%M:%S" "${lastMdmResponseTimestamp}" +"%s" )
+        if [[ "$( date -r "${apnsStatusEpoch}" "+%Y-%m-%d" )" == "$( date "+%Y-%m-%d" )" ]]; then
             apnsStatus=$( date -r "${apnsStatusEpoch}" "+%-l:%M %p" )
         else
             apnsStatus=$( date -r "${apnsStatusEpoch}" "+%A %-l:%M %p" )
         fi
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: ${apnsStatus}"
         footerStatusColor="${statusColorSuccess}"
-        info "${humanReadableCheckName}: ${apnsCheck}"
+
+    elif [[ -n "${lastApnsActivityTimestamp}" ]]; then
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: No ${mdmVendor} response in 24 hours; contact ${supportTeamName} if issues persist, status: error, statustext: APNs active; no MDM response"
+        footerStatusColor="${statusColorError}"
+        warning "${humanReadableCheckName} (${1}): APNs active at ${lastApnsActivityTimestamp}; no MDM response in last 24 hours"
+
+    else
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+        footerStatusColor="${statusColorFail}"
+        errorOut "${humanReadableCheckName} (${1}): No APNs activity or MDM response in last 24 hours"
+        overallHealth+="${humanReadableCheckName}; "
 
     fi
 
@@ -8544,11 +9357,11 @@ function checkNetworkHosts() {
     if [[ "${allOK}" == true ]]; then
         dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Passed"
         footerStatusColor="${statusColorSuccess}"
-        info "${name}: ${results%;; }"
+        info "${name}: ${results%; }"
     else
         dialogUpdate "listitem: index: ${index}, icon: SF=$(printf "%02d" $(($index+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, status: fail, statustext: Failed"
         footerStatusColor="${statusColorFail}"
-        errorOut "${name}: ${results%;; }"
+        errorOut "${name}: ${results%; }"
         overallHealth+="${name}; "
     fi
 
@@ -8663,13 +9476,19 @@ function checkJamfProCheckIn() {
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
 
-    last_check_in_time=$(grep "Checking for policies triggered by \"recurring check-in\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
+    # Any trigger that contacts Jamf Pro counts as a check-in (i.e., a Mac powered off overnight checks in at startup)
+    last_check_in_time=$(grep -E "Checking for policies triggered by \"(recurring check-in|startup|login|networkStateChange)\"" "/private/var/log/jamf.log" | tail -n 1 | awk '{ print $2,$3,$4 }')
     if [[ -z "${last_check_in_time}" ]]; then
         last_check_in_time=$( date "+%b %e %H:%M:%S" )
     fi
 
-    # Convert last Jamf Pro check-in time to epoch
-    last_check_in_time_epoch=$(date -j -f "%b %d %T" "${last_check_in_time}" +"%s")
+    # Convert last Jamf Pro check-in time to epoch; `jamf.log` omits the year, so assume the current year and
+    # fall back to the prior year when that yields a future timestamp (i.e., December entries read in January)
+    local checkInYear=$( date "+%Y" )
+    last_check_in_time_epoch=$(date -j -f "%Y %b %d %T" "${checkInYear} ${last_check_in_time}" +"%s")
+    if (( last_check_in_time_epoch > $( date +%s ) + 86400 )); then
+        last_check_in_time_epoch=$(date -j -f "%Y %b %d %T" "$(( checkInYear - 1 )) ${last_check_in_time}" +"%s")
+    fi
     time_since_check_in_epoch=$(($currentTimeEpoch-$last_check_in_time_epoch))
 
     # Convert last Jamf Pro epoch to something easier to read
@@ -9231,7 +10050,11 @@ function checkWiFiStrength() {
 
     checkInspectTextByIndex[${1}]="${quality} (${rssi} dBm)"
     dialogUpdate "icon: SF=wifi,weight=semibold,colour=${footerStatusColor}"
-    info "${humanReadableCheckName}: ${quality} (${rssi} dBm)"
+    case "${quality}" in
+        "Fair" ) warning "${humanReadableCheckName}: ${quality} (${rssi} dBm)" ;;
+        "Poor" ) errorOut "${humanReadableCheckName}: ${quality} (${rssi} dBm)" ;;
+        * ) info "${humanReadableCheckName}: ${quality} (${rssi} dBm)" ;;
+    esac
 
     sleep $((anticipationDuration / 2))
 
@@ -9350,9 +10173,9 @@ function checkExternalJamfPro() {
     dialogUpdate "progress: increment"
     dialogUpdate "progresstext: Determining status of ${appDisplayName} …"
 
-    externalPolicyOutput=$( jamf policy -event "${trigger}" 2>&1 )
+    externalPolicyOutput="$( captureCommandOutputWithTimeout "${externalCheckTimeoutSeconds}" "${jamfBinary}" policy -event "${trigger}" )"
     externalPolicyExitCode=$?
-    if (( externalPolicyExitCode != 0 )); then
+    if (( externalPolicyExitCode != 0 && externalPolicyExitCode != 124 )); then
         info "External Check: Jamf policy trigger '${trigger}' exited ${externalPolicyExitCode}; evaluating available result output."
     fi
     externalValidation=$( printf '%s\n' "${externalPolicyOutput}" | sed -n 's/.*Script result:[[:space:]]*//p' | tail -1 )
@@ -9368,8 +10191,17 @@ function checkExternalJamfPro() {
     (( externalPolicyExitCode != 0 )) && fallbackErrorDetail="Policy exit ${externalPolicyExitCode}"
     [[ -n "${externalCheckResult}" ]] && fallbackErrorDetail="${externalCheckResult}"
     
+    # A hung policy must not stall the run
+    if (( externalPolicyExitCode == 124 )); then
+
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: error, statustext: Timed Out"
+        errorOut "${appDisplayName} Error: Jamf policy trigger '${trigger}' timed out after ${externalCheckTimeoutSeconds} seconds"
+        overallHealth+="${appDisplayName}; "
+        footerCheckIcon="SF=exclamationmark.triangle.fill"
+        footerStatusColor="${statusColorError}"
+
     # Leverage the organization defaults domain
-    if [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
+    elif [[ -n $( defaults read "${organizationDefaultsDomain}" 2>/dev/null ) ]]; then
 
         checkStatus=$( defaults read "${organizationDefaultsDomain}" checkStatus )
         checkType=$( defaults read "${organizationDefaultsDomain}" checkType )
@@ -9399,14 +10231,14 @@ function checkExternalJamfPro() {
                     warningStatus="${checkExtended}"
                 fi
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $warningStatus"
-                warning "${appDisplayName} Warning:$warningStatus"
+                warning "${appDisplayName} Warning: ${warningStatus}"
                 footerCheckIcon="SF=exclamationmark.triangle.fill"
                 footerStatusColor="${statusColorError}"
                 ;;
 
             "error" | * )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $checkStatus:$checkExtended"
-                errorOut "${appDisplayName} Error:$checkExtended"
+                errorOut "${appDisplayName} Error: ${checkExtended}"
                 overallHealth+="${appDisplayName}; "
                 footerCheckIcon="SF=exclamationmark.triangle.fill"
                 footerStatusColor="${statusColorError}"
@@ -9419,7 +10251,8 @@ function checkExternalJamfPro() {
 
         case ${externalCheckResult:l} in
 
-            *"failed"* )
+            # `Not Running` must fail before the `*"running"*` success pattern matches it
+            *"failed"* | *"not running"* )
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
                 errorOut "${appDisplayName} Failed"
                 overallHealth+="${appDisplayName}; "
@@ -9440,7 +10273,7 @@ function checkExternalJamfPro() {
                 fi
                 [[ -z "${warningStatus}" ]] && warningStatus="Warning"
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, status: error, statustext: $warningStatus"
-                warning "${appDisplayName} Warning:$warningStatus"
+                warning "${appDisplayName} Warning: ${warningStatus}"
                 footerCheckIcon="SF=exclamationmark.triangle.fill"
                 footerStatusColor="${statusColorError}"
                 ;;
@@ -9482,7 +10315,7 @@ function checkNetworkQuality() {
 
     # sleep "${anticipationDuration}"
 
-    networkQualityTestFile="/var/tmp/networkQualityTest"
+    networkQualityTestFile="${organizationDirectory}/MacHealthCheck-NetworkQuality.txt"
 
     if [[ -e "${networkQualityTestFile}" ]]; then
 
@@ -9531,7 +10364,9 @@ function checkNetworkQuality() {
 
     mbps=$( echo "scale=2; ( $dlThroughput / 1000000 )" | bc )
     dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, status: success, statustext: ${mbps} Mbps ${testStatus}"
-    info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsiveness}; "
+    local dlResponsivenessLog="${dlResponsiveness}"
+    [[ "${dlResponsivenessLog}" =~ ^[0-9]+(\.[0-9]+)?$ ]] && dlResponsivenessLog=$( printf "%.0f" "${dlResponsivenessLog}" )
+    info "Download: ${mbps} Mbps, Responsiveness: ${dlResponsivenessLog}"
 
     dialogUpdate "icon: ${icon}"
     dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
@@ -9594,7 +10429,7 @@ function checkHomebrewStatus() {
 
         if [[ -z "${installedHomebrewVersion}" ]] || [[ -z "${latestHomebrewVersion}" ]] || [[ "${outdatedFormulaeCount}" != <-> ]] || [[ "${outdatedCasksCount}" != <-> ]]; then
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Homebrew was found but could not be fully evaluated, status: error, statustext: Unable to determine"
-            errorOut "${humanReadableCheckName}: Unable to determine; installed=${installedHomebrewVersion:-unknown}; latest=${latestHomebrewVersion:-unknown}; formulae=${outdatedFormulaeCount:-unknown}; casks=${outdatedCasksCount:-unknown}"
+            warning "${humanReadableCheckName}: Unable to determine; installed=${installedHomebrewVersion:-unknown}; latest=${latestHomebrewVersion:-unknown}; formulae=${outdatedFormulaeCount:-unknown}; casks=${outdatedCasksCount:-unknown}"
             overallHealth+="${humanReadableCheckName}; "
             footerStatusColor="${statusColorError}"
         else
@@ -9616,7 +10451,7 @@ function checkHomebrewStatus() {
                 fi
 
                 dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Open Terminal and update Homebrew packages if you manage them on this Mac, status: error, statustext: ${statusSummary}"
-                errorOut "${humanReadableCheckName}: Installed ${installedHomebrewVersion}; latest ${latestHomebrewVersion}; outdated formulae ${outdatedFormulaeCount}; outdated casks ${outdatedCasksCount}"
+                warning "${humanReadableCheckName}: Installed ${installedHomebrewVersion}; latest ${latestHomebrewVersion}; outdated formulae ${outdatedFormulaeCount}; outdated casks ${outdatedCasksCount}"
                 overallHealth+="${humanReadableCheckName}; "
                 footerStatusColor="${statusColorError}"
             fi
@@ -9625,6 +10460,23 @@ function checkHomebrewStatus() {
 
     dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
     sleep $((anticipationDuration / 2))
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Validate an Electron / app version string read from a (possibly user-controlled) bundle
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function isElectronVersionString() {
+
+    local candidateVersion="${1}"
+
+    (( ${#candidateVersion} <= 64 )) || return 1
+    [[ "${candidateVersion}" =~ '^[0-9]+(\.[0-9]+){1,3}([-+][A-Za-z0-9.]+)?$' ]] && return 0
+    [[ "${candidateVersion}" =~ '^custom-[0-9a-f]{7}$' ]] && return 0
+    return 1
 
 }
 
@@ -9656,12 +10508,6 @@ function checkElectronCornerMask() {
         # Electron versions where the bug is fixed
         local fixedVersions=( "36.9.2" "37.6.0" "38.2.0" "39.0.0-alpha.7" )
 
-        # Known-safe Electron apps and their verified runtime versions
-        declare -A knownSafeElectronApps=(
-            ["Visual Studio Code.app"]="37.6.0"
-            ["Slack.app"]="38.2.0"
-        )
-
         local foundElectronApps=0
         local vulnerableApps=()
         local safeApps=()
@@ -9669,23 +10515,13 @@ function checkElectronCornerMask() {
 
         setopt null_glob
 
-        local appSearchRoots=(
-            /Applications
-            /Applications/Utilities
-            /Users/"${loggedInUser}"/Applications
-        )
         local frameworkPaths=(
             /Applications/*.app/Contents/Frameworks/Electron\ Framework.framework
             /Applications/Utilities/*.app/Contents/Frameworks/Electron\ Framework.framework
             /Users/"${loggedInUser}"/Applications/*.app/Contents/Frameworks/Electron\ Framework.framework
         )
-        local knownSafeElectronAppNames=(
-            "Visual Studio Code.app"
-            "Slack.app"
-        )
         local app=""
         local appName=""
-        local appSearchRoot=""
         local appVersion=""
         local frameworkPath=""
         local versionFile=""
@@ -9700,21 +10536,11 @@ function checkElectronCornerMask() {
         local fixed=""
         local vulnerable=""
 
-        for appName in "${knownSafeElectronAppNames[@]}"; do
-            appVersion="${knownSafeElectronApps[$appName]}"
-            for appSearchRoot in "${appSearchRoots[@]}"; do
-                app="${appSearchRoot}/${appName}"
-                if [[ -d "${app}" ]]; then
-                    ((foundElectronApps++))
-                    processedElectronApps["${app}"]=1
-                    safeApps+=("${appName} (${appVersion}) [known fixed]")
-                fi
-            done
-        done
-
         for frameworkPath in "${frameworkPaths[@]}"; do
             app="${frameworkPath:h:h:h}"
             [[ ! -d "${app}" ]] && continue
+            # Root reads files inside these bundles; never follow links a user could point elsewhere
+            [[ -L "${app}" || -L "${frameworkPath}" ]] && continue
             if [[ -n "${processedElectronApps[$app]}" ]]; then
                 continue
             fi
@@ -9740,10 +10566,9 @@ function checkElectronCornerMask() {
             versionTxt="${app}/Contents/Resources/app/version.txt"
             appInfoPlist="${app}/Contents/Info.plist"
 
-            if [[ -f "${versionFile}" ]]; then
-                appVersion="${$(<"${versionFile}")//$'\n'/}"
-                appVersion="${appVersion//$'\r'/}"
-                appVersion="${appVersion//$'\t'/}"
+            if [[ -f "${versionFile}" && ! -L "${versionFile}" ]]; then
+                appVersion="$( /usr/bin/head -c 64 -- "${versionFile}" 2>/dev/null )"
+                appVersion="${appVersion//[[:space:]]/}"
             elif [[ -f "${frameworkPlist}" ]]; then
                 appVersion=$(/usr/bin/plutil -extract CFBundleVersion raw -expect string "${frameworkPlist}" 2>/dev/null)
                 if [[ -z "${appVersion}" ]]; then
@@ -9759,20 +10584,26 @@ function checkElectronCornerMask() {
                     local commit=$(grep -Eo '"commit"[^,]*' "${productJson}" | awk -F'"' '{print $4}')
                     [[ -n "${commit}" ]] && appVersion="custom-${commit:0:7}"
                 fi
-            elif [[ -f "${versionTxt}" ]]; then
-                appVersion="${$(<"${versionTxt}")//$'\n'/}"
-                appVersion="${appVersion//$'\r'/}"
-                appVersion="${appVersion//$'\t'/}"
+            elif [[ -f "${versionTxt}" && ! -L "${versionTxt}" ]]; then
+                appVersion="$( /usr/bin/head -c 64 -- "${versionTxt}" 2>/dev/null )"
+                appVersion="${appVersion//[[:space:]]/}"
             fi
 
             appVersion="${appVersion#"${appVersion%%[![:space:]]*}"}"
             appVersion="${appVersion%"${appVersion##*[![:space:]]}"}"
 
+            # Accept only version-shaped values; hard links defeat `-L`, so content validation is what keeps
+            # root-only file contents out of the dialog, Inspect plist, log and report
+            if ! isElectronVersionString "${appVersion}"; then
+                appVersion="Unknown"
+            fi
+
             if [[ -z "${appVersion}" || "${appVersion}" == "Unknown" ]]; then
-                if [[ -f "${appInfoPlist}" ]]; then
+                if [[ -f "${appInfoPlist}" && ! -L "${appInfoPlist}" ]]; then
                     appVersion=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -expect string "${appInfoPlist}" 2>/dev/null)
                     appVersion="${appVersion#"${appVersion%%[![:space:]]*}"}"
                     appVersion="${appVersion%"${appVersion##*[![:space:]]}"}"
+                    isElectronVersionString "${appVersion}" || appVersion=""
                 fi
 
                 if [[ -z "${appVersion}" ]]; then
@@ -9816,6 +10647,7 @@ function checkElectronCornerMask() {
             footerStatusColor="${statusColorError}"
         else
             local safeList=$(printf '%s; ' "${safeApps[@]}")
+            safeList="${safeList%; }"
             dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: All Electron apps patched"
             info "${humanReadableCheckName}: All Electron apps are running patched versions — ${safeList}"
         fi
@@ -10063,10 +10895,10 @@ function updateComputerInventory() {
 
         if [[ -n "${inventoryEndUsername}" ]]; then
             notice "Including '-endUsername' in 'jamf recon' (source: ${inventoryEndUsernameSource}; value: ${inventoryEndUsername})"
-            inventoryCommand=( jamf recon -endUsername "${inventoryEndUsername}" )
+            inventoryCommand=( "${jamfBinary}" recon -endUsername "${inventoryEndUsername}" )
         else
             warning "NOT including '-endUsername' in 'jamf recon' since no SSO username is available for ${loggedInUser} (source: ${inventoryEndUsernameSource}; value: <empty>)"
-            inventoryCommand=( jamf recon )
+            inventoryCommand=( "${jamfBinary}" recon )
         fi
 
         inventoryCommandPreview="$( formatCommandForLog "${inventoryCommand[@]}" )"
@@ -10120,7 +10952,8 @@ if [[ "${operationMode}" == "Development" ]]; then
     developmentListitemJSON='
     [
         {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -10172,7 +11005,6 @@ if [[ "${targetedRecheckEligibilityStatus}" == "healthy" ]]; then
         quitOut "Replayed cached inspect summary."
         exit 0
     fi
-    info "Inspect Summary Replay: no eligible cached summary; running full health check."
 fi
 
 if [[ "${targetedRecheckMode}" != "true" ]]; then
@@ -10185,8 +11017,11 @@ completedCheckIndicesCsv=","
 
 echo "$combinedJSON" > "$dialogJSONFile"
 
-# Set Permissions on dialogJSONFile
-chmod 644 "${dialogJSONFile}"
+# Set Permissions on dialogJSONFile (root-owned 600 plus a read-only ACL for the console user)
+chmod 600 "${dialogJSONFile}"
+if [[ -n "${loggedInUser}" && "${loggedInUser}" != "root" ]] && id "${loggedInUser}" >/dev/null 2>&1; then
+    chmod +a "${loggedInUser} allow read" "${dialogJSONFile}" 2>/dev/null
+fi
 
 # Verify dialogJSONFile exists and is readable
 retryCount=0
@@ -10216,6 +11051,7 @@ if [[ "${operationMode}" != "Silent" ]]; then
     if [[ "${enableDockIntegration:l}" == "true" ]]; then
         dialogDockIcon=$(resolveDockIcon "${dockIcon}")
         dialogLaunchBinary=$(prepareDockNamedDialogApp)
+        [[ -d "${dialogDockNamedApp}" ]] && dialogDockNamedAppCreatedByRun="true"
         dialogLaunchArgs=( "${dialogBinaryDebugArgs[@]}" --jsonfile "${dialogJSONFile}" --showdockicon --dockicon "${dialogDockIcon}" )
         if (( remainingChecks > 0 )); then
             dialogLaunchArgs+=( --dockiconbadge "${remainingChecks}" )
@@ -10289,6 +11125,7 @@ if [[ "${operationMode}" == "Development" ]]; then
     # set -x
     checkClockSkew "0"
     checkMemoryPressure "1"
+    checkAPNs "2"
     # set +x
 
 else

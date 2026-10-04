@@ -1,59 +1,56 @@
 ---
 name: Deployment Flow
-description: Rules for deploying Mac-Health-Check via Jamf Pro, Self Service policies, LaunchDaemon, and packaging. Emphasizes version alignment, testing discipline, and safe release practices.
+description: Rules for releasing and deploying Mac-Health-Check via any MDM (Self Service policy or Silent script), the Client-Side Cache LaunchDaemon, and the packaging helpers in Resources/. Emphasizes version alignment, five-mode regression, and safe release practices.
 applyTo: "**/*.{zsh,md,yml,yaml}"
 ---
 
 # Deployment Flow Instructions
 
-**Priority Order**: 1. Version Alignment → 2. Testing & Regression → 3. Release Safety → 4. Failure Handling
+`AGENTS.md` takes precedence. When this file and `Mac-Health-Check.zsh` disagree, the script wins.
 
-## 1. Version Alignment (Non-Negotiable)
+**Priority Order**: 1. Version Alignment → 2. Five-Mode Regression → 3. Release Safety → 4. Failure Handling
 
-- `scriptVersion` variable inside `Mac-Health-Check.zsh` **must** exactly match the content of `VERSION.txt` before any release or deployment.
-- **If `scriptVersion` and `VERSION.txt` are not updated together**:
-  - **Halt the release process immediately.**
-  - Log a clear error: `"Version mismatch: scriptVersion and VERSION.txt are out of sync. Fix before proceeding."`
-  - Notify the responsible team (via comment or commit message).
-- Update `CHANGELOG.md` with every version change.
+## 1. Version Alignment
 
-## 2. Testing & Full Regression (Required After Any Change)
+- `scriptVersion` in `Mac-Health-Check.zsh` is the canonical version.
+- `VERSION.txt` is git-ignored and local-only (a release-helper marker); keep it equal to `scriptVersion` on your machine, but never expect it in a clone or commit it.
+- The top `CHANGELOG.md` entry must match `scriptVersion` and shipped behavior.
+- If `scriptVersion`, `VERSION.txt`, and `CHANGELOG.md` disagree, stop the release and fix them together. Updating `VERSION.txt` or preparing a release needs approval (see `AGENTS.md`).
+- A `scriptVersion` change makes the next `Self Service` run a full run (`version_mismatch`) instead of a targeted recheck, and makes `Silent` + production skip the cached-upload shortcut until the client-side copy matches.
 
-**Definition of "Full Regression"**:
-After any code change, you **must** validate the following in **both Self Service and Silent modes**:
+## 2. Five-Mode Regression
 
-1. Syntax check: `zsh -n Mac-Health-Check.zsh` (zero errors + review warnings)
-2. Development mode test: `./Mac-Health-Check.zsh --mode Development`
-3. Self Service mode: Full run with UI, verify all health checks complete successfully
-4. Silent mode: Full run with no UI, verify JSON report + Inspect Summary artifacts are generated correctly
-5. Cache replay test (if applicable): Confirm `inspectReplayMaximumAgeSeconds` behavior works as expected
-6. Error handling: Trigger at least one failure path and confirm graceful degradation + logging
+After any script or runtime change:
 
-**If testing in Development mode fails**:
-- Document the exact error
-- Fix the root cause
-- Re-run the full regression before proceeding
+1. `zsh -n Mac-Health-Check.zsh` (zero errors).
+2. `sudo zsh ./Mac-Health-Check.zsh "" "" "" "Development"` (Parameter 4 sets `operationMode`; there is no `--mode` flag). `Development` runs a curated subset only.
+3. Repeat with `Debug`, `Test`, `Silent`, and `Self Service`; review every mode the change touches.
+4. `Silent`: confirm the JSON report and Inspect assets are written and no swiftDialog UI appears. With `splunkOperationMode=production`, confirm reporting-first behavior.
+5. `Self Service`: confirm the main dialog, the detached Inspect Summary, and cached replay within `inspectReplayMaximumAgeSeconds` (900 s).
+6. Trigger at least one failing check and confirm a clear remediation subtitle and log line.
 
 ## 3. Release Safety Rules
 
-- Never modify `Resources/` without explicit approval.
-- Never leak Debug or Development mode behavior into production paths.
-- Always align `scriptVersion`, `VERSION.txt`, and `CHANGELOG.md` together.
-- Test on a clean macOS system (or VM) before promoting to production Jamf policy.
+- Deploy only `Self Service` or `Silent` to production; `Debug`, `Development`, and `Test` are for testing.
+- Never leak `Debug` or `Development` behavior into production paths.
+- Do not modify or rebuild `Resources/` artifacts without explicit approval.
+- The Client-Side Cache (`/Library/Management/<RDNN>/MHC.zsh` plus LaunchDaemon) installs only in `Self Service`, `Debug`, or `Silent` with `splunkOperationMode=production`, never in `Test` or `Development`, and only from a root-owned script path. The nightly copy defaults to `Silent`, skips `jamf recon`, and never sends webhook messages.
+- Test on a clean Mac or VM enrolled in the target MDM before promoting the policy.
 
-## 4. Error Handling During Deployment
+## 4. Failure Handling
 
-- **Version mismatch**: Halt release (see Section 1).
-- **Test failure**: Do not proceed to production. Fix, re-test, and document the resolution.
-- **Silent mode artifact failure**: Treat as critical — the JSON and Inspect plist must always be generated even if the main run encounters issues.
-- **LaunchDaemon or packaging issues**: Revert changes and notify the team.
+- **Version mismatch**: stop the release (Section 1).
+- **Regression failure**: do not promote; fix the root cause, rerun the five-mode regression, and note the fix in `CHANGELOG.md`.
+- **Silent Inspect asset failure**: the script logs a `warning` and continues; investigate it, but it does not fail the run. Report generation and (in production) HEC delivery decide `Silent` success.
+- **Client-Side Cache install failure**: the script logs a `warning` and continues the current run; check the log for the reason (untrusted path, failed `zsh -n`, missing `Silent` default, or leftover `jamf recon` text).
+- **Packaging issues** (`Resources/Makefile`, `createSelfExtracting.zsh`, `postInstall.zsh`): revert and verify against `Resources/README.md`.
 
-## 5. Post-Edit / Pre-Release Checklist
+## 5. Pre-Release Checklist
 
-- [ ] `scriptVersion` == content of `VERSION.txt`
-- [ ] Full regression passed in both Self Service and Silent modes
-- [ ] No Debug/Development strings or behavior in production code paths
-- [ ] `CHANGELOG.md` updated
-- [ ] Tested with `zsh -n` (zero errors)
+- [ ] `scriptVersion` == local `VERSION.txt` == top `CHANGELOG.md` entry
+- [ ] Five-mode regression passed (`Self Service`, `Silent`, `Debug`, `Development`, `Test`)
+- [ ] No `Debug`/`Development` defaults in production paths
+- [ ] `README.md` and `Diagrams/` match current behavior
+- [ ] `zsh -n` clean on every modified Zsh script
 
-**Reference**: See `AGENTS.md` for release checklist and `zsh-coding.instructions.md` for mode-specific rules.
+**Reference**: `AGENTS.md` for the release checklist; `zsh-coding.instructions.md` for mode rules.

@@ -167,7 +167,7 @@ Per-user settings and behavior checks. Some checks (e.g., `checkPasswordHint()`)
 | `checkAirDropSettings()` | AirDrop | Warns on "Everyone" setting |
 | `checkAirPlayReceiver()` | AirPlay Receiver | Warns if enabled without restriction |
 | `checkBluetoothSharing()` | Bluetooth Sharing | Warns if Bluetooth Sharing is enabled |
-| `checkPasswordHint()` | Password Hint | Warns if a password hint is set |
+| `checkPasswordHint()` | Password Hint | Warns if a password hint is set; not run on Jamf Pro or Kandji |
 | `checkVPN()` | VPN Client | Controlled by `vpnClientVendor`; skipped if `none` |
 | `checkUptime()` | Last Reboot | Warns/errors if uptime exceeds `allowedUptimeMinutes` (default: 10,080 min / 7 days) |
 
@@ -185,9 +185,9 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkMdmProfile()` | MDM Profile | Verifies MDM enrollment profile is present |
-| `checkEntraIDRegistration()` | Entra ID Registration | Jamf Pro and Development mode; detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
-| `checkAPNs()` | Apple Push Notification service | Validates APNs connectivity |
-| `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
+| `checkEntraIDRegistration()` | Entra ID Registration | Jamf Pro only; detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
+| `checkAPNs()` | Apple Push Notification service | Validates MDM responses, APNs activity and MDM identity |
+| `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Fails when the MDM certificate is missing or expired (no advance warning) |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
 | `checkJamfProInventory()` | Jamf Pro Inventory | Jamf Pro only |
 | `checkClockSkew()` | Clock Skew | Jamf Pro only; checks local clock offset against `time.apple.com` before inventory submission |
@@ -197,10 +197,10 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 Validates reachability to Apple infrastructure and (for Jamf Pro) Jamf Cloud hosts. `checkWiFiStrength()` measures current RSSI and assigns a simple quality rating, treating Wi-Fi-inactive or Ethernet-primary systems as a non-failure skip. `checkNetworkQuality()` runs a `networkQuality` speed test, caching results for up to `networkQualityTestMaximumAge` (default: 4 hours) to avoid repeated tests.
 
 ### Apps
-Application-specific checks. `checkAppAutoPatch()` validates the App Auto-Patch patching agent where included. `checkHomebrewStatus()` compares the installed Homebrew release and outdated package counts without auto-updating Homebrew metadata. `checkInternal()` validates the presence of MDM vendor–specific companion apps (for example Microsoft Teams, Fleet Desktop, Company Portal, or Self-Service.app). Current Kandji flow leans more heavily on `checkInternal()` companion-app validation and pairs it with `checkWiFiStrength()` instead of `checkAppAutoPatch()`, `checkHomebrewStatus()`, and `checkElectronCornerMask()`.
+Application-specific checks. `checkAppAutoPatch()` validates the App Auto-Patch patching agent where included, preferring root-written logs (the 4.x system log, then the 3.x log) and using the user-writable per-user log only when neither exists. `checkHomebrewStatus()` compares the installed Homebrew release and outdated package counts without auto-updating Homebrew metadata. `checkInternal()` validates the presence of MDM vendor–specific companion apps (for example Microsoft Teams, Fleet Desktop, Company Portal, or Self-Service.app). Current Kandji flow leans more heavily on `checkInternal()` companion-app validation and pairs it with `checkWiFiStrength()` instead of `checkAppAutoPatch()`, `checkHomebrewStatus()`, and `checkElectronCornerMask()`.
 
 ### External
-Optional plugin checks for third-party security tools. These require separate MDM policies from the `external-checks/` directory and use a shared defaults domain (`organizationDefaultsDomain`) to pass results to the main script. Available only in Jamf Pro deployments.
+Optional plugin checks for third-party security tools. These require separate Jamf Pro policies from the `external-checks/` directory. Most plugins print a keyword result (for example `Running`, `Failed` or `Not Running`) that the main script parses; only the Microsoft Defender and Tenable (Alternate) samples pass results through the shared defaults domain (`organizationDefaultsDomain`). Available only in Jamf Pro deployments.
 
 | Trigger | Tool | Required App |
 |---|---|---|
@@ -210,4 +210,4 @@ Optional plugin checks for third-party security tools. These require separate MD
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
 
 ### Inventory
-`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.2.0b6` runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
