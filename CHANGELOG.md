@@ -10,93 +10,88 @@
     - Removed the name-based `Visual Studio Code` / `Slack` "known fixed" allowlist; both now report their actual Electron framework version
     - Rotate the Splunk HEC token and webhook URL on any macOS 26 (or later) Mac that ran a 5.0.0 beta with the secrets file in place
 - **Security:** `checkExternalJamfPro()` now treats `Not Running` as a failure; previously it matched the `Running` success pattern, so stopped Zscaler, Nessus and Splunk forwarder agents were reported as healthy
+    - Each external-check `jamf policy -event` call is now limited to `externalCheckTimeoutSeconds` (default `120`) and reports `Timed Out` instead of stalling the run
     - Sample external checks now print `Failed: Not Running` (Zscaler, Nessus, Splunk Universal Forwarder; `Nessus Agent Status.sh` no longer treats `not running` as `running` and reports `Not Installed` when the agent is absent), `Failed: …` / `Running` (Printer, Microsoft Office 365), and use `#!/bin/bash` instead of `#!/usr/bin/env bash`
     - `TenableNessusAgent-Alternate.sh` no longer lets `Running: Yes` overwrite an authentication-error or not-linked result, and reports `Not Running` (fail) when the agent is installed but stopped
-    - `CrowdStrike Falcon Status.bash` restores `AppleLocale` when it is terminated, not only on normal exit
-    - Each external-check `jamf policy -event` call is now limited to `externalCheckTimeoutSeconds` (default `120`) and reports `Timed Out` instead of stalling the run
-- **Security:** user-writable logs can no longer make update checks look healthy
-    - `checkAppAutoPatch()` prefers root-written logs (4.x system log, then the 3.x log) and reads the per-user `~/Library/Logs/AppAutoPatch/aap.log` only when neither exists (logged as user-reported), and ignores `Discovery complete` timestamps more than five minutes in the future
+    - `CrowdStrike Falcon Status.bash` (`0.0.16`) now restores (or removes) the system and root `AppleLocale` values on exit or termination instead of permanently setting `en_US`; locales changed by earlier versions are not restored automatically
+    - `Microsoft Defender Check.sh` (`0.0.3`) now calls `mdatp` from `/Applications/Microsoft Defender.app/Contents/Resources/Tools/mdatp` instead of user-writable `/usr/local/bin/mdatp`
+    - Removed `/usr/local/bin` from `PATH` in the BeyondTrust (`0.0.5`), Cisco Umbrella (`0.0.8`), CrowdStrike Falcon, GlobalProtect (`0.0.4`), Nessus Agent, Splunk Universal Forwarder and Zscaler Tunnel external checks
+- **Security:** user-writable logs can no longer make health checks look healthy
+    - `checkAppAutoPatch()` now supports App Auto-Patch `4.0.0`, preferring root-written logs (4.x `/Library/Application Support/AppAutoPatch/logs/aap.log`, then 3.x `/Library/Management/AppAutoPatch/logs/aap.log`) and reading the per-user `~/Library/Logs/AppAutoPatch/aap.log` only when neither exists (logged as user-reported); uses the newest `Discovery complete` timestamp, ignores timestamps more than five minutes in the future, and reports `Unable to determine last run` when a 4.x log has no `Discovery complete` entry
     - `checkAvailableSoftwareUpdates()` reads DDM enforcement from the root-written `/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist` (`TargetOSVersion` / `TargetLocalDateTime`; highest declared version wins), falling back to the `install.log` resolver (and its padded-date lookup) only when the plist is missing, untrusted or unrecognized; logs `DDM Resolver: source=statePlist`
     - `checkAPNs()` only counts log entries from processes under `/System/` or `/usr/libexec/`
-- **Security:** defense in depth
-    - swiftDialog command and JSON files are now root-owned `600` with a read-only ACL for the console user (previously world-readable `644`)
+- **Security:** reporting secrets now fail closed
+    - Added an optional root-only secrets file, `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (`splunkHECToken`, `webhookURL`; `root:wheel` mode `600`), which keeps those secrets out of the process list; each run logs the secret source
+    - A Splunk HEC token or webhook URL supplied only through Parameters 8 or 5 is rejected and logged as `[ERROR]` (Splunk HEC delivery and webhook messages are skipped); `Silent` + `splunkOperationMode=production` runs whose only HEC token is a rejected Parameter 8 value exit `1` before discovery
+    - Source-level `allowParameterSecrets="true"` is a temporary, not-recommended legacy opt-in that accepts parameter secrets with a process-list `[WARNING]`
+    - Corrected the README claim that parameters never appear in the process list
+- **Security:** report delivery
     - Splunk HEC and webhook `curl` calls use `--proto =https --tlsv1.2`; non-`https://` URLs are refused and logged
-    - `Silent` + `splunkOperationMode=production` runs whose only HEC token is a rejected Parameter 8 value now exit `1` before discovery (previously after a full run with the same exit code)
-- Client-Side Cache now installs or refreshes the client-side copy before the cached-upload shortcut, so content changes reach the nightly LaunchDaemon copy even without a `scriptVersion` bump, and refuses to install a sanitized copy that fails `zsh -n` or lacks the `Silent` default
-- Cached-upload runs skip the two whole-disk `mdfind` queries and `system_profiler` (their values are only logged by full runs)
-- `killProcess()` now matches exact process names (`pgrep -x`) and terminates every matching PID (previously two or more PIDs caused `illegal pid` and nothing was killed)
-- Cleanup removes only this run's swiftDialog command and JSON files, removes the Dock-named swiftDialog copy only when this run created it, and leaves `/var/tmp/dialog.log` in place for `Silent`, so a `Silent` run no longer deletes a concurrent `Self Service` run's files
-- An empty `dialogcli --version` no longer passes the swiftDialog minimum-version gate or the latest-production-release shortcut
-- The nightly Client-Side Cache LaunchDaemon run no longer sends Microsoft Teams / Slack webhook messages (it refreshes the cached report only)
-- `ipconfig setverbose` is enabled only when it was off and restored only when this run changed it
-- Fixed dark-mode detection for console usernames containing spaces, and replaced the undefined `result` call in `checkOS()` with a warning
-- Documented that the Dock-named swiftDialog copy is re-signed ad hoc (Team ID dropped); set `enableDockIntegration="false"` where PPPC or notification profiles key on swiftDialog's Team ID
-- `Resources/Makefile` stages packages under the per-user `$TMPDIR` and refuses a staging directory it does not own
-- `5.0.0b8` reports do not match the `5.0.0` script version, so the first `5.0.0` `Self Service` run on each Mac is a full run
-- Agent Experience: `build-artifact.zsh` refuses a source script that is world-writable or owned by neither the current user nor root, and its new check 5d confirms the sanitized Client-Side Cache copy keeps the `Silent` default; `references/health-checks.md` documents the `Not Running` and timeout behavior and the three-check `Development` subset; `AGENTS.md` treats `scriptVersion` as canonical (`VERSION.txt` is git-ignored) and replaces the health-check template with a real single-argument `dialogUpdate` pattern; `.github` Copilot agents and instructions rewritten for Mac Health Check (`reminder-*` files renamed to `inspect-*`)
-- Documentation: README, `Diagrams/`, `Resources/`, `SECURITY.md`, `CONTRIBUTING.md` and issue templates refreshed for `5.0.0` (check counts per MDM, three-check `Development` subset, Client-Side Cache install order, report fields)
-
-### 5.0.0b8 (02-Oct-2026)
-- Nightly Client-Side Cache `Silent` reports now serve as targeted-recheck and cached-replay baselines for `Self Service`; check-set validation ignores `Computer Inventory` (which the sanitized client-side copy omits), targeted merges append the rechecked `Computer Inventory` result, and its absence from the base no longer counts as a status change for webhook messages, preventing a full run (and `[WARNING] Targeted Recheck: report check set does not match …`) after every nightly refresh
-- `Microsoft OneDrive Sync Date` now uses the local date instead of UTC, preventing evening runs from reporting tomorrow's date (affects the quit summary, help message, Inspect and the Splunk `oneDriveSyncDate` value)
+    - Slack and Microsoft Teams webhook messages now use a shared `sendWebhookPayload()` sender matching the Splunk HEC pattern (`--fail-with-body`, `--max-time 15`, HTTP status capture, up to three attempts with backoff for HTTP `5xx` or `000` only); rejected deliveries log a `[WARNING]` with the HTTP status and a short response excerpt instead of only the `curl` exit code; webhook failures do not change report status or exit codes
+    - Parameter 6 `splunkOperationMode` now fails safe: only `off`, `test` or `production` (case-insensitive) are accepted, and any unrecognized value falls back to `test` with an `[ERROR]` log entry instead of silently enabling production Splunk HEC delivery
+    - `Test` and `Development` runs now write `MacHealthCheck-Report-<mode>.json` instead of the canonical report, skip Splunk HEC delivery and never install the Client-Side Cache copy; cached uploads and targeted rechecks reject canonical reports whose `metadata.operationMode` is not `Self Service` or `Silent`
+- **Security:** runtime state moved off world-writable `/var/tmp`
+    - Canonical report and lock, SOFA and `networkQuality` caches now live in root-owned `organizationDirectory`; cached reports are trusted only when they are root-owned regular files
+    - User-facing Inspect assets (config and compliance plist) now live in a root-owned `0755` tree at `/Library/Application Support/${reverseDomainNameNotation}/Inspect`, with per-user control files under `Inspect/Users/<user>`; the canonical report, secrets and caches remain root-only in `organizationDirectory`
+    - Root-owned, non-symlink pre-`5.0.0` `/var/tmp` leftovers and 5.0.0-beta Inspect leftovers in `organizationDirectory` are removed automatically
+    - swiftDialog command and JSON files are now root-owned `600` with a read-only ACL for the console user (previously world-readable `644`)
+    - The `/var/tmp/MacHealthCheck-Force-Fresh-Run` trigger is honored only when root-owned; triggers created by other users are ignored, logged and removed
+- **Security:** hardened code based on Monocle findings
+    - Removed `/usr/local/bin` from the script and LaunchDaemon `PATH`; swiftDialog now runs from `Dialog.app/Contents/MacOS/dialogcli`, Jamf Pro from `/usr/local/jamf/bin/jamf`, and `jq` from `/usr/bin/jq` or a root-owned install only (user-owned Homebrew `jq` is rejected)
+    - Refactored `Resources/createSelfExtracting.zsh` so generated wrappers decode into a root-only `mktemp -d` directory, run `/bin/zsh --no-rcs` with all forwarded arguments (Jamf Pro Parameters 1-11) and remove the copy on exit, replacing the fixed, pre-plantable `/var/tmp/MHC.zsh` path; removed the `--target` option
+    - `Resources/Makefile` now installs the package payload to root-owned `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` instead of user-writable `/usr/local/bin/Mac-Health-Check`, stages packages under the per-user `$TMPDIR` and refuses a staging directory it does not own; `Resources/postInstall.zsh` runs the payload with `/bin/zsh --no-rcs` in `Self Service` mode
+    - Pinned Semgrep to `1.177.0` in `.github/workflows/security-scan.yml`
+- Client-Side Cache
+    - `installClientSideScript()` copies the running script into the root LaunchDaemon's path only when it is a root-owned file whose parent directories are root-owned and not group- or world-writable (new `isTrustedRootPath()`), and refuses to install a sanitized copy that fails `zsh -n` or lacks the `Silent` default
+    - Installs or refreshes the client-side copy before the cached-upload shortcut, so content changes reach the nightly LaunchDaemon copy even without a `scriptVersion` bump
+    - The nightly LaunchDaemon run no longer sends Microsoft Teams / Slack webhook messages (it refreshes the cached report only)
+    - Cached-upload runs skip the two whole-disk `mdfind` queries and `system_profiler` (their values are only logged by full runs)
+- Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails; Jamf Pro targeted rechecks also run `Computer Inventory`, and targeted webhook messages are sent only when a rechecked status changes
+    - Nightly Client-Side Cache `Silent` reports also serve as targeted-recheck and cached-replay baselines: check-set validation ignores `Computer Inventory` (which the sanitized client-side copy omits), targeted merges append the rechecked `Computer Inventory` result, and its absence from the base does not count as a status change for webhook messages
+- Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
+- Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
 - `checkAPNs()` now also reads `apsd` courier connections and incoming-message acknowledgements (thanks, [Der Flounder](https://derflounder.wordpress.com/2026/08/29/checking-apns-communication-on-macos-tahoe/)!) in a single `log show` query; the ManagedClient `Received HTTP response (200)` match remains the MDM success evidence because `apsd` redacts push topics as `<private>`
     - APNs activity without an MDM response in the last 24 hours now reports `APNs active; no MDM response` as a warning (previously `Failed`)
     - MDM identity error `-25304` newer than the last MDM response now reports `MDM identity error` as a failure
     - Logs the last APNs activity, last MDM response and courier connection-failure count
     - Added to the curated `Development` subset
-- `checkWiFiStrength()` now logs `Fair` results as `[WARNING]` and `Poor` results as `[ERROR]`, matching their list-item statuses; statuses and report values are unchanged
-- SOFA cache refreshes now revalidate a stale feed with its stored ETag (HTTP `304` refreshes the cache age) instead of deleting the cache first, keep the stale feed when a download fails, and allow `10` seconds (previously `3`) for the initial download
-- Polished log output
-    - swiftDialog older than `swiftDialogMinimumRequiredVersion` (when no newer production release exists) now logs `[WARNING]` instead of `[PRE-FLIGHT]`
-    - Inspect Summary Replay logs one specific reason when falling back to a full run (removed the generic `no eligible cached summary` line)
-    - Removed the trailing space from `Run "…" as "<UID>" …` log lines
-    - Client-Side Cache logs `generated LaunchDaemon plist validated` only when an install proceeds
-- `5.0.0b7` reports do not match the `5.0.0b8` script version, so the first `5.0.0b8` `Self Service` run on each Mac is a full run
-- Agent Experience: `mac-health-check-selector` now asks, after the selection is confirmed, whether to remove other MDMs' code from the artifact (default `no`); `build-artifact.zsh --prune-other-mdms` removes every other MDM's list-item array, its branches in each vendor `case` block (including `serverURL` detection), and unreferenced vendor-only functions (`checkJamfProCheckIn`, `checkJamfProInventory`, `checkExternalJamfPro`, `updateComputerInventory`, `jamfHosts`, `checkMosyleCheckIn`), keeps the generic fallback, and validates the result with new checks 4b and 4c; unpruned artifacts are unchanged
-
-### 5.0.0b7 (01-Oct-2026)
-- `checkJamfProCheckIn()` now counts `startup`, `login` and `networkStateChange` triggers alongside `recurring check-in`, preventing false warnings on Macs powered off overnight, and parses `jamf.log` timestamps with the current year (falling back to the prior year for future dates), preventing false successes across the December-to-January rollover
-- `checkAppAutoPatch()` now supports App Auto-Patch `4.0.0`, reading `/Library/Application Support/AppAutoPatch/logs/aap.log` (plus the per-user `~/Library/Logs/AppAutoPatch/aap.log` fallback) and using the newest `Discovery complete` timestamp; falls back to the 3.x `/Library/Management/AppAutoPatch/logs/aap.log`, and reports `Unable to determine last run` when a 4.0.0 log has no `Discovery complete` entry
-- Polished health-check log output; check results, statustext and report values are unchanged
-    - Leading zero on user-directory disk percentages (i.e., `0.06% of disk`)
-    - Rounded Network Quality responsiveness and removed the trailing `; `
-    - Singular / plural Memory Pressure day counts
-    - `Warning: ` / `Error: ` spacing in `checkExternalJamfPro()`
-    - `; ` separator between Time Machine destinations and backup dates
-    - Removed trailing `; ` from `checkNetworkHosts()` and `checkElectronCornerMask()` logs
-- `checkHomebrewStatus()` now logs its warning-level results as `[WARNING]` instead of `[ERROR]`
-- Client-Side Cache now logs `evaluating` (instead of `installing`) before checking whether the cached copy is current
-- DDM Resolver logs now explain non-zero resolver exits and show `build=unavailable` instead of `(null)`
-
-### 5.0.0b6 (30-Sep-2026)
-- Fixed the detached Preset 6 Inspect summary never displaying in `Self Service`: `/Library/Management` can be `0700` root, which blocked the logged-in user from reading the Inspect config and compliance plist and from writing the launch log, while the script still logged a successful launch
-    - Moved user-facing Inspect assets to a root-owned `0755` tree at `/Library/Application Support/${reverseDomainNameNotation}/Inspect` (config and compliance plist) with per-user control files under `Inspect/Users/<user>`; the canonical report, secrets and caches remain root-only in `organizationDirectory`
-    - Removes root-owned 5.0.0-beta Inspect leftovers from `organizationDirectory`
 - Raised the minimum required swiftDialog version to `3.1.1.4997`
     - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4997`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
-- Added warning-only Memory Pressure history for full health-check runs, nightly Silent refreshes, and targeted memory-pressure rechecks, with a root-only 14-day JSON Lines history and a two-distinct-day pattern threshold over seven days; cached uploads and replay retain their original observations
-- Added targeted `Self Service` remediation verification for Issue #103: valid non-healthy reports with a full-run baseline under 36 hours now rerun only affected stable check keys, merge results into the canonical full-state report with per-check timestamps, and fall back safely to a full run when validation fails; Jamf Pro targeted rechecks also run `Computer Inventory`, and targeted webhook messages are sent only when a rechecked status changes
-- Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
-- Fixed `Battery Cycle Count` reporting `=` on macOS 27, where `ioreg` prefixes the `CycleCount` line with a tree marker
-- Suppressed `mdmclient AvailableOSUpdates` stderr, which macOS 27 rejects as an unrecognized command, so `Silent` production logs no longer capture the `mdmclient` usage banner
-- The detached Preset 6 Inspect summary now sets `DIALOG_DEBUG=1` only in `Debug` mode
-- Added `checkClockSkew()` to Jamf Pro runs to detect local clock offset against `time.apple.com` before inventory submission and flag skew above 5 minutes
-- Introduced a dedicated AI Skill to assist Mac Admins with custom deployment
-- Hardened code based on Monocle findings
-    - Refactored `Resources/createSelfExtracting.zsh` so generated wrappers decode into a root-only `mktemp -d` directory, run `/bin/zsh --no-rcs` with all forwarded arguments (Jamf Pro Parameters 1-11) and remove the copy on exit, replacing the fixed, pre-plantable `/var/tmp/MHC.zsh` path; removed the `--target` option
-    - `installClientSideScript()` now copies the running script into the root LaunchDaemon's path only when it is a root-owned file whose parent directories are root-owned and not group- or world-writable (new `isTrustedRootPath()`)
-    - Added an optional root-only secrets file, `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (`splunkHECToken`, `webhookURL`; `root:wheel` mode `600`), which takes precedence over Parameters 5 and 8 so those secrets can stay out of the process list; each run logs the secret source and warns when parameters are used; corrected the README claim that parameters never appear in the process list
-    - `Test` and `Development` runs now write `MacHealthCheck-Report-<mode>.json` instead of the canonical report, skip Splunk HEC delivery and never install the Client-Side Cache copy; cached uploads and targeted rechecks reject canonical reports whose `metadata.operationMode` is not `Self Service` or `Silent`
-    - Removed `/usr/local/bin` from the script and LaunchDaemon `PATH`; swiftDialog now runs from `Dialog.app/Contents/MacOS/dialogcli`, Jamf Pro from `/usr/local/jamf/bin/jamf`, and `jq` from `/usr/bin/jq` or a root-owned install only (user-owned Homebrew `jq` is rejected)
-    - Parameter 6 `splunkOperationMode` now fails safe: only `off`, `test` or `production` (case-insensitive) are accepted, and any unrecognized value falls back to `test` with an `[ERROR]` log entry instead of silently enabling production Splunk HEC delivery
-    - The `/var/tmp/MacHealthCheck-Force-Fresh-Run` trigger is honored only when root-owned; triggers created by other users are ignored, logged and removed
-    - `CrowdStrike Falcon Status.bash` (`0.0.14`) now restores (or removes) the system and root `AppleLocale` values on exit instead of permanently setting `en_US`; locales changed by earlier versions are not restored automatically
-    - Pinned Semgrep to `1.177.0` in `.github/workflows/security-scan.yml`
-    - Reporting secrets now fail closed: a Splunk HEC token or webhook URL supplied only through Parameters 8 or 5 is rejected and logged as `[ERROR]` (Splunk HEC delivery and webhook messages are skipped, so `Silent` + `splunkOperationMode=production` exits `1`); deploy `MacHealthCheck-Secrets.plist` instead, or set the new source-level `allowParameterSecrets="true"` as a temporary, not-recommended legacy opt-in
-    - `Resources/Makefile` now installs the package payload to root-owned `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` instead of user-writable `/usr/local/bin/Mac-Health-Check`, and `Resources/postInstall.zsh` runs it with `/bin/zsh --no-rcs` in `Self Service` mode
-    - Removed `/usr/local/bin` from `PATH` in the BeyondTrust (`0.0.5`), Cisco Umbrella (`0.0.8`), CrowdStrike Falcon (`0.0.15`), GlobalProtect (`0.0.4`), Nessus Agent, Splunk Universal Forwarder and Zscaler Tunnel external checks
-    - Slack and Microsoft Teams webhook messages now use a shared `sendWebhookPayload()` sender matching the Splunk HEC pattern (`--fail-with-body`, `--max-time 15`, HTTP status capture, up to three attempts with backoff for HTTP `5xx` or `000` only); rejected deliveries log a `[WARNING]` with the HTTP status and a short response excerpt instead of only the `curl` exit code; webhook failures do not change report status or exit codes
-    - `Microsoft Defender Check.sh` (`0.0.3`) now calls `mdatp` from `/Applications/Microsoft Defender.app/Contents/Resources/Tools/mdatp` instead of user-writable `/usr/local/bin/mdatp`
+    - An empty `dialogcli --version` no longer passes the swiftDialog minimum-version gate or the latest-production-release shortcut
+    - The detached Preset 6 Inspect summary now sets `DIALOG_DEBUG=1` only in `Debug` mode
+    - Documented that the Dock-named swiftDialog copy is re-signed ad hoc (Team ID dropped); set `enableDockIntegration="false"` where PPPC or notification profiles key on swiftDialog's Team ID
+- macOS 27 compatibility
+    - Refactored `checkAirPlayReceiver()` to recognize macOS 27's new missing-key response and enabled-by-default behavior, preventing `Status Unknown` results when AirPlay Receiver preferences are absent
+    - Fixed `Battery Cycle Count` reporting `=` on macOS 27, where `ioreg` prefixes the `CycleCount` line with a tree marker
+    - Suppressed `mdmclient AvailableOSUpdates` stderr, which macOS 27 rejects as an unrecognized command, so `Silent` production logs no longer capture the `mdmclient` usage banner
+- `checkJamfProCheckIn()` now counts `startup`, `login` and `networkStateChange` triggers alongside `recurring check-in`, preventing false warnings on Macs powered off overnight, and parses `jamf.log` timestamps with the current year (falling back to the prior year for future dates), preventing false successes across the December-to-January rollover
+- `Microsoft OneDrive Sync Date` now uses the local date instead of UTC, preventing evening runs from reporting tomorrow's date (affects the quit summary, help message, Inspect and the Splunk `oneDriveSyncDate` value)
+- SOFA cache refreshes now revalidate a stale feed with its stored ETag (HTTP `304` refreshes the cache age) instead of deleting the cache first, keep the stale feed when a download fails, and allow `10` seconds (previously `3`) for the initial download
+- `killProcess()` now matches exact process names (`pgrep -x`) and terminates every matching PID (previously two or more PIDs caused `illegal pid` and nothing was killed)
+- Cleanup removes only this run's swiftDialog command and JSON files, removes the Dock-named swiftDialog copy only when this run created it, and leaves `/var/tmp/dialog.log` in place for `Silent`, so a `Silent` run no longer deletes a concurrent `Self Service` run's files
+- `ipconfig setverbose` is enabled only when it was off and restored only when this run changed it
+- Fixed dark-mode detection for console usernames containing spaces, and replaced the undefined `result` call in `checkOS()` with a warning
+- Polished log output; check results, statustext and report values are unchanged
+    - `checkWiFiStrength()` logs `Fair` results as `[WARNING]` and `Poor` results as `[ERROR]`, matching their list-item statuses
+    - `checkHomebrewStatus()` logs its warning-level results as `[WARNING]` instead of `[ERROR]`
+    - swiftDialog older than `swiftDialogMinimumRequiredVersion` (when no newer production release exists) logs `[WARNING]` instead of `[PRE-FLIGHT]`
+    - Leading zero on user-directory disk percentages (i.e., `0.06% of disk`)
+    - Rounded Network Quality responsiveness and removed the trailing `; `
+    - `Warning: ` / `Error: ` spacing in `checkExternalJamfPro()`
+    - `; ` separator between Time Machine destinations and backup dates
+    - Removed trailing `; ` from `checkNetworkHosts()` and `checkElectronCornerMask()` logs, and the trailing space from `Run "…" as "<UID>" …` lines
+    - DDM Resolver logs explain non-zero resolver exits and show `build=unavailable` instead of `(null)`
+    - Inspect Summary Replay logs one specific reason when falling back to a full run (removed the generic `no eligible cached summary` line)
+    - Client-Side Cache logs `evaluating` (instead of `installing`) before checking whether the cached copy is current, and logs `generated LaunchDaemon plist validated` only when an install proceeds
+- Reports from earlier versions (including 5.0.0 betas) do not match the `5.0.0` script version, so the first `5.0.0` `Self Service` run on each Mac is a full run
+- Agent Experience
+    - Introduced the `mac-health-check-selector` AI Skill to assist Mac Admins with custom deployment; after the selection is confirmed, it asks whether to remove other MDMs' code from the artifact (default `no`)
+    - `build-artifact.zsh --prune-other-mdms` removes every other MDM's list-item array, its branches in each vendor `case` block (including `serverURL` detection), and unreferenced vendor-only functions (`checkJamfProCheckIn`, `checkJamfProInventory`, `checkExternalJamfPro`, `updateComputerInventory`, `jamfHosts`, `checkMosyleCheckIn`), keeps the generic fallback, and validates the result with checks 4b and 4c
+    - `build-artifact.zsh` refuses a source script that is world-writable or owned by neither the current user nor root, and check 5d confirms the sanitized Client-Side Cache copy keeps the `Silent` default
+    - `references/health-checks.md` documents the `Not Running` and timeout behavior and the three-check `Development` subset
+    - `AGENTS.md` treats `scriptVersion` as canonical (`VERSION.txt` is git-ignored) and replaces the health-check template with a real single-argument `dialogUpdate` pattern
+    - `.github` Copilot agents and instructions rewritten for Mac Health Check (`reminder-*` files renamed to `inspect-*`)
+- Documentation: README, `Diagrams/`, `Resources/`, `SECURITY.md`, `CONTRIBUTING.md` and issue templates refreshed for `5.0.0` (check counts per MDM, three-check `Development` subset, Client-Side Cache install order, report fields)
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27
