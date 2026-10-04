@@ -1,14 +1,14 @@
-# Mac Health Check Documentation Diagrams (4.0.0)
+# Mac Health Check Documentation Diagrams (5.0.0)
 
 ## Overview
 
-This directory contains Mermaid-based diagrams aligned to the `4.0.0` release of [Mac Health Check](https://snelson.us/mhc). The diagrams render automatically on GitHub and cover the current deployment, runtime, operation-mode, and health-check behavior documented by the script, README, and changelog.
+This directory contains Mermaid-based diagrams aligned to the `5.0.0` release of [Mac Health Check](https://snelson.us/mhc). The diagrams render automatically on GitHub and cover the current deployment, runtime, operation-mode, and health-check behavior documented by the script, README, and changelog.
 
 Keep these files in sync with `Mac-Health-Check.zsh`, `README.md`, and `CHANGELOG.md` whenever the check inventory, operation modes, Dock behavior, or user-facing flow changes.
 
 ---
 
-## Six Available Diagrams
+## Five Diagrams and One Text Reference
 
 | File | Title | Description |
 |---|---|---|
@@ -39,19 +39,19 @@ Mermaid diagrams render automatically when viewing `.md` files on GitHub. No set
 
 ## Exporting to PNG or SVG
 
-Use the [Mermaid CLI](https://github.com/mermaid-js/mermaid-cli) for high-resolution exports:
+Use the [Mermaid CLI](https://github.com/mermaid-js/mermaid-cli) for high-resolution exports. With a Markdown input, `mmdc` extracts each `mermaid` block and appends a sequence number to the output name, so `-o 01-system-architecture.png` writes `01-system-architecture-1.png`. Recent releases (for example `12.0.0`) no longer accept `-w`; use `-s` (scale) or `--size` instead.
 
 ```bash
 # Install Mermaid CLI
 npm install -g @mermaid-js/mermaid-cli
 
-# Export a diagram to PNG (standard, for blog posts / documentation)
-mmdc -i 01-system-architecture.md -o 01-system-architecture.png -w 1200
+# Export a diagram to PNG (standard, for blog posts / documentation) → 01-system-architecture-1.png
+mmdc -i 01-system-architecture.md -o 01-system-architecture.png
 
-# Export a diagram to PNG (high-resolution, for presentations)
-mmdc -i 01-system-architecture.md -o 01-system-architecture.png -w 3840
+# Export a diagram to PNG (high-resolution, for presentations) → 01-system-architecture-1.png
+mmdc -i 01-system-architecture.md -o 01-system-architecture.png -s 3
 
-# Export a diagram to SVG (vector, ideal for documentation sites)
+# Export a diagram to SVG (vector, ideal for documentation sites) → 01-system-architecture-1.svg
 mmdc -i 01-system-architecture.md -o 01-system-architecture.svg
 ```
 

@@ -1,4 +1,4 @@
-# Mac Health Check Splunk Dashboard Reference (4.0.0)
+# Mac Health Check Splunk Dashboard Reference (5.0.0)
 
 > <img src="../images/MHC_4_Splunk_Dashboard.png" alt="Splunk Dashboard" width="800"/>
 >
@@ -237,6 +237,26 @@ Recommended import flow:
 5. Save dashboard.
 
 If your environment wraps payload differently, update searches before save. Current JSON assumes those fields already search-extract correctly.
+
+## Report Fields
+
+Mac Health Check posts `{"sourcetype": ..., "index": ..., "event": <report>}` to HEC; `sourcetype` and `index` are included only when Parameters 10 and 9 are set. The `5.0.0` report (`event`) contains:
+
+| Object | Fields |
+| --- | --- |
+| `metadata` | `scriptVersion`, `timestamp`, `timestampEpoch`, `runScope` (`full` or `targeted`), `fullRunTimestamp`, `fullRunTimestampEpoch`, `baseReportTimestamp`, `targetedCheckKeys`, `hostname`, `localHostName`, `serialNumber`, `hardwareUUID`, `operationMode`, `reportingMode`, `jsonTool` |
+| `summary` | `overallStatus` (`healthy`, `warning`, `fail` or `error`), `healthyCount`, `warningCount`, `failCount`, `errorCount`, `recheckedCount`, `elapsedSeconds`, `warningChecks`, `failedChecks`, `reportingErrors` |
+| `systemInfo` | `computerName`, `computerModel`, `macOSVersion`, `macOSBuild`, `systemMemory`, `systemStorage`, `totalDiskBytes`, `freeDiskSpace`, `lastReboot`, `sipStatus`, `signedSystemVolumeStatus`, `firewallStatus`, `fileVaultStatus`, `ssid`, `activeIPAddress`, `vpnStatus`, `networkTimeServer`, `locationServicesStatus`, `bootstrapTokenStatus`, `sshStatus`, `oneDriveSyncDate`, `apnsStatus` |
+| `mdm` | `vendor`, `enrollmentStatus`, `serverURL`, `profileResult`, `profileUUID`, `profileIdentifier`, `certificateExpiration`, `lastCheckIn` (Jamf Pro and Mosyle), `lastInventory` (Jamf Pro), `jamfProID`, `jamfProSiteName` |
+| `identity.entraIDRegistration` | `status`, `method`, `lastUser`, `lastUserHome`, `details` |
+| `checks[]` | `index`, `key`, `name`, `status`, `message`, `rawValue`, `remediation`, `checkedAt`, `checkedAtEpoch` |
+
+Check keys are the list-item title in lowercase snake case (for example, `filevault_encryption`); each run of non-alphanumeric characters collapses only pairwise, so `Gatekeeper / XProtect` becomes `gatekeeper__xprotect` (double underscore) and `User's Desktop Size` becomes `user_s_desktop_size`; `Memory Pressure` uses `memoryPressure`, and MDM-named checks include the vendor (for example, `jamf_pro_mdm_profile`). Check `status` is `healthy`, `warning`, `fail` or `error`. If report generation fails validation, a fallback report carries only core `metadata`, an `error` summary with `reportingErrors`, `identity`, and empty `systemInfo`, `mdm` and `checks`.
+
+Timing notes:
+
+- The HEC wrapper has no `time` field, so `_time` is when Splunk received the event, not when checks ran. Cached uploads resend a report up to 36 hours old, so use `metadata.timestampEpoch` (report written) or `metadata.fullRunTimestampEpoch` (last full run) when age matters. The shipped dashboard searches still dedup on `sort 0 - _time`; replace that with `sort 0 - metadata.timestampEpoch` if cached uploads make the latest-received event older than another report from the same Mac.
+- `runScope=targeted` reports merge a `Self Service` recheck into the previous full report: rechecked entries in `checks[]` carry new `checkedAt` values while the others keep their original ones, and `fullRunTimestamp` stays at the underlying full run. Compare `checks{}.checkedAtEpoch` when per-check freshness matters.
 
 ## Key Names Used
 

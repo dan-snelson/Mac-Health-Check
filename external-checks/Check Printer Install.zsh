@@ -1,10 +1,10 @@
-#!/bin/zsh
+#!/bin/zsh --no-rcs
 
 #####################################################################################
 #
 # Printer Validation
 # for
-# Setup Your Mac via swiftDialog
+# Mac Health Check
 #
 ####################################################################################
 #
@@ -16,6 +16,10 @@
 #   Version 0.0.2, 25-Apr-2023, @drtaru
 #   - Changed success result to Installed to map to new SYM validation status
 #
+#   Version 0.0.3, 04-Oct-2026, Dan K. Snelson (@dan-snelson)
+#   - Prints `Failed: …` / `Running` so Mac Health Check's `checkExternalJamfPro` parser maps results correctly
+#   - Runs with `--no-rcs` and a fixed system `PATH` (no inherited or user-writable `PATH` entries)
+#
 ####################################################################################
 # A script to find printers with lpstat and build an array
 #
@@ -26,6 +30,7 @@
 #
 ####################################################################################
 
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 foundPrinters=($(lpstat -p 2>/dev/null | awk '{print $2}' | sed '/^$/d'))
 
@@ -36,7 +41,7 @@ foundPrinters=($(lpstat -p 2>/dev/null | awk '{print $2}' | sed '/^$/d'))
 
 
 if [[ ! " ${foundPrinters[*]} " =~ "Printer1" || ! " ${foundPrinters[*]} " =~ "Printer2" ]]; then
-    echo "Failure"
+    echo "Failed: Missing printer(s)"
 else
-    echo "Installed"
+    echo "Running"
 fi

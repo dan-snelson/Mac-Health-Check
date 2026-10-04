@@ -1,5 +1,5 @@
 # Mac Health Check
-## Version 4.0.0
+## Version 5.0.0
 
 
 
@@ -33,3 +33,22 @@ Icon?
 ### Project temp
 .deploy*
 VERSION.txt
+Resources/MHC_Logs/
+
+
+
+### Build outputs (customized builds can embed organization-specific settings)
+Resources/*.pkg
+*_self-extracting-*.sh
+
+
+
+### Local agent settings
+.claude/settings.local.json
+.codex/
+
+
+
+### Selector skill artifacts
+Artifacts/*
+!Artifacts/README.md

@@ -2,7 +2,7 @@
 
 **Single source of truth for coding agents** (Claude Code, Cursor, Copilot, Aider, etc.).  
 Takes precedence over `README.md`, `CLAUDE.md`, and similar instruction files.  
-Claude Code users: symlink with `ln -s AGENTS.md CLAUDE.md` or reference via `@AGENTS.md` from a minimal `CLAUDE.md`.
+Claude Code loads it through the tracked one-line `CLAUDE.md` (`@AGENTS.md`); keep rules here, not there.
 
 ## Orchestration Contract
 This file codifies project rules, boundaries, workflows, and repeatable skills. If same correction repeats, formalize it here instead of re-prompting it.
@@ -12,14 +12,14 @@ macOS health and compliance reporting tool. Primary artifact: `Mac-Health-Check.
 
 ## Key Commands
 - Validate syntax after **every** script edit: `zsh -n Mac-Health-Check.zsh`
-- Fast iteration: `./Mac-Health-Check.zsh --mode Development`
+- Fast iteration: `sudo zsh --no-rcs ./Mac-Health-Check.zsh "" "" "" "Development"` (Parameter 4 sets `operationMode`; no `--mode` flag)
 - Full regression before release work or cross-mode changes: test `Self Service`, `Silent`, `Debug`, `Development`, and `Test`
-- View canonical version: `cat VERSION.txt`
+- View canonical version: `grep -m1 '^scriptVersion=' Mac-Health-Check.zsh` (`VERSION.txt` is a git-ignored local mirror)
 
 ## Agent Workflow
 - Start non-trivial changes in Plan mode or equivalent.
 - In Plan mode, make no changes and propose no code until confidence is at least 95%; ask follow-up questions until then.
-- Default user-facing communication mode: `$caveman full`, except for security warnings, irreversible actions, or clear user confusion.
+- Default user-facing communication mode: `$caveman full` (optional terse-reply skill, not shipped in this repo; ignore if unavailable), except for security warnings, irreversible actions, or clear user confusion.
 - Treat context like a scalpel, not a net; provide only files, lines, and examples needed.
 - Use surgical edits; reference exact functions, ranges, or list-item IDs instead of pasting large sections.
 - After any edit to `Mac-Health-Check.zsh`, run `zsh -n` immediately, then validate all affected modes.
@@ -34,9 +34,10 @@ Invoke relevant skill name during planning.
 ### Add New Health Check Skill
 1. Plan from nearby check template, including `humanReadableCheckName`, `dialogUpdate` calls, logging, and success/fail flow.
 2. Implement only in `Mac-Health-Check.zsh`.
-3. Update both primary Self Service dialog JSON and curated Development subset.
-4. Validate in `Self Service`, `Silent`, `Debug`, `Development`, and `Test`.
-5. Document change in `README.md` and `CHANGELOG.md`.
+3. Update every affected MDM list-item array and matching `runConfiguredHealthCheck` call; add to curated Development subset (`developmentListitemJSON`) only when check belongs in fast iteration.
+4. Update selector skill: `Skills/mac-health-check-selector/references/health-checks.md` (master table, templates) plus check ID map, owners, and `--list` output in `scripts/build-artifact.zsh`; unknown title makes every build exit `2`.
+5. Validate in `Self Service`, `Silent`, `Debug`, `Development`, and `Test`.
+6. Document change in `README.md` and `CHANGELOG.md`.
 
 ### Refactoring / Style Update Skill
 1. Identify every required location with grep or equivalent.
@@ -51,6 +52,11 @@ Invoke relevant skill name during planning.
 3. Run full regression across all five modes.
 4. Do not modify `Resources/` artifacts unless task is packaging refresh.
 
+### Mac Health Check Selector Skill
+1. Use `Skills/mac-health-check-selector/SKILL.md` when admin wants to choose, enable, or disable checks; ask MDM first.
+2. Write MDM-specific, date-stamped copy plus sidecar `.md` to git-ignored `Artifacts/` per `references/artifact-procedure.md`; never edit source script.
+3. Keep `Skills/mac-health-check-selector/SKILL.md`, `.../references/health-checks.md`, `.../references/artifact-procedure.md`, `.../scripts/build-artifact.zsh`, and `Artifacts/README.md` synchronized when checks, titles, arguments, MDM order, anchors, vendor `case` blocks, vendor-owned functions, `developmentListitemJSON`, external-check result parsing, or Client-Side Cache sanitizer change.
+
 ## Boundaries
 **Always allowed without asking**
 - Read any repository file.
@@ -58,7 +64,7 @@ Invoke relevant skill name during planning.
 - Make small targeted edits that follow rules below.
 
 **Ask before doing**
-- Modify release artifacts under `Resources/`.
+- Modify packaging helpers or demo assets under `Resources/`.
 - Add production dependencies or external checks.
 - Change check ordering or primary dialog JSON structure.
 - Change default operation mode, exit-code semantics, or logging/output contracts.
@@ -74,7 +80,7 @@ Invoke relevant skill name during planning.
 When files disagree, prefer:
 1. `Mac-Health-Check.zsh` for implemented behavior, defaults, and supported modes.
 2. `README.md`, `CHANGELOG.md`, and `Diagrams/` for current release documentation.
-3. `VERSION.txt` for canonical release marker.
+3. `scriptVersion` for canonical release marker (`VERSION.txt` is a git-ignored local mirror).
 4. `Resources/projectPlan.md` for historical architecture context, not runtime truth.
 
 ## Mission and Scope
@@ -101,23 +107,22 @@ Out of scope:
 
 ## Key Files
 - `Mac-Health-Check.zsh`: main script, checks, mode branching, release history
-- `README.md`, `CHANGELOG.md`, `VERSION.txt`, `Diagrams/`: current guidance, release notes, canonical version, architecture references
-- `Resources/projectPlan.md`: historical 3.0.0 context only; `Resources/README.md`, `Resources/Makefile`, `Resources/createSelfExtracting.zsh`, `.deployMacHealthCheck.zsh`: packaging and distribution helpers
+- `README.md`, `CHANGELOG.md`, `Diagrams/`: current guidance, release notes, architecture references; `VERSION.txt` (git-ignored, local)
+- `Resources/projectPlan.md`: historical 3.0.0 context only (its `3.0.0` headings are intentional); `Resources/README.md`, `Resources/Makefile`, `Resources/postInstall.zsh`, `Resources/createSelfExtracting.zsh`: packaging and distribution helpers; `.deployMacHealthCheck.zsh` is a git-ignored local release helper
 - `external-checks/README.md` and `external-checks/`: optional integrations and examples
 
 ## Current Runtime Hotspots
 - Inspect Summary is now primary post-run UX: with `inspectSummaryPreset="on"`, `Self Service` generates Preset 6 assets and launches detached summary; `Silent` writes same assets without launching swiftDialog.
 - `Silent` plus `splunkOperationMode=production` is reporting-first: suppress non-Splunk console output, skip `jamf recon`, and treat success as local report generation plus HEC delivery succeeding.
-- Client-Side Cache installs sanitized local copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh`, rewrites default mode to `Silent`, and removes Jamf inventory submission from that cached path.
+- Client-Side Cache installs sanitized local copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh`, rewrites default mode to `Silent`, and removes Jamf inventory submission from that cached path; installs only from a root-owned script in root-controlled directories (sticky `/var/tmp` parents allowed, so self-extracting wrappers qualify) in `Self Service`, `Debug`, or `Silent` + `production` (never `Test`/`Development`), before the cached-upload shortcut, and refuses a copy failing `zsh -n` or lacking the `Silent` default; its nightly LaunchDaemon run never sends webhooks.
 - `Development` is intentionally curated, not representative of full suite; when changing checks or list items, verify whether `developmentListitemJSON` also needs update.
 
 ## Repository Rules
-- Current branch prepares `4.1.0`; use `VERSION.txt`, `scriptVersion`, and `CHANGELOG.md` as release-state truth.
-- Keep `scriptVersion` inside script aligned with `VERSION.txt` at all times.
-- Current beta expects swiftDialog `3.1.0.4994` or newer; treat older version references as documentation debt unless task is explicitly historical.
+- `scriptVersion` and top `CHANGELOG.md` entry are release-state truth, not branch names.
+- Keep local `VERSION.txt` (git-ignored) aligned with `scriptVersion`.
+- `5.0.0` requires swiftDialog `3.1.1.4997` or newer (`swiftDialogMinimumRequiredVersion`); treat older version references as documentation debt unless task is explicitly historical.
 - Check `git status` before editing shared docs or assets so unrelated local work is not overwritten.
-- Some supporting docs still carry `3.0.0` headings or metadata; treat as documentation debt unless task is explicitly historical.
-- Release artifacts under `Resources/` are tracked; do not rebuild or replace unless task explicitly requires release or packaging refresh.
+- No built release artifacts are tracked under `Resources/` (`Resources/*.pkg` and `*_self-extracting-*.sh` are git-ignored); tracked demo assets and reference files there change only for explicit packaging or documentation refreshes.
 - Prefer minimal targeted edits over broad rewrites.
 - Keep naming and style consistent with existing script conventions.
 - Avoid hidden behavior changes during refactors.
@@ -135,22 +140,27 @@ These rules override ad-hoc prompting. Match established `Mac-Health-Check.zsh` 
 6. Preserve health-check lifecycle:
    ```zsh
    function checkXxx() {
-       humanReadableCheckName="Human Readable Name"
-       notice "Starting check: ${humanReadableCheckName}"
-       dialogUpdate "icon" "SF=checkmark.circle.fill,weight=semibold"
-       dialogUpdate "listitem" "index: ${index}, status: wait, statustext: Checking..."
-       dialogUpdate "progress" "${progressValue}"
-       dialogUpdate "progresstext" "Checking ${humanReadableCheckName}..."
+       local humanReadableCheckName="Human Readable Name"
+       local footerStatusColor="${statusColorSuccess}"
+       notice "Check ${humanReadableCheckName} …"
+       dialogUpdate "icon: SF=checkmark.shield.fill,${organizationColorScheme}"
+       dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+       dialogUpdate "progress: increment"
+       dialogUpdate "progresstext: Determining ${humanReadableCheckName} status …"
        # --- check logic here ---
        if [[ condition ]]; then
-           dialogUpdate "listitem" "index: ${index}, status: success, statustext: Compliant"
-           info "Check passed: ${humanReadableCheckName}"
+           dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Enabled"
+           info "${humanReadableCheckName}: Enabled"
        else
-           dialogUpdate "listitem" "index: ${index}, status: fail, statustext: Action required"
-           warning "Check failed: ${humanReadableCheckName} — remediation guidance here"
+           dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorFail}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: fail, statustext: Failed"
+           footerStatusColor="${statusColorFail}"
+           errorOut "${humanReadableCheckName} (${1})"
+           overallHealth+="${humanReadableCheckName}; "
        fi
+       dialogUpdate "icon: SF=checkmark.shield.fill,weight=semibold,colour=${footerStatusColor}"
    }
    ```
+   `dialogUpdate` takes one string and runs in every mode (it records report results; it only skips the swiftDialog write in `Silent`). Call checks through `runConfiguredHealthCheck "N" checkXxx` so targeted rechecks map indices.
    Use nearby checks as template for local vars, icons, inspect metadata, early returns, and warning-vs-fail handling.
 7. Keep mode guards explicit: UI-only behavior stays out of `Silent`, while logging and non-UI checks still run there.
 8. When changing check ordering or list items, review both primary dialog JSON and curated Development subset.
@@ -179,7 +189,7 @@ Zsh and swiftDialog specifics:
 2. For script or runtime changes, review obvious regressions in every touched mode: `Self Service`, `Silent`, `Debug`, `Development`, `Test`.
 3. For docs, diagrams, or `AGENTS.md`-only changes, review rendered Markdown, terminology, and version or behavior references for cross-file consistency.
 4. Update `README.md`, `CHANGELOG.md`, `Diagrams/`, and related docs when behavior, configuration, screenshots, or check inventory changes; keep `VERSION.txt`, `scriptVersion`, and release notes aligned for release-affecting changes.
-5. When touching packaging or deployment helpers, verify related docs in `Resources/README.md` and intentionally tracked release artifacts.
+5. When touching packaging or deployment helpers, verify related docs in `Resources/README.md` and tracked demo assets.
 6. Do not add new production dependencies without explicit approval.
 
 ## Release Checklist

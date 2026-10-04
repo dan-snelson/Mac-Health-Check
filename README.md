@@ -1,14 +1,14 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check) [![swiftDialog](https://img.shields.io/badge/swiftDialog-Enabled-blue)](https://swiftdialog.app) [![Semgrep Security Scan](https://img.shields.io/badge/security%20scanned%20by-Semgrep-00C7B7?style=flat&logo=semgrep&logoColor=white)](https://semgrep.dev)
 
-# Mac Health Check (4.1.0)
+# Mac Health Check (5.0.0)
 
-> Mac Health Check 4.1.0 sharpens macOS compliance reporting with smarter Bluetooth Sharing detection, safer staged-update checks, richer uptime insight and a more user-friendly reporting summary
+> Mac Health Check 5.0.0 adds a dedicated AI skill for easier Mac Admin customization, historical Memory Pressure warnings, targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements
 
-<img src="images/MHC_4.0.0.png" alt="Mac Health Check Hero" width="800"/>
+<img src="images/MHC_5.0.0.png" alt="Mac Health Check Hero" width="800"/>
 
 <table>
     <tr>
-        <td><a href="images/MHC_4.0.0.png"><img src="images/MHC_4.0.0.png" alt="Main Dialog" width="320"></a>Main Dialog</td>
+        <td><a href="images/MHC_5.0.0_second_run.png"><img src="images/MHC_5.0.0_second_run.png" alt="Targeted Post-remediation Verification" width="320"></a>Targeted Post-remediation Verification</td>
         <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.03%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.03%E2%80%AFPM.png" alt="Results Overview" width="320"></a>Results Overview</td>
         <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.58%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.15.58%E2%80%AFPM.png" alt="Security Status" width="320"></a>Security Status</td>
         <td><a href="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.02%E2%80%AFPM.png"><img src="Resources/MacHealthCheck-Inspect-Mode/Screenshot%202026-06-23%20at%205.16.02%E2%80%AFPM.png" alt="AirDrop Detail Sheet" width="320"></a>AirDrop Detail Sheet</td>
@@ -41,57 +41,56 @@ Administrators can customize the user interface using swiftDialog’s visual cap
 
 Mac Health Check is particularly valuable in IT support workflows, serving as an initial triage point for Tier 1 support by confirming network access, credentials, and MDM connectivity, while also acting as a verification tool for Tier 2 teams both during and after remediation efforts.
 
-### :new: Enterprise Reporting
+### Enterprise Reporting
 
-The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and continues to avoid altering device configuration. In `Self Service`, `4.1.0` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized in-memory results plus a live compliance plist for swiftDialog `3.1.0.4994` compliance findings. The summary adds a remediation-first flow with `Quick Actions`, a conditional `Remediation Guide`, status-aware bento-grid cards, `compliance-summary`, `findings-list`, and the existing `Unhealthy` / `Healthy` details, while retaining the main dialog's 60-second completion countdown. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog. Reruns within 15 minutes can replay that cached summary without re-running health checks, and runs with health issues rely on the final main-dialog state plus that detached inspect summary instead of a separate pseudo-alert notification.
+The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and does not remediate or enforce device configuration. It does make a few deliberate local changes: outside `Silent`, it installs or updates swiftDialog when it is missing, reports no version, or is older than `3.1.1.4997` (unless it already matches the latest production release) and quits other running swiftDialog windows; it installs the Client-Side Cache copy and LaunchDaemon, sets the client log (`/var/log/org.churchofjesuschrist.log`) to `root:admin` mode `640`, appends a root-only Memory Pressure history sample, clears `organizationDefaultsDomain` before each Jamf Pro external check, briefly enables `ipconfig` verbose mode to read the Wi-Fi SSID (restored only when it changed it), and the sample CrowdStrike external check temporarily sets `AppleLocale` to `en_US` (restored on exit). In `Self Service`, `5.0.0` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.1.4997` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
 
-- Structured JSON health report generated at the end of every run
-- Local report saved to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
-- Optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
-- Parameters 9 and 10 set the HEC `index` and `sourcetype`; Parameter 11 forces a fresh run
-- `splunkOperationMode=off` disables HEC delivery explicitly while still preserving local JSON report generation
-- `splunkOperationMode=test` preserves local report generation while intentionally skipping network transmission
-- Beginning in `4.0.0`, non-`Silent` runs and full Jamf production runs install a client-side copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus a `org.churchofjesuschrist.MHC` LaunchDaemon that refreshes the local report across a deterministic 00:53-01:53 window centered on 1:23 a.m.
+- Structured JSON health report with optional Splunk HEC delivery (see [JSON / Splunk Reporting](#json--splunk-reporting))
+- Beginning in `5.0.0`, persistent runtime state (canonical report and lock, SOFA and `networkQuality` caches) lives in root-owned `/Library/Management/org.churchofjesuschrist` instead of world-writable `/var/tmp`, while user-facing Inspect assets (config and compliance plist) live in a root-owned `0755` tree at `/Library/Application Support/org.churchofjesuschrist/Inspect`, with per-user control files under `Inspect/Users/<user>`; cached reports are trusted only when they are root-owned regular files, and root-owned pre-`5.0.0` leftovers in `/var/tmp` are removed automatically
+- Splunk HEC tokens and webhook URLs are passed to `curl` through `--config -` on stdin, so they never appear in the `curl` child's arguments, and `Debug` mode's `set -x` tracing starts after parameter parsing and is suppressed inside secret-handling functions
+- Beginning in `5.0.0`, Splunk HEC and webhook deliveries require `https://` URLs (`curl --proto =https --tlsv1.2`); an `http://` Parameter 7 HEC URL is logged as `[ERROR]` and nothing is sent. `Silent` + `splunkOperationMode=production` runs whose only HEC token is a rejected Parameter 8 value exit `1` immediately, before discovery, to minimize the time the token spends in the process list
+- Slack and Microsoft Teams webhook messages are effectively Jamf Pro-only (with a `View in Jamf Pro` link to the computer record); the Mosyle branch has no console URL yet, so its messages carry an empty link and may be rejected, and every other MDM skips webhook messages
+- Webhook deliveries fail on HTTP errors: Slack and Microsoft Teams responses other than `2xx` are logged with their HTTP status, `5xx` and connection failures get up to three attempts in total, and a failed delivery is logged as a warning without changing report status or exit codes
+- Script Parameters 5 and 8 remain visible to any local user (via `ps`) for as long as the root script runs, so beginning in `5.0.0` the script rejects a Splunk HEC token or webhook URL supplied only through those parameters (logged as `[ERROR]`; Splunk HEC delivery and webhook messages are skipped, so `Silent` + `splunkOperationMode=production` exits `1`). Deploy them in the root-only secrets file `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (keys `splunkHECToken` and `webhookURL`; `root:wheel`, mode `600`, for example from a package payload) and leave Parameters 5 and 8 blank; set `allowParameterSecrets="true"` in the script only as a temporary, not-recommended legacy opt-in. Secrets-file values take precedence over the parameters, an untrusted secrets file is ignored with a warning, and each run logs which source was used. Rotate any token previously passed as a parameter, and restrict the HEC token to the Mac Health Check index and sourcetype
+- Parameter 11 forces a fresh run by bypassing `Self Service` targeting/replay or the `Silent` + `splunkOperationMode=production` cached upload (a forced fresh `Silent` run also removes the cached report before running all checks); see [Script Parameters](#script-parameters)
+- Beginning in `4.0.0`, `Self Service`, `Debug` and `Silent` + `splunkOperationMode=production` runs (never `Test` or `Development`, and only when the running script is a root-owned file in root-controlled directories, such as the Jamf Pro script cache, the package payload path or a self-extracting wrapper's root-only directory under sticky `/var/tmp`) install a client-side copy at `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus a `org.churchofjesuschrist.MHC` LaunchDaemon that refreshes the local report across a deterministic 00:53-01:53 window centered on 1:23 a.m.
 - The LaunchDaemon sets `launchDaemonRun=true`; the client-side script then derives a stable per-Mac jitter from hardware UUID, logs the jitter through MHC-prefixed logging, and routes daemon stdout/stderr to `/dev/null` to avoid duplicate client-log lines.
 - When a LaunchDaemon-triggered refresh runs with no active GUI user, Mac Health Check falls back to `/Library/Preferences/com.apple.loginwindow.plist` `lastUserName` for user-scoped checks.
-- Jamf Pro `Silent` + `splunkOperationMode=production` runs upload the cached report without re-running checks when the client-side script version matches and `/var/tmp/MacHealthCheck-Report.json` is valid and less than 36 hours old
+- `Silent` + `splunkOperationMode=production` runs from any MDM refresh the client-side copy first, then upload the cached report without re-running checks when the client-side script version matches and `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` is valid and less than 36 hours old
 
 <img src="images/MHC_4_Splunk_Dashboard.png" alt="Splunk Dashboard" width="800"/>
 
-See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md) for copy/paste Splunk SPL, Simple XML, and Dashboard Studio starter examples.
+See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md) for the shipped Dashboard Studio JSON, its shared SPL pattern, and the `5.0.0` report field reference.
 
-### :new: End-user Reporting
+### End-user Reporting
 
-The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables cached replay; `off` disables asset generation, launch, and replay.
+The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables healthy-result cached replay; `off` disables asset generation, launch, and replay. Unresolved findings take precedence over replay and trigger targeted verification when the canonical report is eligible.
 
-The current `4.1.0` release targets swiftDialog `3.1.0.4994` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements. Older compatible swiftDialog builds retain their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
+The current `5.0.0` release targets swiftDialog `3.1.1.4997` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements plus the JSON `options` block (`moveable`, `ontop`, minimise button) for the detached summary. Older compatible swiftDialog builds retain their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
 
 User-facing report:
 
 ```zsh
-dialog --inspect-mode --inspect-config /var/tmp/MacHealthCheck-Inspect-Config.json
+dialog --inspect-mode --inspect-config "/Library/Application Support/org.churchofjesuschrist/Inspect/MacHealthCheck-Inspect-Config.json"
 ```
 
 Terminal summary of most recent health issues:
 
 ```zsh
-jq -r '
-    # Print overview text blocks (adapted from metadata + summary)
-    "Mac Health Check Report",
-    "Hostname: \(.metadata.hostname) (\(.metadata.localHostName))",
-    "Timestamp: \(.metadata.timestamp)",
-    "Overall Status: \(.summary.overallStatus)",
-    "Healthy: \(.summary.healthyCount) | Warning: \(.summary.warningCount) | Fail: \(.summary.failCount)",
-    "",
-
-    # Then print unhealthy/warning summary + bullets
-    (.checks[]
-    | select(.status != "healthy")
-    | if (.rawValue? | type) != "string" or .rawValue == ""
-    then .message
-    else "• \(.name): \(.rawValue)"
-    end)
-    ' /var/tmp/MacHealthCheck-Report.json
+sudo jq -r '
+"",
+"Mac Health Check 5: Recent Warnings & Failures",
+"",
+"Hostname: \(.metadata.hostname) (\(.metadata.localHostName))",
+"Timestamp: \(.metadata.timestamp)",
+"Overall Status: \(.summary.overallStatus)",
+"Healthy: \(.summary.healthyCount) | Warning: \(.summary.warningCount) | Fail: \(.summary.failCount) | Error: \(.summary.errorCount)",
+"",
+(.checks[]
+| select(.status != "healthy")
+| "- \(.name): \(if (.rawValue? | type) != "string" or .rawValue == "" then .message else .rawValue end)"),
+""
+' /Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json
 ```
 
 ### Step Zero for Tier 1
@@ -113,12 +112,12 @@ jq -r '
 - No dialog is presented to the end-user
 - Ideal for background compliance reporting
 - Complements existing MDM compliance frameworks
-- Full `Silent` health-check runs generate `/var/tmp/MacHealthCheck-Inspect-Config.json` and `/var/tmp/MacHealthCheck-Inspect-Compliance.plist` without launching swiftDialog
+- Full `Silent` health-check runs generate the Inspect Mode config and compliance plist (see [Inspect Mode Summary](#inspect-mode-summary)) without launching swiftDialog
 - When combined with `splunkOperationMode=production`, suppresses non-Splunk stdout/stderr noise in Jamf policy logs while continuing to write the full run to `${scriptLog}`
 - In that same `Silent` + `splunkOperationMode=production` combination, `updateComputerInventory()` logs a skip message and does not run `jamf recon`
-- Client-Side Cache uses a local LaunchDaemon copy to refresh `/var/tmp/MacHealthCheck-Report.json` nightly without storing Splunk HEC secrets client-side
+- Client-Side Cache uses a local LaunchDaemon copy to refresh `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` nightly; the nightly copy itself never transmits to Splunk or sends webhook messages, and the HEC token and webhook URL stay only in the root-only `MacHealthCheck-Secrets.plist`
 - LaunchDaemon-triggered refreshes use the active console user when present, and otherwise fall back to loginwindow `lastUserName` for user-scoped checks
-- Jamf Pro can then run `Silent` + `splunkOperationMode=production` to upload the cached report only when the client and server script versions match
+- Any MDM can then run `Silent` + `splunkOperationMode=production` to upload the cached report only when the client and server script versions match
 
 #### Uninstall
 
@@ -128,6 +127,7 @@ jq -r '
 launchDaemonLabel="org.churchofjesuschrist.MHC"
 launchDaemonPath="/Library/LaunchDaemons/${launchDaemonLabel}.plist"
 organizationDirectory="/Library/Management/org.churchofjesuschrist"
+inspectAssetsDirectory="/Library/Application Support/org.churchofjesuschrist/Inspect"
 
 # Stop/unload daemon:
 /bin/launchctl bootout system "${launchDaemonPath}" 2>/dev/null || true
@@ -135,12 +135,33 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 
 # Remove Client-Side Cache assets:
 /bin/rm -fv "${launchDaemonPath}"
+# WARNING: also removes MacHealthCheck-Secrets.plist (Splunk HEC token / webhook URL),
+# root-only Memory Pressure history and its lock file, and anything else your
+# organization keeps in this directory; remove individual files instead if it is shared.
 /bin/rm -rfv "${organizationDirectory}"
 
-# Optional cached/report artifacts:
+# Remove Inspect assets and per-user Inspect control files:
+/bin/rm -rfv "${inspectAssetsDirectory}"
+
+# Remove a Dock-named swiftDialog copy left by an interrupted run:
+/bin/rm -rfv "/Library/Application Support/Dialog/Mac Health Check.app"
+
+# (The report, SOFA cache and networkQuality cache all live under
+# "${organizationDirectory}" and are removed above.)
+
+# Optional pre-5.0.0 cached/report artifacts (5.0.0 removes root-owned leftovers automatically):
 /bin/rm -fv /var/tmp/MacHealthCheck-Report.json
+/bin/rm -rfv /var/tmp/MacHealthCheck-Report.lock
 /bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Config.json
+/bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Compliance.plist
+/bin/rm -fv /var/tmp/MacHealthCheck-Inspect.trigger
+/bin/rm -fv /var/tmp/MacHealthCheck-Inspect_final.trigger
+/bin/rm -fv /var/tmp/MacHealthCheck-Inspect.ready
+/bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Result.json
 /bin/rm -fv /var/tmp/MacHealthCheck-Inspect-Summary.log
+/bin/rm -rfv /var/tmp/networkQualityTest
+/bin/rm -rfv /var/tmp/sofa
+/bin/rm -fv /var/tmp/dockicon.png
 
 # Optional log removal:
 /bin/rm -fv /var/log/org.churchofjesuschrist.log
@@ -148,107 +169,160 @@ organizationDirectory="/Library/Management/org.churchofjesuschrist"
 
 ### Dock Integration
 
-- Non-`Silent` modes launch swiftDialog with `--showdockicon` and `--dockicon`
+- When `enableDockIntegration="true"` (default), non-`Silent` modes launch swiftDialog with `--showdockicon` and `--dockicon`
 - `dockIcon` is configurable and supports `default`, local paths, `file://` paths and `http(s)` URLs
-- Mac Health Check copies `Dialog.app` to `/Library/Application Support/Dialog/${humanReadableScriptName}.app` and launches `dialogcli` from that bundle so Dock hover text matches the script name
+- Mac Health Check copies `Dialog.app` to `/Library/Application Support/Dialog/${humanReadableScriptName}.app` and launches `dialogcli` from that bundle so Dock hover text matches the script name; only the run that created that copy removes it at exit, and `Silent` runs leave both the copy and `/var/tmp/dialog.log` in place for any concurrent run
 - `dockiconbadge` shows the number of remaining checks, decreases after each completed check and is removed when checks complete
-- If dock icon setup fails, Mac Health Check logs a warning and falls back to the default `/usr/local/bin/dialog` launch path
+- If dock icon setup fails, Mac Health Check logs a warning and falls back to `/Library/Application Support/Dialog/Dialog.app/Contents/MacOS/dialogcli`
+- The copied bundle is re-signed ad hoc, which drops swiftDialog's Team ID; PPPC or notification configuration profiles keyed to that Team ID do not match the copy, so set `enableDockIntegration="false"` where those profiles matter
+- Beginning in `5.0.0`, the root script calls swiftDialog, Jamf Pro (`/usr/local/jamf/bin/jamf`) and `jq` through root-owned absolute paths and removes `/usr/local/bin` from `PATH`, because Homebrew can make that directory user-writable
+
+### Script Parameters
+
+| Parameter | Variable | Default | Description |
+|---|---|---|---|
+| 4 | `operationMode` | `Self Service` | `Self Service`, `Silent`, `Debug`, `Development` or `Test` (case-sensitive and not validated: any other value, such as `silent` or `Developer`, runs the full MDM check suite with the dialog, writes the canonical report and installs the Client-Side Cache, but skips `Self Service`-only targeted rechecks, cached replay and the Inspect summary, so double-check the spelling) |
+| 5 | `webhookURL` | (blank) | Microsoft Teams or Slack webhook URL (`https://` only; effectively Jamf Pro-only); rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
+| 6 | `splunkOperationMode` | `test` | `off` disables HEC delivery, `test` writes the local JSON report without transmitting, `production` posts to Splunk HEC; case-insensitive, and any other value falls back to `test` with an `[ERROR]` |
+| 7 | `splunkHECURL` | (blank) | Splunk HTTP Event Collector URL (`https://` only; an `http://` URL is refused and logged as `[ERROR]`) |
+| 8 | `splunkHECToken` | (blank) | Splunk HEC token; rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
+| 9 | `splunkHECIndex` | (blank) | Optional HEC `index` included in the transmission wrapper |
+| 10 | `splunkHECSourcetype` | (blank) | Optional HEC `sourcetype` included in the transmission wrapper |
+| 11 | `forceFreshRun` | `false` | One-shot fresh run; bypasses `Self Service` targeted verification/replay and the `Silent` + `splunkOperationMode=production` cached upload |
+
+Other settings, including `externalCheckTimeoutSeconds` (default `120`; a Jamf Pro external-check policy that runs longer is terminated and reported as `Timed Out`), `inspectReplayMaximumAgeSeconds` (`900`), `allowParameterSecrets` (`false`) and `enableDockIntegration` (`true`), are source-level variables in `Mac-Health-Check.zsh`; see [Diagrams/06-health-check-reference.md](Diagrams/06-health-check-reference.md) for the full list.
+
+### Exit Codes
+
+| Exit | When |
+|---|---|
+| `0` | Every check is healthy, or only warnings were found (`Computer Needs Attention`); a healthy cached Inspect summary was replayed; a cached Splunk report upload succeeded |
+| `1` | At least one check failed (`Computer Unhealthy`); a `Self Service` targeted recheck could not lock, merge or write the canonical report; a pre-flight `fatal` (not root, insecure `organizationDirectory`, missing `jq`, swiftDialog download or install failure); swiftDialog Team ID verification failed; a cached Splunk report upload failed; Jamf Pro was detected but `/private/var/log/jamf.log` is missing; `Silent` + `splunkOperationMode=production` received only a rejected Parameter 8 HEC token |
+
+`Silent` + `splunkOperationMode=production` is reporting-first: it exits `0` only when the local report is generated and Splunk HEC delivery succeeds with no reporting errors, regardless of health findings, and `1` otherwise. In other modes, a failed full-run report write is logged as a reporting error without changing the exit code, and webhook delivery failures never change it.
+
+### MDM Detection
+
+The MDM branch (list items, checks and webhook support) is chosen from the enrolled MDM server URL, matched case-sensitively in this order: `addigy` (Addigy), `filewave` (Filewave), `fleet` (Fleet), `jamf` or `jss` (Jamf Pro), `jumpcloud` (JumpCloud), `kandji` (Kandji / Iru), `microsoft` (Microsoft Intune) and `mosyle` (Mosyle). Any other URL, including Iru URLs that do not contain `kandji` and unenrolled Macs, runs the MDM-agnostic fallback (`Unknown MDM vendor: None`).
 
 ## Features
-The following health checks and information reporting are included in version `4.1.0`, which operates in `Self Service` mode by default. (Change `operationMode` to `Debug`, `Development` or `Test` when getting ready to deploy in production.)
+The following health checks and information reporting are included in version `5.0.0`, which operates in `Self Service` mode by default. (Use `Debug`, `Development` or `Test` while testing; deploy with `Self Service` or `Silent`.)
 
-> :new: Mac Health Check version `4.1.0` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for Jamf Pro Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.0.4994` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, 15-minute cached summary replay on rerun, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while improving Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
+> Mac Health Check version `5.0.0` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for cached Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.1.4997` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
 
 
 
 ### Health Checks
 
-:tada: Improved in version `4.1.0`
-
 1. macOS Version
-1. :tada: Available Updates (including deferred, staged, and DDM-enforced updates)
+1. Available Updates (including deferred, staged, and DDM-enforced updates)
 1. System Integrity Protection
 1. Signed System Volume (SSV)
 1. Firewall
 1. FileVault Encryption
 1. Gatekeeper / XProtect
 1. Touch ID
-1. Password Hint
+1. Password Hint (not run on Jamf Pro or Kandji)
 1. AirDrop
 1. AirPlay Receiver
-1. :tada: Bluetooth Sharing
+1. Bluetooth Sharing
 1. VPN Client
-1. :tada: Last Reboot
+1. Last Reboot
 1. Free Disk Space
 1. User's Directory Size and Item Count
     - Desktop
     - Downloads
     - Trash
 1. MDM Profile
-1. Entra ID Registration
+1. Entra ID Registration**
 1. MDM Certificate Expiration
 1. Apple Push Notification service
-1. Jamf Pro Check-in
-1. Jamf Pro Inventory
+1. Mosyle Check-In***
+1. Jamf Pro Check-In**
+1. Jamf Pro Inventory**
+1. :new: Clock Skew**
 1. Extended Network Checks
     - Apple Push Notification Hosts
     - Apple Device Management
     - Apple Software and Carrier Updates
     - Apple Certificate Validation
     - Apple Identity and Content Services
-    - Jamf Hosts
-1. Wi-Fi Strength
+    - Jamf Hosts**
 1. App Auto-Patch
 1. Homebrew Status
 1. Electron Corner Mask [🔗](https://avarayr.github.io/shamelectron/)
-1. Organizationally required Applications (i.e., Microsoft Teams)
+1. Organizationally required Applications (e.g., Microsoft Teams)
 1. BeyondTrust Privilege Management*
 1. Cisco Umbrella*
 1. CrowdStrike Falcon*
 1. Palo Alto GlobalProtect*
+1. Wi-Fi Strength
+1. :new: Memory Pressure
 1. Network Quality Test
-1. Update Computer Inventory**
+1. Computer Inventory**
 
-*Requires [external check](/external-checks/README.md)
-**Requires Jamf Pro
+\* Requires [external check](/external-checks/README.md) (Jamf Pro only; these four sample checks run by default on Jamf Pro, so remove their list items and calls, or use the [selector skill](Skills/mac-health-check-selector/SKILL.md), if you have not deployed their policies; otherwise each reports `Error` and every run ends with `Computer Needs Attention`)<br>
+\*\* Requires Jamf Pro<br>
+\*\*\* Requires Mosyle
+
+Each MDM runs its own list-item array: Jamf Pro runs 42 items, Mosyle 34, Addigy, Fleet, JumpCloud and Microsoft Intune 33, Filewave and Kandji 32, and the MDM-agnostic fallback 29 (no MDM Profile, MDM Certificate Expiration or App Auto-Patch). Organizationally required applications vary by MDM (for example, Microsoft Teams, Fleet Desktop, Company Portal or Mosyle Self-Service), and Kandji also omits AirDrop, AirPlay Receiver, App Auto-Patch, MDM Profile, Homebrew Status and Electron Corner Mask.
+
+Jamf Pro runs check `Clock Skew` with `/usr/bin/sntp -n 1 -t 3 time.apple.com` before inventory submission. The command queries one DNS record with a 3-second SNTP timeout inside the existing 5-second outer timeout. Offsets greater than 5 minutes are reported as a failure because they can prevent Jamf Pro inventory submission and other time-sensitive services from working correctly; when `sntp` cannot reach `time.apple.com` (for example, UDP 123 is blocked), the check reports `Unable to determine` as a warning.
+
+`Apple Push Notification service` reads the last 24 hours of unified log entries from SSV-protected system processes only (paths under `/System/` or `/usr/libexec/`, so a user process cannot spoof healthy entries) in a single `log show` query. A ManagedClient `Received HTTP response (200)` entry is the MDM success evidence. APNs activity (`apsd` courier connections or incoming-message acknowledgements) without an MDM response reports `APNs active; no MDM response` as a warning, an MDM identity error `-25304` newer than the last MDM response reports `MDM identity error` as a failure, and no APNs activity or MDM response at all is a failure. Each run logs the last APNs activity, last MDM response and courier connection-failure count.
+
+`Memory Pressure` records one sample whenever its check executes, including full health-check runs, nightly `Silent` Client-Side Cache refreshes, and targeted rechecks of an existing memory-pressure warning. It warns only when yellow or red pressure was observed on at least two distinct local calendar days within the previous seven days. A single critical reading, repeated runs on one day, low free-memory percentage, and swap use alone do not trigger a warning. Fewer than two days with valid pressure levels, an unavailable current pressure level, or a history write failure produce `Insufficient data` without changing the run's exit code. Cached Splunk uploads, healthy Inspect replay, and synthetic `Test` runs do not collect a sample.
+
+History defaults to `${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl`, owned by root with `600` permissions. Each JSON Lines record contains ISO8601 and epoch timestamps, local sample date, hostname, script version, pressure level, free-memory percentage, and used swap in human-readable and byte forms. `memoryPressureHistoryPath`, `memoryPressureHistoryRetentionDays` (default `14`), `memoryPressureLookbackDays` (default `7`), and `memoryPressureRequiredAdverseDays` (default `2`) are configurable in `Mac-Health-Check.zsh`. Invalid or unavailable readings stay unknown; history failures affect only this check. The JSON report and Inspect summary use stable check key `memoryPressure`.
+
+`App Auto-Patch` prefers root-written logs: the 4.x system log (`/Library/Application Support/AppAutoPatch/logs/aap.log`), then the 3.x log (`/Library/Management/AppAutoPatch/logs/aap.log`). It reads the user-writable per-user `~/Library/Logs/AppAutoPatch/aap.log` only when neither exists (logged as a user-reported log), and ignores 4.x `Discovery complete` timestamps more than 5 minutes in the future.
 
 Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs, `updateComputerInventory()` now surfaces failed or timed-out `jamf recon` submissions to the end-user, and times out that submission after `90` seconds.
 
 ### Information Reporting
 
-<img src="images/MHC_3.2.0_Helpmessage.png" alt="In progress" width="800"/>
+<img src="images/MHC_3.2.0_Helpmessage.png" alt="Help message (3.2.0 shown)" width="800"/>
 
-#### :new: JSON / Splunk Reporting
+#### JSON / Splunk Reporting
 - Generates a structured JSON health report at the end of every run
-- Saves the report locally to `/var/tmp/MacHealthCheck-Report.json` by default with `600` permissions
-- Keeps `/var/tmp/MacHealthCheck-Report.json` as the canonical root-only report artifact
+- Saves the report locally to `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` by default with `600` permissions
+- Keeps `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report.json` as the canonical root-only report artifact
 - Adds `identity.entraIDRegistration` with `status`, `method`, `lastUser`, `lastUserHome`, and `details`
-- Supports optional Splunk HEC delivery through Parameters 6-11 without changing the existing `operationMode` contract
+- Supports optional Splunk HEC delivery through Parameters 6-10 (see [Script Parameters](#script-parameters)) without changing the existing `operationMode` contract
 - Wraps the finalized report as `{sourcetype, index, event}` when posting to Splunk HEC
 - Supports `splunkOperationMode=off` to disable HEC delivery explicitly while still preserving local JSON report generation
 - Preserves local report generation in `splunkOperationMode=test` while intentionally skipping network transmission
-- `Silent` plus `splunkOperationMode=production` mirrors only `Splunk Reporting:` lines to stdout; all other run output stays in `${scriptLog}`, and final exit returns success when local report generation plus HEC delivery both succeed, regardless of recorded health findings
+- Treats any unrecognized `splunkOperationMode` value as `test` (logged as `[ERROR]`); only an explicit `production` enables HEC delivery
+- `Silent` plus `splunkOperationMode=production` mirrors `Splunk Reporting:` lines to stdout and keeps all other logged run output in `${scriptLog}` (a few early pre-logging messages, such as MDM-detection notices, can still print), and final exit returns success when local report generation plus HEC delivery both succeed, regardless of recorded health findings
 - That `Silent` plus `splunkOperationMode=production` path also skips final Jamf Pro inventory submission while logging the skip to `${scriptLog}`
-- Client-Side Cache avoids a full Jamf Pro health-check run when the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` matches the server-side version and the cached JSON report is valid and fresh
+- Client-Side Cache avoids a full `Silent` + `splunkOperationMode=production` health-check run when the client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` matches the server-side version and the cached JSON report is valid and fresh
 - The client-side nightly run defaults to `operationMode="Silent"` and `splunkOperationMode="test"` so it updates the local report without sending to production Splunk, and its LaunchDaemon routes stdout/stderr to `/dev/null` so MHC-prefixed log writes are not duplicated
-- Requires `jq` for JSON validation and formatting, with local report generation and Splunk payload assembly stopping at pre-flight if `jq` is unavailable
-- Includes copy/paste Splunk SPL, Simple XML, and Dashboard Studio starter examples in [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Reference.md)
+- Requires `jq` for JSON validation and formatting, with local report generation and Splunk payload assembly stopping at pre-flight if `jq` is unavailable; `/usr/bin/jq` (macOS 15 and later) is preferred, and `/usr/local/bin/jq` or `/opt/homebrew/bin/jq` is used only when the binary and every parent directory are root-owned and not group- or world-writable (a user-owned Homebrew `jq` is rejected)
+- `Test` and `Development` runs write their local report to `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Report-<mode>.json` instead of the canonical report, skip Splunk HEC delivery, and do not install the Client-Side Cache copy, so synthetic or curated results never replace production data; cached uploads and `Self Service` targeted rechecks also reject canonical reports whose `metadata.operationMode` is not `Self Service` or `Silent`
 
-#### :new: Inspect Mode Summary
-- `Self Service` and full `Silent` health-check runs now generate `/var/tmp/MacHealthCheck-Inspect-Config.json` directly from finalized in-memory results
-- `Self Service` and full `Silent` health-check runs also generate `/var/tmp/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
-- The generated config includes `/var/tmp/MacHealthCheck-Inspect.trigger`, `/var/tmp/MacHealthCheck-Inspect.ready` and `/var/tmp/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
+#### Inspect Mode Summary
+- `Self Service` and full `Silent` health-check runs now generate `/Library/Application Support/org.churchofjesuschrist/Inspect/MacHealthCheck-Inspect-Config.json` directly from finalized in-memory results
+- `Self Service` and full `Silent` health-check runs also generate `/Library/Application Support/org.churchofjesuschrist/Inspect/MacHealthCheck-Inspect-Compliance.plist`, which feeds `plistSources`, `compliance-summary`, `findings-list` and live-bound bento-grid popovers
+- The generated config includes `/Library/Application Support/org.churchofjesuschrist/Inspect/Users/<user>/MacHealthCheck-Inspect.trigger`, `/Library/Application Support/org.churchofjesuschrist/Inspect/Users/<user>/MacHealthCheck-Inspect.ready` and `/Library/Application Support/org.churchofjesuschrist/Inspect/Users/<user>/MacHealthCheck-Inspect-Result.json` control paths for Inspect Mode workflows
+- `Self Service` automatically rechecks non-healthy `.checks[].key` values when the canonical report has a matching device, MDM vendor, script version and full-run baseline less than 36 hours old
+- Targeted dialogs display contiguous check numbers immediately, while Inspect presents the authoritative Mac Health Check status separately from swiftDialog's weighted `Compliance Score`
+- Jamf Pro targeted rechecks also run `Computer Inventory` so verified remediation reaches the server; nightly Client-Side Cache reports (which omit `Computer Inventory`) remain valid targeted-recheck and replay baselines
+- Targeted rechecks send Slack or Microsoft Teams webhook messages (Jamf Pro) only when at least one rechecked status differs from the previous report
+- Targeted results replace only matching check records, preserve untouched results, add `checkedAt` / `checkedAtEpoch`, and expose `metadata.runScope`, full-run baseline fields and `summary.recheckedCount`
+- Targeted writes use a shared report lock and rebase onto compatible concurrent report updates so newer full-report data is not overwritten
+- Targeted writes cannot extend the 36-hour age of their underlying full-run baseline; missing, stale, malformed or incompatible reports fall back to all checks
+- Parameter 11 `forceFreshRun=true` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` bypass targeted verification and cached replay for a full `Self Service` run; the trigger file is honored only when root-owned (for example, `sudo touch /var/tmp/MacHealthCheck-Force-Fresh-Run`), and a trigger created by any other user is ignored and removed
+- `Silent`, `Debug`, `Development` and `Test` retain their existing execution behavior; targeted selection is confined to `Self Service`
 - Unhealthy runs now surface `Quick Actions Recommended` in `Overview`, add a conditional `Remediation Guide` step immediately after `Overview`, and keep `Unhealthy` as the audit-detail step
 - Category bento-grid cards now use status-aware backgrounds so unhealthy checks stand out more clearly in Preset 6, and `Available Updates` now expands across two columns when action is required
 - Plist-backed bento cells now emit FR #667 detail-sheet fields (`severity`, `explanation`, `remediation`, `actionButtonText`, `actionURL`) so warning and failure cards can explain why action is needed and link directly to next steps
-- Normal `Self Service` runs launch the detached, always-on-top, moveable swiftDialog Inspect Mode `preset6` guided summary after report generation while retaining the existing 60-second main-dialog countdown
+- Normal `Self Service` runs launch the detached, always-on-top, moveable, minimisable swiftDialog Inspect Mode `preset6` guided summary after report generation while retaining the existing 60-second main-dialog countdown
 - `Silent` runs never launch swiftDialog; they only write Inspect Mode config assets for later review
 - The detached summary now separates recorded results into `Unhealthy` and `Healthy` sections and omits either section when no checks exist in that bucket
-- Re-running `zsh Mac-Health-Check.zsh` within `inspectReplayMaximumAgeSeconds` (i.e., 15 minutes), replays the cached inspect summary immediately and skips the health checks plus the main dialog countdown
-- `inspectSummaryPreset="on"` enables Preset 6 asset generation, `Self Service` launch and cached replay; set it to `off` to disable all three
+- Re-running `sudo zsh --no-rcs Mac-Health-Check.zsh` in `Self Service` with a healthy report within `inspectReplayMaximumAgeSeconds` (default `900`, 15 minutes) replays the cached inspect summary immediately and skips the health checks plus the main dialog countdown
 - Unhealthy `Self Service` runs now rely on the final unhealthy main-dialog state plus the detached inspect summary after report generation, without a separate pseudo-alert notification
 - If inspect-summary asset generation or launch fails, Mac Health Check falls back to the existing `completionTimer` countdown path
-- Targets swiftDialog `3.1.0.4994` or newer for PR #684 rendering; older compatible builds retain their prior Preset 6 appearance
+- Targets swiftDialog `3.1.1.4997` or newer for PR #684 rendering; older compatible builds retain their prior Preset 6 appearance
 
 Example Preset 6 JSON fragments used by generated inspect assets:
 
@@ -322,47 +396,46 @@ Example Preset 6 JSON fragments used by generated inspect assets:
 - Computer Name
 - Serial Number
 - Wi-Fi SSID
-- Wi-FI IP Address
+- IP Address (first active network service)
 - VPN IP Address
 
-#### Jamf Pro Information**
+#### Jamf Pro Information\*\*
+- Jamf Pro Computer ID
 - Site
 
-***[Payload Variables for Configuration Profiles](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-11.18.0/page/Computer_Configuration_Profiles.html#ariaid-title2)
+\*\* Requires Jamf Pro and a configuration profile that uses [Payload Variables for Configuration Profiles](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-11.18.0/page/Computer_Configuration_Profiles.html#ariaid-title2)
 
 ### Policy Log Reporting
 
+At the end of each run, Mac Health Check logs a one-line summary (wrapped below for readability), plus a second line on Jamf Pro:
+
 ```
-MHC (4.0.0): 2026-05-09 03:43:13 - [NOTICE] WARNING: 'localadmin' IS A MEMBER OF 'admin';
-User: macOS Server Administrator (localadmin) [503] staff everyone localaccounts _appserverusr 
-admin _appserveradm com.apple.sharepoint.group.4 com.apple.sharepoint.group.3
-com.apple.sharepoint.group.1 _appstore _lpadmin _lpoperator _developer _analyticsusers
-com.apple.access_ftp com.apple.access_screensharing com.apple.access_ssh com.apple.access_remote_ae
-com.apple.sharepoint.group.2; Bootstrap Token supported on server: YES;
-Bootstrap Token escrowed to server: YES; sudo Check: /etc/sudoers: parsed OK;
-sudoers: root  ALL = (ALL) ALL %admin  ALL = (ALL) ALL ; Platform SSOe: localadmin NOT logged in;
-Location Services: Enabled; SSH: On; Microsoft OneDrive Sync Date: Not Configured;
-Time Machine Backup Date: Not configured; localadmin's Desktop Size: 160M for 116 item(s);
-localadmin's Trash Size: 1.8M for 3 item(s); Battery Cycle Count: 0; Wi-Fi: Liahona;
-Ethernet IP address: 17.113.201.250; VPN IP: 17.113.201.250; 
-Network Time Server: time.apple.com; Jamf Pro Computer ID: 007; Site: Servers
+MHC (5.0.0): 2026-10-04 08:15:42 - [NOTICE]          WARNING: 'localadmin' IS A MEMBER OF 'admin';
+User: macOS Server Administrator (localadmin) [503]; Security Mode: Full;
+DEP-allowed MDM Control: Enabled; Activation Lock: Disabled; Bootstrap Token supported on server: YES;
+Bootstrap Token escrowed to server: YES; Location Services: Enabled; SSH: On;
+Microsoft OneDrive Sync Date: Not Configured; Time Machine Backup Date: Not configured;
+Battery Cycle Count: 12; Rosetta-required apps: None detected; Wi-Fi: Liahona; VPN: None;
+Network Time Server: time.apple.com
+MHC (5.0.0): 2026-10-04 08:15:42 - [NOTICE]          Jamf Pro Computer ID: 007; Site: Servers
 ```
 
 1. Warning when logged-in user is a member of `admin`
-1. Deferred Software Updates
-1. Logged-In User Group Membership
+1. Logged-in user full name, username and UID
 1. Security Mode
 1. DEP-allowed MDM Control
 1. Activation Lock
 1. Bootstrap Token
-1. sudoers
-1. Kerberos SSOe
 1. Location Services
 1. SSH
-1. Time Machine
+1. Microsoft OneDrive Sync Date
+1. Time Machine destinations and last backup date
 1. Battery Cycle Count
+1. Rosetta-required apps
+1. Wi-Fi SSID
+1. VPN status
 1. Network Time Server
-1. Jamf Pro Computer ID
+1. Jamf Pro Computer ID and Site (Jamf Pro only)
 
 
 
@@ -381,13 +454,34 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 <a href="https://snelson.us/mhc" target="_blank">Continue reading …</a>
 
+### :new: Choosing Health Checks with an AI Assistant
+
+[`Skills/mac-health-check-selector`](Skills/mac-health-check-selector/SKILL.md) is an AI-agnostic skill for choosing which checks to enable. It asks which MDM you use, presents a categorized checklist, and, after you confirm, writes an edited, MDM-specific, date-stamped copy, `Mac-Health-Check_<mdm-slug>_<YYYY-MM-DD-HHMMSS>.zsh`, with a sidecar `.md` that records the selection. Both files go to `Artifacts/` next to the source `Mac-Health-Check.zsh` by default; the helper's `--out-dir <dir>` overrides that, but the target must still be git-ignored (validation check 8). Only the MDM's list-item array and its matching `runConfiguredHealthCheck` branch change, unless you also accept the optional prompt to remove other MDMs' code: that removes every other MDM's list-item array, its branches in each vendor `case` block (including `serverURL` detection), and vendor-only functions your selection doesn't call, while keeping the generic fallback so Macs enrolled elsewhere still run the MDM-agnostic checks. Otherwise, `operationMode`, `developmentListitemJSON`, and every other setting keep their `Mac-Health-Check.zsh` defaults, so edit the artifact manually to change them. The skill builds and validates each artifact with its tested helper, `Skills/mac-health-check-selector/scripts/build-artifact.zsh`. The helper prints an explicit PASS or FAIL for `zsh -n`, `jq`, row-to-call alignment (including M15 and F1 order), diff scope, a Client-Side Cache simulation, `scriptVersion`, an unchanged source, and git-ignored output. It exits non-zero on any failure, and a failed build never lands in the output folder. Before deploying, test the artifact in all five modes on one Mac enrolled in the chosen MDM. `Mac-Health-Check.zsh` itself is never modified, and `Artifacts/` is git-ignored (see [`Artifacts/README.md`](Artifacts/README.md)).
+
+#### Step-by-step
+
+1. **Get the repository.** Clone `dan-snelson/Mac-Health-Check` or download a `5.0.0`+ release. The skill reads `Mac-Health-Check.zsh` from the same folder tree.
+1. **Open the repository root in an AI assistant that can read and write local files and run shell commands** (for example, Claude Code, Codex CLI, Cursor, or GitHub Copilot agent mode). Without file access, the skill prints the artifact and sidecar as code blocks for you to save under `Artifacts/` yourself.
+1. **Load the skill.** Prompt: `Read Skills/mac-health-check-selector/SKILL.md and follow it to help me choose Mac Health Check checks.` Assistants that honor `AGENTS.md` pick it up automatically.
+   - Claude Code (optional): `mkdir -pv .claude/skills && ln -s ../../Skills/mac-health-check-selector .claude/skills/mac-health-check-selector`, then run `/mac-health-check-selector`.
+1. **Answer the MDM question** (`1`–`9`; Filewave is `8`, Other / MDM-agnostic is `9`). Kandji / Iru admins: confirm your server URL, because only URLs containing `kandji` are detected.
+1. **Pick checks** from the categorized checklist with IDs, ranges, or categories. Every reply changes the current list: `H7 A4` adds, `no A3` removes, `only C, H1-H6, M4` picks exactly those, and `defaults` resets. Unmarked checks are on by default, `[off]` checks are available but off, and `*` marks external checks (Jamf Pro only). A4 uses Microsoft Teams unless you name another app.
+1. **Review the confirmation summary** (MDM, enabled check IDs, changes against the shipped default, artifact name), then reply `yes`, or adjust with the same grammar. Nothing is written before you confirm.
+1. **Choose whether to remove other MDMs' code** (`yes` or `no`; default `no`). `yes` suits a fleet on a single MDM, such as Jamf Pro only; keep the default for a mixed fleet.
+1. **Check the results.** The assistant reports the artifact path, the sidecar `.md` path, PASS/FAIL for validation checks 1–8 (plus 4b and 4c when other MDMs' code was removed), and the report keys the change removes or adds (for example, `electron_corner_mask`). The helper writes the complete sidecar, including every disabled check with its reason and the dependency notes that apply. Only passing artifacts are written to `Artifacts/` (the default output folder).
+1. **Adjust other settings manually** (for example, `operationMode` or external-check triggers) in the artifact if needed, then re-run `zsh -n` on it.
+1. **Test on one Mac enrolled in the chosen MDM** in all five modes:
+   `sudo zsh --no-rcs ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not your selection. The script picks its MDM branch from the enrolled server URL (see [MDM Detection](#mdm-detection)), so a Mac enrolled in a different MDM runs that MDM's unedited checks, or the MDM-agnostic fallback when you removed other MDMs' code; test a `generic` (Other / MDM-agnostic) artifact on an unenrolled Mac or one whose MDM is not detected. `Test` and `Development` runs never touch the canonical report or the Client-Side Cache copy. `Self Service` and `Debug` runs replace the Client-Side Cache copy and LaunchDaemon only when the running script is a root-owned file in root-controlled directories, so a copy run from a user-owned checkout logs `install skipped`; re-run your production policy afterwards.
+1. **Deploy** the artifact as your MDM script. Keep `Debug` and `Development` out of production policies, and expect the first Self Service run to be a full run (`check_set_mismatch`).
+1. **Keep artifacts out of version control** (`Artifacts/` is git-ignored), and build a fresh artifact after each Mac Health Check upgrade or for each additional MDM.
+
 
 
 ## Operation Mode: Development
 
-A new "Development" Operation Mode has been added to aid in developing Health Checks, allowing quick runs against a small curated subset instead of the full suite.
+The "Development" Operation Mode (introduced in `3.0.0`) aids in developing Health Checks, allowing quick runs against a small curated subset instead of the full suite.
 
-When `operationMode` is set to `Development`, `4.1.0` uses a dedicated `developmentListitemJSON` for `Bluetooth Sharing` instead of running the entire suite.
+When `operationMode` is set to `Development`, `5.0.0` uses a dedicated `developmentListitemJSON` for `Clock Skew`, `Memory Pressure` and `Apple Push Notification service` instead of running the entire suite.
 
 ```zsh
 ####################################################################################################
@@ -408,7 +502,9 @@ if [[ "${operationMode}" == "Development" ]]; then
 
     developmentListitemJSON='
     [
-        {"title" : "Bluetooth Sharing", "subtitle" : "Ensure Bluetooth Sharing is disabled when not needed", "icon" : "SF=19.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
     # Validate developmentListitemJSON is valid JSON
@@ -436,7 +532,9 @@ if [[ "${operationMode}" == "Development" ]]; then
     notice "Operation Mode is ${operationMode}; using ${operationMode}-specific Health Check."
     dialogUpdate "title: ${humanReadableScriptName} (${scriptVersion})<br>Operation Mode: ${operationMode}"
     # set -x
-    checkBluetoothSharing "0"
+    checkClockSkew "0"
+    checkMemoryPressure "1"
+    checkAPNs "2"
     # set +x
 
 else

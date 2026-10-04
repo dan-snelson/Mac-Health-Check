@@ -22,9 +22,12 @@
 #   - Added safe plist reads, connected-non-pa support and normalized external-check output
 #   - Report disconnected VPN as a warning instead of a failure
 #
+#   Version 0.0.4, 30-Sep-2026, Dan K. Snelson (@dan-snelson)
+#   - Removed `/usr/local/bin` from `PATH` (Monocle S3)
+#
 ###########################################################################################
 
-export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin/
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 function readPlistValue() {
     local plistPath="${1}"

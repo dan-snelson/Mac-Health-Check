@@ -1,6 +1,6 @@
 # Mac Health Check: Health Check Categories
 
-This diagram shows the `4.0.0` Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
+This diagram shows the current Mac Health Check runtime inventory organized by category. Each item is listed with its function name and a representative human-readable label shown in the swiftDialog interface.
 
 ```mermaid
 graph LR
@@ -13,7 +13,8 @@ graph LR
         S4["checkSSV()<br>Signed System Volume"]
         S5["checkGatekeeperXProtect()<br>Gatekeeper / XProtect"]
         S6["checkFirewall()<br>Firewall"]
-        S7["checkFileVault()<br>FileVault"]
+        S7["checkFileVault()<br>FileVault Encryption"]
+        S8["checkMemoryPressure()<br>Memory Pressure"]
 
         style S1 fill:#e1f5ff
         style S2 fill:#e1f5ff
@@ -22,6 +23,7 @@ graph LR
         style S5 fill:#e1f5ff
         style S6 fill:#e1f5ff
         style S7 fill:#e1f5ff
+        style S8 fill:#e1f5ff
     end
 
     subgraph User["👤 User"]
@@ -61,7 +63,8 @@ graph LR
         M4["checkMdmCertificateExpiration()<br>MDM Certificate Expiration"]
         M5["checkJamfProCheckIn()<br>Jamf Pro Check-In"]
         M6["checkJamfProInventory()<br>Jamf Pro Inventory"]
-        M7["checkMosyleCheckIn()<br>Mosyle Check-In"]
+        M7["checkClockSkew()<br>Clock Skew"]
+        M8["checkMosyleCheckIn()<br>Mosyle Check-In"]
 
         style M1 fill:#b2dfdb
         style M2 fill:#b2dfdb
@@ -70,6 +73,7 @@ graph LR
         style M5 fill:#b2dfdb
         style M6 fill:#b2dfdb
         style M7 fill:#b2dfdb
+        style M8 fill:#b2dfdb
     end
 
     subgraph Network["🌐 Network"]
@@ -141,17 +145,18 @@ graph LR
 ## Category Descriptions
 
 ### System
-Core macOS security and compliance checks that every deployment should include. These checks verify OS version compliance, pending software updates, kernel-level security features (SIP, SSV), application security controls (Gatekeeper, XProtect), network firewall status, and disk encryption.
+Core macOS security, compliance, and health checks that every deployment should include. These checks verify OS version compliance, pending software updates, kernel-level security features (SIP, SSV), application security controls (Gatekeeper, XProtect), network firewall status, disk encryption, and recurring memory pressure.
 
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkOS()` | macOS Version | Compliant if within `previousMinorOS` versions of latest release |
 | `checkAvailableSoftwareUpdates()` | Available Updates | Reports pending macOS/app updates, including deferred and DDM-enforced OS updates |
-| `checkSIP()` | System Integrity Protection | Checks `csrutil status` |
-| `checkSSV()` | Signed System Volume | Checks `csrutil authenticated-root status` |
+| `checkSIP()` | System Integrity Protection | Reads SIP status from `bputil --display-policy` |
+| `checkSSV()` | Signed System Volume | Reads Signed System Volume status from `bputil --display-policy` |
 | `checkGatekeeperXProtect()` | Gatekeeper / XProtect | Validates Gatekeeper status and XProtect version/date |
 | `checkFirewall()` | Firewall | Supports `socketfilterfw` (default) or `pf` via `organizationFirewall` |
-| `checkFileVault()` | FileVault | Checks FileVault encryption status |
+| `checkFileVault()` | FileVault Encryption | Checks FileVault encryption status |
+| `checkMemoryPressure()` | Memory Pressure | Warns after yellow or red pressure on two distinct days in the previous seven; full runs retain root-only history for 14 days by default |
 
 ### User
 Per-user settings and behavior checks. Some checks (e.g., `checkPasswordHint()`) are MDM vendor–specific and may not appear in all deployments.
@@ -159,19 +164,19 @@ Per-user settings and behavior checks. Some checks (e.g., `checkPasswordHint()`)
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkTouchID()` | Touch ID | Reports enrolled fingerprints |
-| `checkAirDropSettings()` | AirDrop | Warns on "Everyone" setting |
-| `checkAirPlayReceiver()` | AirPlay Receiver | Warns if enabled without restriction |
-| `checkBluetoothSharing()` | Bluetooth Sharing | Warns if Bluetooth Sharing is enabled |
-| `checkPasswordHint()` | Password Hint | Warns if a password hint is set |
+| `checkAirDropSettings()` | AirDrop | Fails on "Everyone" setting |
+| `checkAirPlayReceiver()` | AirPlay Receiver | Fails if enabled; `Contacts Only` passes |
+| `checkBluetoothSharing()` | Bluetooth Sharing | Fails if Bluetooth Sharing is enabled |
+| `checkPasswordHint()` | Password Hint | Warns if a password hint is set; not run on Jamf Pro or Kandji |
 | `checkVPN()` | VPN Client | Controlled by `vpnClientVendor`; skipped if `none` |
-| `checkUptime()` | Last Reboot | Warns/errors if uptime exceeds `allowedUptimeMinutes` (default: 10,080 min / 7 days) |
+| `checkUptime()` | Last Reboot | Warns if uptime exceeds `allowedUptimeMinutes` (default: 10,080 min / 7 days; fails instead when `excessiveUptimeAlertStyle="error"`) and fails if uptime exceeds `maxUptimeMinutes` (default: 43,200 min / 30 days; set `""` to disable) |
 
 ### Disk
 Storage checks. Thresholds are configurable via organization defaults.
 
 | Function | Human-Readable Name | Notes |
 |---|---|---|
-| `checkFreeDiskSpace()` | Free Disk Space | Uses Finder-aligned available capacity when valid, falls back to `diskutil info /`, and errors if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
+| `checkFreeDiskSpace()` | Free Disk Space | Uses Finder-aligned available capacity when valid, falls back to `diskutil info /`, and fails if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
 | `checkUserDirectorySizeItems()` | Desktop / Downloads / Trash Size and Item Count | Warns if any user directory exceeds `allowedMaximumDirectoryPercentage` (default: 5%) |
 
 ### MDM
@@ -180,23 +185,26 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkMdmProfile()` | MDM Profile | Verifies MDM enrollment profile is present |
-| `checkEntraIDRegistration()` | Entra ID Registration | Jamf Pro and Development mode; detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
-| `checkAPNs()` | Apple Push Notification service | Validates APNs connectivity |
-| `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Warns 30 days before expiration |
+| `checkEntraIDRegistration()` | Entra ID Registration | Jamf Pro only; detects PSSO / legacy Workplace Join registration for the current user and reports `Not Applicable` when no Entra artifacts exist |
+| `checkAPNs()` | Apple Push Notification service | Validates MDM responses, APNs activity and MDM identity |
+| `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Fails when the MDM certificate is missing or expired (no advance warning) |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
 | `checkJamfProInventory()` | Jamf Pro Inventory | Jamf Pro only |
+| `checkClockSkew()` | Clock Skew | Jamf Pro check set and the curated `Development` subset; checks local clock offset against `time.apple.com` before inventory submission |
 | `checkMosyleCheckIn()` | Mosyle Check-In | Mosyle only |
 
 ### Network
 Validates reachability to Apple infrastructure and (for Jamf Pro) Jamf Cloud hosts. `checkWiFiStrength()` measures current RSSI and assigns a simple quality rating, treating Wi-Fi-inactive or Ethernet-primary systems as a non-failure skip. `checkNetworkQuality()` runs a `networkQuality` speed test, caching results for up to `networkQualityTestMaximumAge` (default: 4 hours) to avoid repeated tests.
 
 ### Apps
-Application-specific checks. `checkAppAutoPatch()` validates the App Auto-Patch patching agent where included. `checkHomebrewStatus()` compares the installed Homebrew release and outdated package counts without auto-updating Homebrew metadata. `checkInternal()` validates the presence of MDM vendor–specific companion apps (for example Microsoft Teams, Fleet Desktop, Company Portal, or Self-Service.app). Current Kandji flow leans more heavily on `checkInternal()` companion-app validation and pairs it with `checkWiFiStrength()` instead of `checkAppAutoPatch()`, `checkHomebrewStatus()`, and `checkElectronCornerMask()`.
+Application-specific checks. `checkAppAutoPatch()` validates the App Auto-Patch patching agent where included, preferring root-written logs (the 4.x system log, then the 3.x log) and using the user-writable per-user log only when neither exists. `checkHomebrewStatus()` compares the installed Homebrew release and outdated package counts without auto-updating Homebrew metadata. `checkInternal()` validates the presence of MDM vendor–specific companion apps (for example Microsoft Teams, Fleet Desktop, Company Portal, or Self-Service.app). Current Kandji flow leans more heavily on `checkInternal()` companion-app validation and pairs it with `checkWiFiStrength()` instead of `checkAppAutoPatch()`, `checkHomebrewStatus()`, and `checkElectronCornerMask()`.
 
 ### External
-Optional plugin checks for third-party security tools. These require separate MDM policies from the `external-checks/` directory and use a shared defaults domain (`organizationDefaultsDomain`) to pass results to the main script. Available only in Jamf Pro deployments.
+Optional plugin checks for third-party security tools. These require separate Jamf Pro policies from the `external-checks/` directory. Most plugins print a keyword result (for example `Running`, `Failed` or `Not Running`) that the main script parses; only the Microsoft Defender and Tenable (Alternate) samples pass results through the shared defaults domain (`organizationDefaultsDomain`). Available only in Jamf Pro deployments.
 
-| Trigger | Tool | Required App |
+The app path passed to `checkExternalJamfPro()` supplies only the list item icon and display name; installation and status checks happen inside each plugin.
+
+| Trigger | Tool | App Path (icon / display name only) |
 |---|---|---|
 | `symvBeyondTrustPMfM` | BeyondTrust Privilege Management | `PrivilegeManagement.app` |
 | `symvCiscoUmbrella` | Cisco Umbrella | `Cisco Secure Client.app` |
@@ -204,4 +212,4 @@ Optional plugin checks for third-party security tools. These require separate MD
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
 
 ### Inventory
-`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full `4.0.0` runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI, appears as the final Jamf Pro step in full runs, and is always appended to Jamf Pro targeted rechecks so verified results reach Jamf Pro. Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
