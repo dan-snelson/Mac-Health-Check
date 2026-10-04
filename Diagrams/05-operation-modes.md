@@ -39,7 +39,7 @@ graph TB
     end
 
     subgraph Test["🧪 Test"]
-        TS_DESC["Trigger: Manual / MDM policy<br>UI: Full swiftDialog dialog<br>Anticipation: 2s between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s auto-close<br>Logging: Full structured log — simulated pass results"]
+        TS_DESC["Trigger: Manual / MDM policy<br>UI: Full swiftDialog dialog<br>Anticipation: none between checks<br>Dock badge: Yes (when enabled)<br>Completion timer: 60s auto-close<br>Logging: Full structured log — simulated pass results"]
         TS_USE["Use case:<br>Validating UI layout and<br>check labels without real data"]
 
         style TS_DESC fill:#f3e5f5
@@ -66,7 +66,7 @@ graph TB
 | **Parameter 4 value** | `Self Service` | `Silent` | `Debug` | `Development` | `Test` |
 | **Is default?** | Yes | No | No | No | No |
 | **swiftDialog UI** | Full dialog | None | Full dialog | Clock Skew, Memory Pressure and APNs checks | Full dialog |
-| **Anticipation delay** | 2 seconds | 0 seconds | 2 seconds | 2 seconds | 2 seconds |
+| **Anticipation delay** | 2 seconds | 0 seconds | 2 seconds | 2 seconds | None between simulated checks |
 | **Dock badge** | Yes (when enabled) | No | Yes (when enabled) | Yes (when enabled) | Yes (when enabled) |
 | **Completion timer** | 60s on normal full runs | N/A | 60s (configurable) | 60s (configurable) | 60s (configurable) |
 | **Inspect config assets** | Yes when `inspectSummaryPreset="on"` | Yes on full health-check runs when `inspectSummaryPreset="on"` | No | No | No |
@@ -76,7 +76,8 @@ graph TB
 | **Logging** | Full | Full | Full + `set -x` | Full structured log | Full structured log |
 | **Real check data** | Yes | Yes | Yes | Yes (Clock Skew, Memory Pressure and APNs) | No (simulated pass results) |
 | **Local JSON report** | Canonical report | Canonical report | Canonical report | `MacHealthCheck-Report-Development.json` only | `MacHealthCheck-Report-Test.json` only |
-| **Splunk HEC / Client-Side Cache install** | Yes | Production only | Yes | No | No |
+| **Splunk HEC delivery** | Only when `splunkOperationMode=production` | Only when `splunkOperationMode=production` | Only when `splunkOperationMode=production` | No | No |
+| **Client-Side Cache install** | Yes | Only when `splunkOperationMode=production` | Yes | No | No |
 | **Intended actor** | End user | Automated / MDM policy | Administrator | Developer | Developer |
 
 ---
@@ -134,5 +135,5 @@ Test
 For local testing, pass the mode as the fourth argument:
 
 ```bash
-sudo zsh Mac-Health-Check.zsh "" "" "" "Debug"
+sudo zsh --no-rcs Mac-Health-Check.zsh "" "" "" "Debug"
 ```

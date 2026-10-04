@@ -11,7 +11,6 @@ graph TB
         P1B["Confirm prerequisites<br>root-owned jq required; swiftDialog<br>preinstalled or installable"]
         P1C["Download Mac-Health-Check.zsh<br>from GitHub repository"]
 
-        START --> P1A
         P1A --> P1B
         P1B --> P1C
 
@@ -23,10 +22,9 @@ graph TB
     subgraph Phase2["Phase 2: Script Customization"]
         P2A["Edit Organization + Support Defaults<br>(branding, Dock, thresholds, contacts)"]
         P2B["Set branding and Dock behavior<br>organizationBrandingBannerURL<br>organizationOverlayiconURL<br>enableDockIntegration · dockIcon"]
-        P2C["Set operational thresholds<br>vpnClientVendor · organizationFirewall<br>allowedUptimeMinutes<br>allowedMinimumFreeDiskPercentage"]
+        P2C["Set operational thresholds<br>vpnClientVendor · organizationFirewall<br>allowedUptimeMinutes · maxUptimeMinutes<br>allowedMinimumFreeDiskPercentage"]
         P2D["Set support links and labels<br>supportTeam* or supportLabelN/valueN"]
 
-        P1C --> P2A
         P2A --> P2B
         P2A --> P2C
         P2A --> P2D
@@ -41,11 +39,8 @@ graph TB
         P3Q{"Deploy external<br>security tool checks?"}
         P3A["Upload external-checks/ scripts<br>to MDM as separate policies"]
         P3B["Most plugins print a keyword result;<br>set organizationDefaultsDomain only for<br>defaults-domain plugins (Defender, Tenable Alt)"]
-        P3SKIP["Skip — use built-in checks only"]
+        P3SKIP["Skip — remove the 4 Jamf Pro external<br>list items (0-based indexes 34–37) or use<br>the selector skill; otherwise each<br>reports Error (recorded as warning)"]
 
-        P2B --> P3Q
-        P2C --> P3Q
-        P2D --> P3Q
         P3Q -->|Yes| P3A
         P3A --> P3B
         P3Q -->|No| P3SKIP
@@ -61,8 +56,6 @@ graph TB
         P4B["Set Parameter 4<br>operationMode = 'Self Service'"]
         P4C["Deploy MacHealthCheck-Secrets.plist (optional)<br>webhookURL + splunkHECToken"]
 
-        P3B --> P4A
-        P3SKIP --> P4A
         P4A --> P4B
         P4A --> P4C
 
@@ -77,8 +70,6 @@ graph TB
         P5C["Assign scope<br>Target devices / groups"]
         P5D["Publish policy"]
 
-        P4B --> P5A
-        P4C --> P5A
         P5A --> P5B
         P5B --> P5C
         P5C --> P5D
@@ -96,7 +87,6 @@ graph TB
         P6C["Assign scope &amp; publish"]
         P6SKIP2["Skip recurring silent reporting"]
 
-        P5D --> P6Q
         P6Q -->|Yes| P6A
         P6A --> P6B
         P6B --> P6C
@@ -116,14 +106,11 @@ graph TB
         P7D{"All checks<br>render correctly?"}
         P7FIX["Review configuration<br>and re-test"]
 
-        P6C --> P7A
-        P6SKIP2 --> P7A
         P7A --> P7B
         P7B --> P7C
         P7C --> P7D
         P7D -->|No| P7FIX
         P7FIX --> P7A
-        P7D -->|Yes| P8
 
         style P7A fill:#fff4e6
         style P7B fill:#fff4e6
@@ -135,7 +122,7 @@ graph TB
     subgraph Phase8["Phase 8: Production &amp; Monitoring"]
         P8["Promote to production scope"]
         P8A["Monitor /var/log/org.churchofjesuschrist.log<br>Review structured log output"]
-        P8B["Review webhook alerts<br>(if configured)"]
+        P8B["Review webhook alerts<br>(Jamf Pro, if configured)"]
         P8C["Validate Dock badge and unhealthy end-state<br>on non-Silent runs"]
         P8D["Check MDM inventory<br>for compliance trends"]
 
@@ -150,6 +137,21 @@ graph TB
         style P8C fill:#c8e6c9
         style P8D fill:#c8e6c9
     end
+
+    %% Phase transitions (kept outside subgraph blocks so each node renders in its own phase)
+    START --> P1A
+    P1C --> P2A
+    P2B --> P3Q
+    P2C --> P3Q
+    P2D --> P3Q
+    P3B --> P4A
+    P3SKIP --> P4A
+    P4B --> P5A
+    P4C --> P5A
+    P5D --> P6Q
+    P6C --> P7A
+    P6SKIP2 --> P7A
+    P7D -->|Yes| P8
 
     classDef default font-size:11px
 ```
@@ -178,7 +180,7 @@ Open `Mac-Health-Check.zsh` and review the **Organization Variables** and **IT S
 |---|---|
 | `organizationBrandingBannerURL` | Your organization's banner image URL |
 | `organizationOverlayiconURL` | Your MDM self-service app icon path or URL |
-| `enableDockIntegration` / `dockIcon` | Whether to show Dock integration in non-`Silent` modes and which icon to use |
+| `enableDockIntegration` / `dockIcon` | Whether to show Dock integration in non-`Silent` modes and which icon to use; the Dock-named swiftDialog copy is re-signed ad hoc (dropping swiftDialog's Team ID), so set `enableDockIntegration="false"` where PPPC or notification profiles key on that Team ID |
 | `vpnClientVendor` | `paloalto`, `cisco`, `tailscale`, or `none` |
 | `organizationFirewall` | `socketfilterfw` (most orgs) or `pf` |
 | `supportLabel1` / `supportValue1` (and additional pairs as needed) | Dynamic support lines and the first URL-like action for the Info button |
@@ -187,7 +189,8 @@ Open `Mac-Health-Check.zsh` and review the **Organization Variables** and **IT S
 | Variable | Default | Description |
 |---|---|---|
 | `allowedUptimeMinutes` | `10080` (7 days) | Uptime warning threshold |
-| `allowedMinimumFreeDiskPercentage` | `10` | Free disk error threshold |
+| `maxUptimeMinutes` | `43200` (30 days) | Uptime fail threshold; set to `""` to disable |
+| `allowedMinimumFreeDiskPercentage` | `10` | Free disk fail threshold |
 | `previousMinorOS` | `2` | How many older macOS versions are compliant |
 | `completionTimer` | `60` | Fallback dialog auto-close (seconds) |
 
@@ -202,7 +205,9 @@ If your organization uses BeyondTrust, Cisco Umbrella, CrowdStrike, or GlobalPro
 1. Review the scripts in `external-checks/` and customize as needed
 2. Upload each external check script to Jamf Pro with its trigger name (e.g., `symvCrowdStrikeFalcon`)
 3. Most plugins print a keyword result (`Running`, `Failed`, `Not Running`, `Warning`); only for plugins that write to a defaults domain (the Microsoft Defender and Tenable (Alternate) samples) set `organizationDefaultsDomain` in `Mac-Health-Check.zsh` to match
-4. Ensure the `checkExternalJamfPro` calls in the Jamf Pro check set (list items 34–37, after Microsoft Teams and before Wi-Fi Strength) reference the correct trigger names
+4. Ensure the `checkExternalJamfPro` calls in the Jamf Pro check set (0-based list item indexes 34–37, shown as items 35–38 in the dialog, after Microsoft Teams and before Wi-Fi Strength) reference the correct trigger names
+
+If you skip external checks on Jamf Pro, remove those four list items and their `checkExternalJamfPro` calls (renumbering the later `SF=NN.circle` icons and `runConfiguredHealthCheck` indexes), or build a trimmed copy with the [Mac Health Check Selector skill](../Skills/mac-health-check-selector/SKILL.md), which renumbers automatically; otherwise each missing policy reports `Error`, recorded as `warning` in the JSON report.
 
 ---
 
@@ -263,7 +268,7 @@ After production deployment, monitor:
 - **Cached-upload marker and age** — confirm later `Silent` + `production` uploads log `cached report is valid and <seconds>s old. Skipping health checks.` so operators can distinguish delivery time from collection time
 - **Force Fresh Run marker** — confirm bypassed runs log `Client-Side Cache: FORCE FRESH RUN triggered ...` followed by a fresh-write marker instead of cached-upload notices
 - **Dock badge, inspect summary handoff, cached replay, and unhealthy end-state handling** on test Macs in non-`Silent` modes — confirm countdown badges update per check, `Self Service` launches the detached moveable Preset 6 guided summary with separate `Unhealthy` and `Healthy` sections during the retained main-dialog countdown when `inspectSummaryPreset="on"`, reruns replay the cached summary after pre-flight/client-side installation without re-running checks only while the cached handoff file remains younger than `inspectReplayMaximumAgeSeconds`, and failed runs now rely on the unhealthy main-dialog state plus the detached `Self Service` summary instead of a pseudo-alert notification
-- **Webhook notifications** in Teams or Slack (if configured) — review failure summaries
+- **Webhook notifications** in Teams or Slack (if configured) — review failure summaries; delivery is effectively Jamf Pro-only (messages include a `View in Jamf Pro` link; Mosyle payloads carry an empty link and may be rejected; other MDMs send nothing)
 - **MDM inventory** — Jamf Pro interactive/full runs can still trigger inventory submission, while `Silent` + Splunk production and Client-Side Cache LaunchDaemon runs skip it
 
 ---
@@ -280,5 +285,5 @@ After production deployment, monitor:
 - [ ] Silent mode policy created with Splunk production parameters (if desired)
 - [ ] Client-Side Cache script, LaunchDaemon, and cached JSON validated on a test Mac
 - [ ] Client-Side Cache jitter validated on multiple Macs; offsets differ but remain stable per Mac
-- [ ] Webhook validated (if configured)
+- [ ] Webhook validated (Jamf Pro, if configured)
 - [ ] Rolled out to full production scope

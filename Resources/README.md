@@ -31,6 +31,8 @@ It also holds reference material: [`Splunk-Dashboard-Reference.md`](Splunk-Dashb
 
 Beginning in `5.0.0`, the wrapper no longer writes to the fixed `/var/tmp/MHC.zsh` path (which a local user could pre-create and rewrite before root executed it) and the `--target` option has been removed. Regenerate any previously deployed self-extracting scripts.
 
+Because the decoded copy is a root-owned file in a root-only directory under sticky `/var/tmp`, `Self Service`, `Debug` and `Silent` + `splunkOperationMode=production` runs from a self-extracting wrapper install the Client-Side Cache copy and LaunchDaemon, just like runs from your MDM's script cache. Reporting secrets still come only from `MacHealthCheck-Secrets.plist`.
+
 #### Default behavior
 
 - Default source file: `../Mac-Health-Check.zsh`
@@ -74,6 +76,14 @@ The `Makefile` packages `../Mac-Health-Check.zsh` as:
 - Install path: `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` (root-owned; beginning in `5.0.0`, the payload no longer uses `/usr/local/bin`, which Homebrew can make user-writable)
 - Package name format: `Mac-Health-Check-<scriptVersion>-<YYYY-MM-DD-HHMMSS>.pkg`
 - Post-install behavior: runs `postInstall.zsh` (copied as `postinstall`), which executes the payload with `/bin/zsh --no-rcs` in `Self Service` mode
+
+Because that installed payload is a trusted root-owned path, the post-install run:
+
+- Shows the `Self Service` dialog (and detached Inspect summary) to the logged-in user while the package installs
+- Installs the Client-Side Cache copy (`/Library/Management/org.churchofjesuschrist/MHC.zsh`) and its `org.churchofjesuschrist.MHC` LaunchDaemon
+- Passes no Script Parameters, so `splunkOperationMode` is `test` (local report only) and webhook messages (Jamf Pro only) are sent only when `MacHealthCheck-Secrets.plist` already supplies a webhook URL
+
+If you change `reverseDomainNameNotation` in `Mac-Health-Check.zsh`, also update `INSTALL_DIR` in `Makefile` and the payload path in `postInstall.zsh`.
 
 #### Commands
 
@@ -124,6 +134,6 @@ make distclean
 
 ### Output Locations
 
-- Generated `.pkg` files: this `Resources` directory
+- Generated `.pkg` files: this `Resources` directory (git-ignored as `Resources/*.pkg`)
 - Temporary build paths: `$TMPDIR/Mac-Health-Check/` (per-user and private on macOS; falls back to `/var/tmp/Mac-Health-Check/` only when `TMPDIR` is unset). Beginning in `5.0.0`, `make` refuses a staging directory it does not own (mode `700`), so another local user cannot pre-create it and swap files before `pkgbuild`
-- Self-extracting script output: current working directory where `createSelfExtracting.zsh` is run
+- Self-extracting script output: current working directory where `createSelfExtracting.zsh` is run (git-ignored as `*_self-extracting-*.sh`)

@@ -13,7 +13,7 @@ graph LR
         S4["checkSSV()<br>Signed System Volume"]
         S5["checkGatekeeperXProtect()<br>Gatekeeper / XProtect"]
         S6["checkFirewall()<br>Firewall"]
-        S7["checkFileVault()<br>FileVault"]
+        S7["checkFileVault()<br>FileVault Encryption"]
         S8["checkMemoryPressure()<br>Memory Pressure"]
 
         style S1 fill:#e1f5ff
@@ -151,11 +151,11 @@ Core macOS security, compliance, and health checks that every deployment should 
 |---|---|---|
 | `checkOS()` | macOS Version | Compliant if within `previousMinorOS` versions of latest release |
 | `checkAvailableSoftwareUpdates()` | Available Updates | Reports pending macOS/app updates, including deferred and DDM-enforced OS updates |
-| `checkSIP()` | System Integrity Protection | Checks `csrutil status` |
-| `checkSSV()` | Signed System Volume | Checks `csrutil authenticated-root status` |
+| `checkSIP()` | System Integrity Protection | Reads SIP status from `bputil --display-policy` |
+| `checkSSV()` | Signed System Volume | Reads Signed System Volume status from `bputil --display-policy` |
 | `checkGatekeeperXProtect()` | Gatekeeper / XProtect | Validates Gatekeeper status and XProtect version/date |
 | `checkFirewall()` | Firewall | Supports `socketfilterfw` (default) or `pf` via `organizationFirewall` |
-| `checkFileVault()` | FileVault | Checks FileVault encryption status |
+| `checkFileVault()` | FileVault Encryption | Checks FileVault encryption status |
 | `checkMemoryPressure()` | Memory Pressure | Warns after yellow or red pressure on two distinct days in the previous seven; full runs retain root-only history for 14 days by default |
 
 ### User
@@ -164,19 +164,19 @@ Per-user settings and behavior checks. Some checks (e.g., `checkPasswordHint()`)
 | Function | Human-Readable Name | Notes |
 |---|---|---|
 | `checkTouchID()` | Touch ID | Reports enrolled fingerprints |
-| `checkAirDropSettings()` | AirDrop | Warns on "Everyone" setting |
-| `checkAirPlayReceiver()` | AirPlay Receiver | Warns if enabled without restriction |
-| `checkBluetoothSharing()` | Bluetooth Sharing | Warns if Bluetooth Sharing is enabled |
+| `checkAirDropSettings()` | AirDrop | Fails on "Everyone" setting |
+| `checkAirPlayReceiver()` | AirPlay Receiver | Fails if enabled; `Contacts Only` passes |
+| `checkBluetoothSharing()` | Bluetooth Sharing | Fails if Bluetooth Sharing is enabled |
 | `checkPasswordHint()` | Password Hint | Warns if a password hint is set; not run on Jamf Pro or Kandji |
 | `checkVPN()` | VPN Client | Controlled by `vpnClientVendor`; skipped if `none` |
-| `checkUptime()` | Last Reboot | Warns/errors if uptime exceeds `allowedUptimeMinutes` (default: 10,080 min / 7 days) |
+| `checkUptime()` | Last Reboot | Warns if uptime exceeds `allowedUptimeMinutes` (default: 10,080 min / 7 days; fails instead when `excessiveUptimeAlertStyle="error"`) and fails if uptime exceeds `maxUptimeMinutes` (default: 43,200 min / 30 days; set `""` to disable) |
 
 ### Disk
 Storage checks. Thresholds are configurable via organization defaults.
 
 | Function | Human-Readable Name | Notes |
 |---|---|---|
-| `checkFreeDiskSpace()` | Free Disk Space | Uses Finder-aligned available capacity when valid, falls back to `diskutil info /`, and errors if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
+| `checkFreeDiskSpace()` | Free Disk Space | Uses Finder-aligned available capacity when valid, falls back to `diskutil info /`, and fails if below `allowedMinimumFreeDiskPercentage` (default: 10%) |
 | `checkUserDirectorySizeItems()` | Desktop / Downloads / Trash Size and Item Count | Warns if any user directory exceeds `allowedMaximumDirectoryPercentage` (default: 5%) |
 
 ### MDM
@@ -190,7 +190,7 @@ MDM connectivity and certificate health checks. Vendor-specific checks (Jamf Pro
 | `checkMdmCertificateExpiration()` | MDM Certificate Expiration | Fails when the MDM certificate is missing or expired (no advance warning) |
 | `checkJamfProCheckIn()` | Jamf Pro Check-In | Jamf Pro only |
 | `checkJamfProInventory()` | Jamf Pro Inventory | Jamf Pro only |
-| `checkClockSkew()` | Clock Skew | Jamf Pro only; checks local clock offset against `time.apple.com` before inventory submission |
+| `checkClockSkew()` | Clock Skew | Jamf Pro check set and the curated `Development` subset; checks local clock offset against `time.apple.com` before inventory submission |
 | `checkMosyleCheckIn()` | Mosyle Check-In | Mosyle only |
 
 ### Network
@@ -202,7 +202,9 @@ Application-specific checks. `checkAppAutoPatch()` validates the App Auto-Patch 
 ### External
 Optional plugin checks for third-party security tools. These require separate Jamf Pro policies from the `external-checks/` directory. Most plugins print a keyword result (for example `Running`, `Failed` or `Not Running`) that the main script parses; only the Microsoft Defender and Tenable (Alternate) samples pass results through the shared defaults domain (`organizationDefaultsDomain`). Available only in Jamf Pro deployments.
 
-| Trigger | Tool | Required App |
+The app path passed to `checkExternalJamfPro()` supplies only the list item icon and display name; installation and status checks happen inside each plugin.
+
+| Trigger | Tool | App Path (icon / display name only) |
 |---|---|---|
 | `symvBeyondTrustPMfM` | BeyondTrust Privilege Management | `PrivilegeManagement.app` |
 | `symvCiscoUmbrella` | Cisco Umbrella | `Cisco Secure Client.app` |
@@ -210,4 +212,4 @@ Optional plugin checks for third-party security tools. These require separate Ja
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `GlobalProtect.app` |
 
 ### Inventory
-`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI and appears as the final Jamf Pro step in full runs. Full Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.
+`updateComputerInventory()` is a Jamf Pro-only follow-up action that submits the Mac's latest inventory after the rest of the Jamf-specific check set completes. It is represented as a list item in the UI, appears as the final Jamf Pro step in full runs, and is always appended to Jamf Pro targeted rechecks so verified results reach Jamf Pro. Jamf Pro runs surface failed or timed-out `jamf recon` submissions to the end-user, and the submission attempt times out after `90` seconds. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.

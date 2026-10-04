@@ -23,7 +23,7 @@
 # keyword "NOT", and the script will report a failure.                             #
 #                                                                                  #
 # If all expected apps are installed, the `RESULT` variable will include the       #
-# keyword "Success"; see the following post:                                       #                     
+# keyword "Running"; see the following post:                                       #
 # https://snelson.us/2023/01/setup-your-mac-validation/                            #
 ####################################################################################
 

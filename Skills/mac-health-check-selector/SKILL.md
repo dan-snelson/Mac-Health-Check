@@ -55,13 +55,13 @@ The helper prints each MDM by its display name (`Kandji / Iru`, `Other / MDM-agn
 
 MDM-specific notes to carry forward:
 
-- **All MDMs** — the script picks its branch at runtime from the enrolled `serverURL`, not from the artifact name. An Intune artifact run on a Jamf Pro-enrolled Mac runs the unedited `"Jamf Pro" )` branch.
+- **All MDMs** — the script picks its branch at runtime from the enrolled `serverURL`, not from the artifact name. An Intune artifact run on a Jamf Pro-enrolled Mac runs the unedited `"Jamf Pro" )` branch, or the generic fallback when other MDMs were pruned (Step 4b).
 - **Jamf Pro** — only MDM with Jamf Pro Check-In, Jamf Pro Inventory, Jamf Hosts, Computer Inventory (`jamf recon`), and `checkExternalJamfPro` external checks. Entra ID Registration and Clock Skew ship in the Jamf Pro list. The script exits early if `/private/var/log/jamf.log` is missing.
 - **Mosyle** — adds Mosyle Check-In and the Mosyle Self-Service app check.
 - **Fleet / Intune** — add an MDM agent app presence check (Fleet Desktop / Microsoft Company Portal).
 - **Kandji / Iru** — detected when `serverURL` contains `kandji`; an Iru-branded URL without that string falls to the generic branch. Ask the admin to confirm their server URL. Ships a six-app set (`A5a`–`A5f`) and no MDM Profile row.
 - **Addigy** — ships with a blank `mdmVendorUuid`; MDM Profile will not pass until the admin fills it in manually.
-- **Other** — no MDM Profile or MDM Certificate Expiration, because no vendor profile or certificate name is known. Admins who know them edit `mdmVendor`, `mdmVendorUuid` or `mdmProfileIdentifier`, and the certificate name manually. The generic branch also runs on unenrolled Macs, where M4 Apple Push Notification service fails.
+- **Other** — no MDM Profile or MDM Certificate Expiration, because no vendor profile or certificate name is known. Admins who know them edit `mdmVendor`, `mdmVendorUuid` or `mdmProfileIdentifier`, and the certificate name manually. The generic branch also runs on unenrolled Macs, where M4 Apple Push Notification service warns (`APNs active; no MDM response`) or fails.
 
 ## Step 2 — Explain the purpose
 
@@ -100,7 +100,7 @@ Ask: "Reply `defaults` to keep the shipped list, or change it: `H7 A4` adds, `no
 - C13 VPN Client
 
 **Maintenance & Hygiene (H)**
-- H1 Last Reboot / Uptime
+- H1 Last Reboot
 - H2 Free Disk Space
 - H3 Desktop Size and Item Count
 - H4 Downloads Size and Item Count
@@ -110,7 +110,7 @@ Ask: "Reply `defaults` to keep the shipped list, or change it: `H7 A4` adds, `no
 
 **MDM & Connectivity (M)**
 - M1 `<MDM>` MDM Profile
-- M2 Entra ID Registration (ships for Jamf Pro; reads Jamf AAD plist and Platform SSO — review before using elsewhere)
+- M2 Entra ID Registration (ships for Jamf Pro; reads the JamfAAD plist, Platform SSO, and the MS-ORGANIZATION-ACCESS certificate; on other MDMs it passes as `Not Applicable` unless that certificate exists, which reports `Partial` (warning) — review before using elsewhere)
 - M3 `<MDM>` MDM Certificate Expiration
 - M4 Apple Push Notification service (APNs)
 - M5 Jamf Pro Check-In `[Jamf Pro only]`
@@ -138,7 +138,7 @@ Ask: "Reply `defaults` to keep the shipped list, or change it: `H7 A4` adds, `no
 - A10 Other `external-checks/` script* (Microsoft Defender, Microsoft Office 365, Nessus, Sophos, Splunk Universal Forwarder, Zscaler, printer install, and others) `[Jamf Pro only]`
 
 **Follow-up Actions (F)**
-- F1 Update Computer Inventory `[Jamf Pro only; always last]`
+- F1 Computer Inventory `[Jamf Pro only; always last]`
 
 `*` = requires an external-check script deployed as a Jamf Pro policy with a custom trigger. On other MDMs, offer A4-style presence checks (`checkInternal`) or a new custom `checkXxx` function instead.
 
@@ -229,7 +229,8 @@ After `yes` in 4a, send this question alone and wait:
   - **`0`:** the artifact and its complete sidecar `.md` are in `Artifacts/`.
   - **`1`:** at least one check failed. Nothing was written to `Artifacts/`, and the failed build stays in the printed work directory. Fix the selection (usually the order), then rerun; the rerun gets a new timestamp.
   - **`2`:** the selection file or the anchors are invalid. Fix it and rerun.
-- **If you cannot run the helper:** follow the manual procedure in `references/artifact-procedure.md`. Each manual check prints `PASS`/`FAIL`, and the block exits non-zero on any failure.
+- Other helper options: `--source <path>` reads another copy of the script (owned by you or root, not world-writable); `--out-dir <dir>` writes somewhere other than `Artifacts/` next to the source, and must be git-ignored or check 8 fails; `-h` / `--help` prints usage. See `references/artifact-procedure.md`.
+- **If you cannot run the helper:** follow the manual procedure in `references/artifact-procedure.md`. Each manual check prints `PASS`/`FAIL`, and the block exits non-zero on any failure. The manual procedure never prunes: if the admin replied `yes` in 4b, build unpruned and tell them.
 - **If you cannot write files:** print the intended filename, the full artifact in one fenced `zsh` block, and the sidecar in a fenced `markdown` block. Tell the admin to save both under `Artifacts/` and run the helper, or the manual checks, on the saved file.
 
 ### 4e. Review the sidecar
@@ -256,12 +257,14 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 | `[C8]` | C8 enabled | Touch ID reports an error on Macs without Touch ID hardware (VMs, desktops without a Touch ID keyboard). |
 | `[C13]` | C13 enabled | VPN Client follows `vpnClientVendor` (shipped `paloalto`) and `vpnClientDataType`; it fails when that client is absent. |
 | `[H6]` | H6 enabled | Memory Pressure needs samples from two distinct days; early runs show `Insufficient data`. |
+| `[H7]` | H7 enabled | Clock Skew queries `time.apple.com` with `sntp` (UDP 123); blocked NTP reports `Unable to determine` (warning), and skew over 300 seconds fails. |
+| `[M2]` | M2 enabled | Entra ID Registration passes as `Not Applicable` when no Entra artifacts exist; without the JamfAAD plist (the norm outside Jamf Pro), an MS-ORGANIZATION-ACCESS certificate reports `Partial` (warning). |
 | `[vendor]` | M1 enabled | MDM Profile needs `mdmVendorUuid` or `mdmProfileIdentifier`. |
 | `[Addigy]` | Addigy + M1 | `mdmVendorUuid` ships blank; fill it in. |
 | `[Kandji]` | Kandji | Detection needs `serverURL` to contain `kandji`. |
-| `[generic]` | Other | No MDM Profile or MDM Certificate Expiration; M4 fails on unenrolled Macs. |
+| `[generic]` | Other | No MDM Profile or MDM Certificate Expiration; M4 warns (`APNs active; no MDM response`) or fails on unenrolled Macs. |
 | `[Jamf]` | Jamf Pro | Script exits early without `/private/var/log/jamf.log`. |
-| `[Jamf]` | External checks | Each `checkExternalJamfPro` call needs its `external-checks/` script in Jamf Pro and a policy with the matching custom trigger; output must include `Running`, `Warning`, `Failed`, or `Error`. `Not Running` fails, and a policy still running after `externalCheckTimeoutSeconds` (shipped `120` seconds) reports `Timed Out`. See `external-checks/README.md`. |
+| `[Jamf]` | External checks | Each `checkExternalJamfPro` call needs its `external-checks/` script in Jamf Pro and a policy with the matching custom trigger. Results resolve in order: a policy still running after `externalCheckTimeoutSeconds` (shipped `120` seconds) reports `Timed Out`; then `checkType` / `checkStatus` / `checkExtended` in `organizationDefaultsDomain`, when the script writes them (Microsoft Defender, TenableNessusAgent-Alternate); then keywords in the script result: `Failed` or `Not Running` (fail), `Running` (pass), `Warning`. `Error`, `Not Installed`, or unmatched output shows `Error`. `Timed Out`, `Warning`, and `Error` are recorded as `warning` in the JSON report. See `external-checks/README.md`. |
 | `[Jamf]` | F1 enabled | `jamf recon` with a 90-second timeout; skipped in `Silent` + production; removed from the cached copy. |
 | `[A9]` | A9 rebuilt | Subtitle now `<YOUR_ORGANIZATION_NETWORK>`; replace it before deploying. |
 | `[A4]` | A4 enabled | Shows the `checkInternal` path and name; edit them if the required app differs. |
@@ -271,8 +274,8 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 Close with these steps, then offer to adjust the selection or build another artifact for a different MDM. Each artifact starts from the untouched source.
 
 1. Review the sidecar and the diff summary.
-2. Test on one Mac **enrolled in the chosen MDM** (for Other / MDM-agnostic, a Mac whose `serverURL` matches no known MDM; an unenrolled Mac qualifies, and M4 then fails as expected):
-   - Run `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4.
+2. Test on one Mac **enrolled in the chosen MDM** (for Other / MDM-agnostic, a Mac whose `serverURL` matches no known MDM; an unenrolled Mac qualifies, and M4 then warns (`APNs active; no MDM response`) or fails as expected):
+   - Run `sudo zsh --no-rcs ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4.
    - `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
    - Confirm that the dropped checks do not appear in the log and that the row count matches.
    - The Client-Side Cache install runs only in `Self Service`, `Debug`, and `Silent` with `splunkOperationMode=production` (never `Test` or `Development`), and only from a root-owned script path. Run from a user-owned checkout such as `./Artifacts/`, it logs `install skipped` and leaves the Mac's cached copy alone. Run from a root-owned path, it replaces the Mac's Client-Side Cache copy and LaunchDaemon with the artifact; re-run the production policy afterwards to restore them.

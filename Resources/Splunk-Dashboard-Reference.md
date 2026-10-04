@@ -251,11 +251,11 @@ Mac Health Check posts `{"sourcetype": ..., "index": ..., "event": <report>}` to
 | `identity.entraIDRegistration` | `status`, `method`, `lastUser`, `lastUserHome`, `details` |
 | `checks[]` | `index`, `key`, `name`, `status`, `message`, `rawValue`, `remediation`, `checkedAt`, `checkedAtEpoch` |
 
-Check keys are the list-item title in lowercase snake case (for example, `filevault_encryption`); `Memory Pressure` uses `memoryPressure`, and MDM-named checks include the vendor (for example, `jamf_pro_mdm_profile`). Check `status` is `healthy`, `warning`, `fail` or `error`. If report generation fails validation, a fallback report carries only core `metadata`, an `error` summary with `reportingErrors`, `identity`, and empty `systemInfo`, `mdm` and `checks`.
+Check keys are the list-item title in lowercase snake case (for example, `filevault_encryption`); each run of non-alphanumeric characters collapses only pairwise, so `Gatekeeper / XProtect` becomes `gatekeeper__xprotect` (double underscore) and `User's Desktop Size` becomes `user_s_desktop_size`; `Memory Pressure` uses `memoryPressure`, and MDM-named checks include the vendor (for example, `jamf_pro_mdm_profile`). Check `status` is `healthy`, `warning`, `fail` or `error`. If report generation fails validation, a fallback report carries only core `metadata`, an `error` summary with `reportingErrors`, `identity`, and empty `systemInfo`, `mdm` and `checks`.
 
 Timing notes:
 
-- The HEC wrapper has no `time` field, so `_time` is when Splunk received the event, not when checks ran. Cached uploads resend a report up to 36 hours old, so use `metadata.timestampEpoch` (report written) or `metadata.fullRunTimestampEpoch` (last full run) when age matters.
+- The HEC wrapper has no `time` field, so `_time` is when Splunk received the event, not when checks ran. Cached uploads resend a report up to 36 hours old, so use `metadata.timestampEpoch` (report written) or `metadata.fullRunTimestampEpoch` (last full run) when age matters. The shipped dashboard searches still dedup on `sort 0 - _time`; replace that with `sort 0 - metadata.timestampEpoch` if cached uploads make the latest-received event older than another report from the same Mac.
 - `runScope=targeted` reports merge a `Self Service` recheck into the previous full report: rechecked entries in `checks[]` carry new `checkedAt` values while the others keep their original ones, and `fullRunTimestamp` stays at the underlying full run. Compare `checks{}.checkedAtEpoch` when per-check freshness matters.
 
 ## Key Names Used

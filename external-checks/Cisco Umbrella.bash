@@ -10,7 +10,7 @@
 #
 # HISTORY
 #
-#   Version 0.0.1, 22-Dev-2023, Dan K. Snelson (@dan-snelson)
+#   Version 0.0.1, 22-Dec-2023, Dan K. Snelson (@dan-snelson)
 #       Original version
 #
 #   Version 0.0.2, 19-Jan-2024, Dan K. Snelson (@dan-snelson)

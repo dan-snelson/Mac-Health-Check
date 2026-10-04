@@ -40,7 +40,7 @@ Notes:
 
 - An Iru-branded server URL that does not contain `kandji` falls through to the generic branch; add a pattern to the `case "${serverURL}" in` block if needed.
 - Addigy ships with `mdmVendorUuid=""`; the MDM Profile check needs a UUID or identifier to pass.
-- The generic branch omits MDM Profile and MDM Certificate Expiration because no vendor profile or certificate name is known. It also runs on unenrolled Macs (logged as `Unknown MDM vendor: None`), where M4 Apple Push Notification service fails.
+- The generic branch omits MDM Profile and MDM Certificate Expiration because no vendor profile or certificate name is known. It also runs on unenrolled Macs (logged as `Unknown MDM vendor: None`), where M4 Apple Push Notification service warns (`APNs active; no MDM response`) or fails.
 
 ## Artifact anchors per MDM
 
@@ -49,15 +49,16 @@ Used by `references/artifact-procedure.md`.
 - **Region A** runs from the array start line (column 1) through the next line that is exactly `'`.
 - **Region B** runs from the branch label line (12 spaces) through the next `                ;;`. It sits inside the first `        case ${mdmVendor} in` after the header `# Generate Health Checks based on Operation Mode and MDM Vendor`.
 - This file lists no line numbers because they drift with every release. Always anchor on the text. `zsh scripts/build-artifact.zsh --list <slug>` prints the live ranges.
+- Rows follow the script's `case "${serverURL}" in` detection order, with the generic fallback last.
 
 | Slug | Region A start line | Region B label line | Detection pattern (`case "${serverURL}" in`) |
 |---|---|---|---|
 | `addigy` | `addigyMdmListitemJSON='` | `"Addigy" )` | `*addigy* )` |
 | `filewave` | `filewaveMdmListitemJSON='` | `"Filewave" )` | `*filewave* )` |
 | `fleet` | `fleetMdmListitemJSON='` | `"Fleet" )` | `*fleet* )` |
-| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` | `*kandji* )` |
 | `jamf-pro` | `jamfProListitemJSON='` | `"Jamf Pro" )` | `*jamf* \| *jss* )` |
 | `jumpcloud` | `jumpcloudMdmListitemJSON='` | `"JumpCloud" )` | `*jumpcloud* )` |
+| `kandji` | `kandjiMdmListitemJSON='` | `"Kandji" )` | `*kandji* )` |
 | `microsoft-intune` | `microsoftMdmListitemJSON='` | `"Microsoft Intune" )` | `*microsoft* )` |
 | `mosyle` | `mosyleListitemJSON='` | `"Mosyle" )` | `*mosyle* )` |
 | `generic` | `genericMdmListitemJSON='` | `* )` | `* )` (never pruned) |
@@ -96,7 +97,7 @@ Client-Side Cache constraint:
 
 ## Master check table
 
-Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` = needs a known `mdmVendor`; `Ext` = needs an external-check script plus a Jamf Pro policy trigger.
+Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` = needs a known `mdmVendor`; `Ext` = needs an external-check script plus a Jamf Pro policy trigger. In **Notes**, "warning" (or "warns") means the row shows the dialog `error` status, which the JSON report records as `warning`.
 
 `scripts/build-artifact.zsh` carries the same ID-to-title map (including Kandji `A5a`–`A5f`) and restricted-availability list; update both when a check, title, or availability changes.
 
@@ -114,7 +115,7 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 | C8 | Touch ID | `checkTouchID` | All | Reports `error` when Touch ID hardware is absent (VMs, desktops without a Touch ID keyboard) |
 | C9 | Password Hint | `checkPasswordHint` | All | Not in Jamf Pro or Kandji defaults |
 | C10 | AirDrop | `checkAirDropSettings` | All | Not in Kandji default |
-| C11 | AirPlay Receiver | `checkAirPlayReceiver` | All | macOS 27 missing-key aware |
+| C11 | AirPlay Receiver | `checkAirPlayReceiver` | All | Not in Kandji default; macOS 27 missing-key aware |
 | C12 | Bluetooth Sharing | `checkBluetoothSharing` | All | macOS 27 missing-domain aware |
 | C13 | VPN Client | `checkVPN` | All | Honors `vpnClientVendor` (shipped `paloalto`) and `vpnClientDataType`; fails when that client is absent |
 
@@ -128,16 +129,16 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 | H4 | Downloads Size and Item Count | `checkUserDirectorySizeItems "Downloads" "folder.fill.badge.plus" "Downloads"` | All | Kandji default uses icon `arrow.down.circle.fill` |
 | H5 | Trash Size and Item Count | `checkUserDirectorySizeItems ".Trash" "trash.fill" "Trash"` | All | User-scoped |
 | H6 | Memory Pressure | `checkMemoryPressure` | All | Warning-only; root-only 14-day JSON Lines history; warns when yellow/red pressure appears on 2 distinct days within 7 days |
-| H7 | Clock Skew | `checkClockSkew` | All (Jamf default) | Flags skew over 5 minutes against `time.apple.com`; hides dialog updates in `Silent` and `Test`. Outside Jamf Pro the helper uses the neutral subtitle below |
+| H7 | Clock Skew | `checkClockSkew` | All (Jamf default) | Queries `time.apple.com` with `sntp` (NTP, UDP 123); skew over 300 seconds fails; blocked NTP or no reply reports `Unable to determine` (warning). Hides dialog updates in `Silent` and `Test`. Outside Jamf Pro the helper uses the neutral subtitle below |
 
 ### MDM & Connectivity (M)
 
 | ID | Title | Call | Avail | Notes |
 |---|---|---|---|---|
 | M1 | `'${mdmVendor}' MDM Profile` | `checkMdmProfile` | Vendor | Needs `mdmVendorUuid` or `mdmProfileIdentifier` |
-| M2 | Entra ID Registration | `checkEntraIDRegistration` | Jamf default | Reads Jamf AAD plist, Platform SSO, and legacy certificate; review before using elsewhere |
+| M2 | Entra ID Registration | `checkEntraIDRegistration` | Jamf default | Reads the JamfAAD plist, Platform SSO (through Jamf Conditional Access), and the user's legacy MS-ORGANIZATION-ACCESS certificate. With none present it passes as `Not Applicable`. Without the JamfAAD plist (the norm on non-Jamf MDMs), that certificate reports `Partial` (warning); review before using elsewhere |
 | M3 | `'${mdmVendor}' MDM Certificate Expiration` | `checkMdmCertificateExpiration` | Vendor | Certificate name mapped per vendor |
-| M4 | Apple Push Notification service | `checkAPNs` | All | |
+| M4 | Apple Push Notification service | `checkAPNs` | All | Reads 24 hours of logs from processes under `/System/` or `/usr/libexec/` only. Passes on a ManagedClient MDM response (HTTP 200); fails with `MDM identity error` when error -25304 is newer than the last MDM response; warns (`APNs active; no MDM response`) on `apsd` courier activity without an MDM response; fails when neither appears |
 | M5 | Jamf Pro Check-In | `checkJamfProCheckIn` | Jamf | Reads `jamf.log` |
 | M6 | Jamf Pro Inventory | `checkJamfProInventory` | Jamf | |
 | M7 | Mosyle Check-In | `checkMosyleCheckIn` | Mosyle only | |
@@ -167,7 +168,13 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 
 `checkInternal` arguments: `<file or app to test for>` `<icon path>` `<display name>`. It verifies presence only.
 
-`checkExternalJamfPro` arguments: `<Jamf Pro policy custom trigger>` `<app path for icon>`. It runs `jamf policy -event <trigger>` (limited to `externalCheckTimeoutSeconds`, default `120`; longer runs report `Timed Out`) and reads `Failed` / `Not Running` (fail), `Running`, `Warning`, or `Error` from output, in that order. It is Jamf Pro-only. On other MDMs, use `checkInternal` for presence or write a new `checkXxx` function.
+`checkExternalJamfPro` arguments: `<Jamf Pro policy custom trigger>` `<app path for icon>`. It is Jamf Pro-only. On other MDMs, use `checkInternal` for presence or write a new `checkXxx` function. It runs `jamf policy -event <trigger>` and sets the row in this order:
+
+1. **Timeout:** a policy still running after `externalCheckTimeoutSeconds` (default `120`) is stopped and reports `Timed Out`.
+2. **Defaults domain:** when the script wrote `checkType`, `checkStatus`, and `checkExtended` to `organizationDefaultsDomain` (the Microsoft Defender Check and TenableNessusAgent-Alternate samples), `checkType` sets the status (`success`, `warning`, `fail`, or `error`; anything else is `error`) and `checkStatus` the status text. Keywords are not matched.
+3. **Keywords:** otherwise the policy's `Script result:` (or `<result>`) text is matched case-insensitively: `Failed` or `Not Running` (fail), then `Running` (pass), then `Warning`. `Error`, `Not Installed`, and unmatched output show `Error`.
+
+`Timed Out`, `Warning`, and `Error` rows use the dialog `error` status, which the JSON report records as `warning`.
 
 Scripts shipped in `external-checks/`: BeyondTrust Privileged Access Management, Check Printer Install, Cisco Umbrella, CrowdStrike Falcon Status, Microsoft Defender Check, Microsoft Office 365, Nessus Agent Status, Palo Alto Networks GlobalProtect Status, Sophos Endpoint RTS, Splunk Universal Forwarder Check, TenableNessusAgent-Alternate, Zscaler Tunnel Status.
 

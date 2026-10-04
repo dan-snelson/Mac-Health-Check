@@ -49,6 +49,18 @@ ENDOFSELECTION
 
 Quote the here-doc delimiter (`<<'ENDOFSELECTION'`) so `'${mdmVendor}'` in raw titles stays literal. `--selection <file>` also works; delete such a file after the build.
 
+Options (the helper requires `jq`):
+
+| Option | Meaning |
+|---|---|
+| `--list <slug>` | Print `index\|raw title\|call` for the MDM's shipped rows and the live Region A and B ranges; writes nothing. |
+| `--slug <slug>` | MDM to build; requires `--selection`. |
+| `--selection <file\|->` | Selection file, or `-` for stdin. |
+| `--prune-other-mdms` | Also remove every other MDM's code (see **Pruning other MDMs (optional)**). |
+| `--source <path>` | Script to read. Default: `Mac-Health-Check.zsh` in the current directory, else the copy at the repository root above the helper. It must be a regular file owned by you or root and not world-writable, because parts of it are `source`d and `eval`ed. Works with `--list` too. |
+| `--out-dir <dir>` | Where the artifact and sidecar go. Default: `Artifacts/` next to the source. Inside a git work tree, both paths must be git-ignored, or check 8 fails; a directory outside the source's repository also fails check 8. |
+| `-h`, `--help` | Print usage and exit `0`. Any unknown argument prints usage and exits `2`. |
+
 Selection format (one line per check, final order; blank lines and `#` comments are ignored):
 
 ```text
@@ -96,7 +108,7 @@ Leave `developmentListitemJSON` and the direct Development calls untouched; they
 
 ## Pruning other MDMs (optional)
 
-Applies only with `--prune-other-mdms` (SKILL.md Step 4b answered `yes`). Pruned MDMs are every named MDM except the chosen one; for `generic`, all eight. The generic fallback (`* )` branches, `mdmVendor="None"`, `genericMdmListitemJSON`) is never pruned, so a Mac enrolled in a pruned MDM runs the generic branch. All ranges are found on the untouched source and never overlap Regions A and B.
+Applies only with `--prune-other-mdms` (SKILL.md Step 4b answered `yes`). Pruned MDMs are every named MDM except the chosen one; for `generic`, all eight. The generic fallback (`* )` branches, `mdmVendor="None"`, `genericMdmListitemJSON`) is never pruned, so a Mac enrolled in a pruned MDM runs the generic branch. All ranges are found on the untouched source and never overlap Regions A and B. Only the helper prunes; the **Manual build (fallback)** replaces Regions A and B and nothing else.
 
 **Vendor `case` blocks.** Every line exactly `<indent>case ${mdmVendor} in` or `<indent>case "${mdmVendor}" in`, plus the column-1 `case "${serverURL}" in` detection block.
 
@@ -112,7 +124,7 @@ Applies only with `--prune-other-mdms` (SKILL.md Step 4b answered `yes`). Pruned
 
 **Kept on purpose:** `checkEntraIDRegistration` and its `getEntra*` helpers, `checkClockSkew`, `jamfBinary`, the report's `jamfProID` / `jamfProSiteName` fields, targeted-recheck keys, webhook card text, and every other section header. The report and log contracts do not change.
 
-Manual checks for a pruned artifact (run after the **Validation** block, in the same session, so `artifact`, `arrayName`, and `failCheck` exist; set `otherArrays` to the pruned array names):
+Manual spot checks for a pruned artifact the helper built (for example, after hand edits). Run them in the session that defined `artifact`, `arrayName`, and `failCheck` for the **Validation** block, and set `otherArrays` to the pruned array names. Skip manual check 4 on a pruned artifact: its hunks fall outside Regions A and B by design, so it always fails.
 
 ```zsh
 # 4b. No pruned array remains; the chosen MDM and generic arrays still exist
@@ -149,6 +161,8 @@ Check 4 changes for a pruned artifact: `diff` hunks slide across identical neigh
 | Branch call and `;;` | 16 |
 
 ## Manual build (fallback)
+
+The manual build never prunes other MDMs; it replaces Regions A and B only, which is what manual check 4 verifies. If the admin answered `yes` in SKILL.md Step 4b and the helper cannot run, build unpruned, tell the admin, and record `Other MDM code: kept (not pruned)` in the sidecar.
 
 Run the three blocks below in one zsh session from the repository root. First, write the chosen rows (verbatim source lines, any icon number) to `${work}/rows.txt`. Then write each row's `<function> [args]` to `${work}/calls.txt`, in the same order, with no index and no leading spaces.
 
@@ -312,10 +326,10 @@ A failure in check 5 means the cached nightly copy is unusable. `installClientSi
 ## Test run (check 9; admin, on one Mac)
 
 ```zsh
-sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"
+sudo zsh --no-rcs ./Artifacts/<file>.zsh "" "" "" "Self Service"
 ```
 
-- Use a Mac **enrolled in the chosen MDM**. For Other / MDM-agnostic, use a Mac whose `serverURL` matches no known MDM; an unenrolled Mac qualifies, logs `Unknown MDM vendor: None`, and fails M4 Apple Push Notification service as expected. The script sets `mdmVendor` from the enrolled `serverURL` at runtime. On a Mac enrolled elsewhere, the artifact runs that MDM's unedited branch; for example, an Intune artifact on a Jamf Pro Mac still runs Electron Corner Mask, Jamf Hosts, and `jamf recon`.
+- Use a Mac **enrolled in the chosen MDM**. For Other / MDM-agnostic, use a Mac whose `serverURL` matches no known MDM; an unenrolled Mac qualifies, logs `Unknown MDM vendor: None`, and M4 Apple Push Notification service warns (`APNs active; no MDM response`) or fails as expected. The script sets `mdmVendor` from the enrolled `serverURL` at runtime. On a Mac enrolled elsewhere, an unpruned artifact runs that MDM's unedited branch; for example, an Intune artifact on a Jamf Pro Mac still runs Electron Corner Mask, Jamf Hosts, and `jamf recon`. A pruned artifact runs the generic fallback there instead.
 - Repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
 - Confirm that the dropped checks do not appear in the log and that the dialog row count matches the sidecar.
 - `installClientSideScript` runs only in `Self Service`, `Debug`, and `Silent` with `splunkOperationMode=production`; never in `Test` or `Development`. It installs only from a root-owned script path whose parent directories are root-owned and not group- or world-writable. A copy run from a user-owned checkout (for example `./Artifacts/`) logs `Client-Side Cache: current script path is not a root-owned file … install skipped.` and leaves the Mac's cached copy alone. When the artifact runs from a root-owned path (as an MDM script does), those modes replace the test Mac's `/Library/Management/<reverseDomainNameNotation>/MHC.zsh` and LaunchDaemon with a sanitized copy of the artifact; re-run the production policy afterwards to restore them.
@@ -368,7 +382,7 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 - Source lines: <before> → <after> (<k> ranges: <start>-<end>, …)
 
 ## Dependency notes
-- [all] … *(tags as in SKILL.md 4f: `[all]`, `[prune]`, `[C8]`, `[C13]`, `[H6]`, `[vendor]`, `[Addigy]`, `[Kandji]`, `[generic]`, `[Jamf]`, `[A9]`, `[A4]`)*
+- [all] … *(tags as in SKILL.md 4f: `[all]`, `[prune]`, `[C8]`, `[C13]`, `[H6]`, `[H7]`, `[M2]`, `[vendor]`, `[Addigy]`, `[Kandji]`, `[generic]`, `[Jamf]`, `[A9]`, `[A4]`)*
 
 ## Validation
 | # | Check | Result |

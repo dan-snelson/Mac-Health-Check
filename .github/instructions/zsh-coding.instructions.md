@@ -77,6 +77,6 @@ function checkNewFeatureName() {
 - Invalid Inspect replay cache → `info`/`warning` and a full run (the cache is not deleted).
 
 ## 5. After Editing
-- `zsh -n Mac-Health-Check.zsh`, then `sudo zsh ./Mac-Health-Check.zsh "" "" "" "Development"`, then review every affected mode: `Self Service`, `Silent`, `Debug`, `Development`, `Test`.
+- `zsh -n Mac-Health-Check.zsh`, then `sudo zsh --no-rcs ./Mac-Health-Check.zsh "" "" "" "Development"`, then review every affected mode: `Self Service`, `Silent`, `Debug`, `Development`, `Test`.
 - Adding or reordering a check: update every affected MDM array and branch, check `developmentListitemJSON`, and keep `Skills/mac-health-check-selector/` in sync (see `AGENTS.md`).
 - Ask before modifying `Resources/`, defaults, check ordering, or release markers.

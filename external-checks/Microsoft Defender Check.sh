@@ -13,7 +13,8 @@
 #   - Added empty checkExtended field to the Not Installed failure to prevent spurious error message
 #
 #   Version 0.0.3, 30-Sep-2026, Dan K. Snelson (@dan-snelson)
-#   - Call `mdatp` from the root-owned app bundle instead of user-writable `/usr/local/bin` (Monocle)
+#   - Call `mdatp` from the root-owned app bundle instead of user-writable `/usr/local/bin` (Monocle); uses the
+#     first executable of `Tools/mdatp` or `Tools/wdavdaemonclient` (the `/usr/local/bin/mdatp` symlink target)
 #
 ###########################################################################################
 
@@ -21,13 +22,21 @@
 organizationDefaultsDomain="org.churchofjesuschrist.external"
 
 # Microsoft Defender command-line tool (app bundle target of the `/usr/local/bin/mdatp` symlink)
-mdatpBinary="/Applications/Microsoft Defender.app/Contents/Resources/Tools/mdatp"
+mdatpBinary=""
+for mdatpCandidate in \
+    "/Applications/Microsoft Defender.app/Contents/Resources/Tools/mdatp" \
+    "/Applications/Microsoft Defender.app/Contents/Resources/Tools/wdavdaemonclient"; do
+    if [[ -x "${mdatpCandidate}" ]]; then
+        mdatpBinary="${mdatpCandidate}"
+        break
+    fi
+done
 
 # checkStatus : string with value for statustext section of dialogUpdate call
 # checkExtended : string with value of extended status you want appended with checkStatus value
 # checkType: string with value of success, error, or fail to make sure status is properly color coded
 
-    if [[ -x "${mdatpBinary}" ]]; then
+    if [[ -n "${mdatpBinary}" ]]; then
         defenderOverallHealth=$("${mdatpBinary}" health --field healthy)
         defenderDefinitionsUpdated=$("${mdatpBinary}" health --field definitions_updated_minutes_ago)
         

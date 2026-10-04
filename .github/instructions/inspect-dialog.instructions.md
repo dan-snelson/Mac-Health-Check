@@ -22,7 +22,7 @@ applyTo: "Mac-Health-Check.zsh"
 - Enabled when `inspectSummaryPreset="on"` (shipped default; anything other than `off` is treated as `on`).
 - Runs in `quitScript` only after the JSON report was generated, and only in `Self Service` and `Silent`. `Debug`, `Development`, and `Test` do not generate Inspect assets.
 - `generateInspectSummaryAssets` builds the Preset 6 config (`buildInspectConfigJSON`) and compliance plist, validates them, and writes root-owned, user-readable files to `/Library/Application Support/<reverseDomainNameNotation>/Inspect/` (`MacHealthCheck-Inspect-Config.json`, `MacHealthCheck-Inspect-Compliance.plist`). Per-user control files live under `Inspect/Users/<user>/`.
-- `Self Service`: generate the assets, then `launchInspectSummary` starts a detached `dialog --inspect-mode` as the logged-in user. The main dialog then runs its normal completion countdown, so the summary appears while the countdown runs.
+- `Self Service`: generate the assets, then `launchInspectSummary` starts a detached `Dialog.app/Contents/MacOS/dialogcli --inspect-mode` (`dialogBinary`) as the logged-in user. The main dialog then runs its normal completion countdown, so the summary appears while the countdown runs.
 - `Silent`: write the assets without launching swiftDialog. These assets are not replayed by `Silent`; a later `Self Service` run may replay them.
 
 ## 3. Cached Replay

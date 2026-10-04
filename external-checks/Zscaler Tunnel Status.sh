@@ -4,7 +4,7 @@
 # Author: Tony Young
 # Organization: Cloud Lake Technology, an Akima company
 # Date Created: 2025-09-29
-# Last Updated: 2025-09-29
+# Last Updated: 2026-10-04
 #
 # Purpose:
 #   Determine whether the Zscaler Tunnel process is currently active.
@@ -18,7 +18,6 @@
 #   scripts or log parsing, e.g.:
 #       Running
 #       Failed: Not Running
-#       Not Installed
 #
 # Changelog:
 #   2026-10-03 - v1.1.2 - Prints `Failed: Not Running` (Mac Health Check reported `Not Running` as healthy) and uses `#!/bin/bash` (Mac Health Check 5.0.0).

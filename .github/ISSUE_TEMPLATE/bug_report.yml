@@ -48,7 +48,7 @@ body:
     id: swiftdialog-version
     attributes:
       label: swiftDialog version
-      description: From `dialog --version`
+      description: "From `/Library/Application Support/Dialog/Dialog.app/Contents/MacOS/dialogcli --version`"
       placeholder: "e.g. 3.1.1.4997"
     validations:
       required: true
@@ -103,9 +103,11 @@ body:
       label: Which area looks broken?
       options:
         - Health check result or remediation text
+        - Targeted remediation recheck
         - Inspect Mode summary or cached replay
         - Silent mode or scheduled client-side cache run
         - Splunk HEC reporting
+        - Reporting secrets (MacHealthCheck-Secrets.plist)
         - Jamf inventory or policy integration
         - swiftDialog rendering or button behavior
         - External check integration

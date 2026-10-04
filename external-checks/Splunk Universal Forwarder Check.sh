@@ -4,14 +4,14 @@
 # Author: Tony Young
 # Organization: Cloud Lake Technology, an Akima company
 # Date Created: 2025-09-29
-# Last Updated: 2025-09-29
+# Last Updated: 2026-10-04
 #
 # Purpose:
 #   Check whether Splunk Universal Forwarder is installed and if its daemon is running.
 #
 # Usage:
 #   Run locally or via Jamf Pro (as an external check or policy script):
-#       ./Splunk Unversal Forwarder Check.sh
+#       ./Splunk Universal Forwarder Check.sh
 #
 # Output:
 #   Prints a single line status (no <result> tags), suitable for Jamf "External"
@@ -21,6 +21,7 @@
 #       Not Installed
 #
 # Changelog:
+#   2026-10-04 - v1.1.3 - Captures `splunk status` output before matching, so `pipefail` cannot report a running forwarder as `Failed: Not Running` when `grep -q` exits early (Mac Health Check 5.0.0).
 #   2026-10-03 - v1.1.2 - Prints `Failed: Not Running` (Mac Health Check reported `Not Running` as healthy) and uses `#!/bin/bash` (Mac Health Check 5.0.0).
 #   2026-09-29 - v1.1.1 - Removed `/usr/local/bin` from `PATH` (Mac Health Check 5.0.0b6).
 #   2025-09-29 - v1.1.0 - Converted to external check style output (no <result> tags).
@@ -38,8 +39,9 @@ SPLUNK_PATH="/private/var/splunkforwarder/bin/splunk"
 RESULT="Not Installed"
 
 if [ -x "$SPLUNK_PATH" ]; then
-    # If the binary exists, query status
-    if "$SPLUNK_PATH" status 2>/dev/null | grep -q 'splunkd.*is running'; then
+    # If the binary exists, query status (captured first; `grep -q` exiting early would trip `pipefail`)
+    SPLUNK_STATUS="$( "$SPLUNK_PATH" status 2>/dev/null || true )"
+    if grep -q 'splunkd.*is running' <<< "$SPLUNK_STATUS"; then
         RESULT="Running"
     else
         RESULT="Failed: Not Running"

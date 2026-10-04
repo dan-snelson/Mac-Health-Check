@@ -1,7 +1,7 @@
 #!/bin/bash
 ###############################################################################
 # A script to report the state of CrowdStrike Falcon (thanks, ZT and mrw!)    #
-# - If CrowdStrike Falcon is not installed, "Not Installed" will be returned. #
+# - If not installed, "Failed: Not Installed" will be returned.               #
 # scriptVersion="0.0.16"                                                      #
 ###############################################################################
 
@@ -332,7 +332,7 @@ else
             RESULT="Failed: 'status.bin' NOT found; ${returnResult}"
             ;;
         *"No such file"* )
-            RESULT="Not Installed; ${returnResult}"
+            RESULT="Failed: Not Installed; ${returnResult}"
             ;;
         *"Error"* )
             RESULT="Error: ${falconAgentStats}; ${returnResult}"

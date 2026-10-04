@@ -2,7 +2,7 @@
 
 Thank you for helping keep **Mac Health Check** secure.
 
-Mac Health Check is commonly deployed through MDM Self Service and support workflows, runs with **`root` privileges**, can auto-download and install **swiftDialog**, writes operational logs, and can post failure summaries to **Microsoft Teams** or **Slack** webhooks. The maintained attack surface includes the main script, helper content under `external-checks/`, and packaging and deployment resources under `Resources/`.
+Mac Health Check is commonly deployed through MDM Self Service and support workflows, runs with **`root` privileges**, can auto-download and install **swiftDialog**, writes operational logs and a root-only JSON health report, can post that report to **Splunk HTTP Event Collector (HEC)**, can post failure summaries to **Microsoft Teams** or **Slack** webhooks, and installs a root **Client-Side Cache** copy plus LaunchDaemon that refreshes the report nightly. The maintained attack surface includes the main script, the Client-Side Cache copy and LaunchDaemon, helper content under `external-checks/`, and packaging and deployment resources under `Resources/`.
 
 ## Supported Versions
 
@@ -41,13 +41,21 @@ You should receive an acknowledgment within **48 hours**. We will work with you 
 - Review organization-specific customizations before deployment, especially support links, webhook destinations, and externally supplied checks.
 - Validate any scripts under `external-checks/` and any packaging helpers under `Resources/` before promoting them into production workflows.
 - Prefer current release artifacts and verified installers where applicable.
+- Store the Splunk HEC token and webhook URL only in the root-only secrets file (see below); never in Script Parameters.
+
+## 5.0.0 Security Notes
+
+- **Reporting secrets:** deploy the Splunk HEC token and webhook URL in `/Library/Management/org.churchofjesuschrist/MacHealthCheck-Secrets.plist` (keys `splunkHECToken` and `webhookURL`; `root:wheel`, mode `600`) and leave Parameters 5 and 8 blank. Script Parameters are visible to every local user in the process list, so `5.0.0` rejects secrets supplied only through Parameters 5 or 8 (logged as `[ERROR]`; Splunk HEC delivery and webhook messages are skipped). Setting `allowParameterSecrets="true"` in the script is a temporary, not-recommended legacy opt-in that accepts them with a `[WARNING]`. An untrusted secrets file (wrong owner, mode or a symlink) is ignored.
+- **Rotate after betas:** rotate the Splunk HEC token and webhook URL on any macOS 26 (or later) Mac that ran a `5.0.0` beta with the secrets file in place; a standard user could make those betas echo root-only file contents (including the secrets file) into user-readable output through `checkElectronCornerMask()`. Also rotate any token previously passed as a Script Parameter, and restrict the HEC token to the Mac Health Check index and sourcetype.
+- **Transport:** Splunk HEC and webhook deliveries require `https://` URLs (`curl --proto =https --tlsv1.2`), and secrets reach `curl` on stdin, never as arguments.
+- **Root-owned state:** reports, caches, secrets and Memory Pressure history live in root-owned `organizationDirectory`; the Client-Side Cache copy is installed only from a root-owned script in root-controlled directories and must pass `zsh -n` and keep the `Silent` default before its LaunchDaemon is loaded.
 
 ## Code Security Practices
 
 - This repository is scanned with **Semgrep** using the `p/r2c-security-audit`, `p/ci`, and `p/secrets` rulesets.
 - **Gitleaks** scans repository history for potential credential or secret exposure.
-- Tracked `*.zsh` files are validated with **`zsh -n`**, including the main entrypoint and zsh helpers under `Resources/`.
-- Tracked `*.sh` and `*.bash` files are checked with **ShellCheck**, including helper scripts in `external-checks/` and any tracked shell helpers in `Resources/`.
+- Tracked `*.zsh` files and tracked files with a `zsh` shebang (for example, `external-checks/TenableNessusAgent-Alternate.sh`) are validated with **`zsh -n`**, including the main entrypoint and zsh helpers under `Resources/`.
+- Tracked files with an `sh` or `bash` shebang are checked with **ShellCheck**, including helper scripts in `external-checks/` and any tracked shell helpers in `Resources/`.
 - Changes are reviewed with attention to shell quoting, download and install paths, webhook handling, external integrations, and packaging helpers.
 - The current script verifies downloaded swiftDialog packages before installation and validates GitHub release download URLs before use.
 

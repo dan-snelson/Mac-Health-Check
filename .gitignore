@@ -33,6 +33,19 @@ Icon?
 ### Project temp
 .deploy*
 VERSION.txt
+Resources/MHC_Logs/
+
+
+
+### Build outputs (customized builds can embed organization-specific settings)
+Resources/*.pkg
+*_self-extracting-*.sh
+
+
+
+### Local agent settings
+.claude/settings.local.json
+.codex/
 
 
 

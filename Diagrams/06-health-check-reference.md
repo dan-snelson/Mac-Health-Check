@@ -20,7 +20,7 @@ This text-only reference documents key configurable defaults and the current run
 - LaunchDaemon-triggered refreshes use loginwindow `lastUserName` for user-scoped checks when no GUI user is active, and never send webhook messages.
 - `Silent` + `splunkOperationMode=production` (any MDM) uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check. Beginning in `5.0.0`, Client-Side Cache assets are installed or refreshed (and the sanitized copy verified with `zsh -n`) before the cached-upload decision, so content changes reach the nightly copy without a version bump.
 - Parameter 11 `forceFreshRun` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` provide explicit fresh-run controls for bypassing `Self Service` targeted verification/replay and the `Silent` + `production` cached upload.
-- `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling; beginning in `5.0.0`, DDM enforcement is read from the root-written `/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist`, falling back to `/var/log/install.log` only when that plist is missing or unrecognized.
+- `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling; beginning in `5.0.0`, DDM enforcement is read from the root-written `/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist`, falling back to `/var/log/install.log` only when that plist is missing, untrusted (not a regular file owned by `root` or `_softwareupdate`), or unrecognized.
 - `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
 - `checkWiFiStrength()` uses `wdutil info` when available, falls back to the legacy `airport` binary, and treats Wi-Fi-inactive / Ethernet-primary systems as a non-failure skip.
 - `checkAppAutoPatch()` prefers root-written logs (App Auto-Patch 4.x system log, then the 3.x log) and uses the user-writable per-user log only when neither exists.
@@ -32,25 +32,26 @@ This text-only reference documents key configurable defaults and the current run
 
 ## Organization Defaults Reference
 
-Core UI and behavior defaults live in the **Organization Variables** section of `Mac-Health-Check.zsh`. Support contact values live later in the **IT Support Variables** section.
+Core UI and behavior defaults live in the **Organization Variables** section of `Mac-Health-Check.zsh`; Client-Side Cache jitter and schedule defaults sit earlier in the **Client-Side Cache Jitter** section, and the Jamf Pro inventory and external-check timeouts sit with the **Logged-in User Variables**. Support contact values live later in the **IT Support Variables** section.
 
 | Variable | Default Value | Description | Valid Values |
 |---|---|---|---|
 | `humanReadableScriptName` | `"Mac Health Check"` | Display name shown in the dialog title | Any string |
 | `organizationScriptName` | `"MHC"` | Short identifier used in log entries | Any short string |
 | `reverseDomainNameNotation` | `"org.churchofjesuschrist"` | Reverse-domain base used for management paths and LaunchDaemon labels | Reverse-domain string |
-| `organizationDirectory` | `"/Library/Management/${reverseDomainNameNotation}"` | Client-Side Cache script directory | Local root-owned directory |
+| `organizationDirectory` | `"/Library/Management/${reverseDomainNameNotation}"` | Root-owned state directory holding the Client-Side Cache script, canonical report and its lock, `MacHealthCheck-Secrets.plist`, SOFA and `networkQuality` caches, and Memory Pressure history | Local root-owned directory that is not group- or world-writable (otherwise pre-flight exits) |
 | `clientSideScriptPath` | `"${organizationDirectory}/${organizationScriptName}.zsh"` | Client-Side Cache script path | Local root-owned Zsh script |
 | `launchDaemonLabel` | `"${reverseDomainNameNotation}.${organizationScriptName}"` | LaunchDaemon label for nightly client-side report refresh | LaunchDaemon label |
 | `launchDaemonPath` | `"/Library/LaunchDaemons/${launchDaemonLabel}.plist"` | LaunchDaemon plist path | `/Library/LaunchDaemons/*.plist` |
 | `clientSideJitterEnabled` | `"true"` | Enables deterministic per-Mac LaunchDaemon jitter | `true` \| `false` |
 | `clientSideMaxJitterSeconds` | `"1800"` | Maximum signed jitter around 1:23 a.m.; LaunchDaemon wakes at window start and script sleeps a non-negative derived delay | Integer seconds |
+| `clientSideLaunchDaemonHour` / `clientSideLaunchDaemonMinute` | `"0"` / `"53"` | LaunchDaemon `StartCalendarInterval` (window start, 00:53) | Integer hour / minute |
 | `clientSideMaximumCacheAgeSeconds` | `"129600"` | Maximum cached report age before a `Silent` + `production` run falls back to a full health check | Integer seconds |
 | `organizationSelfServiceMarketingName` | `"Workforce App Store"` | Your MDM Self Service portal name | Any string |
 | `organizationBoilerplateComplianceMessage` | `"Meets organizational standards"` | Subtitle shown for passing checks | Any string |
 | `organizationBrandingBannerURL` | Freepik sample URL | Banner image displayed at the top of the dialog | HTTPS URL or local path |
 | `organizationOverlayiconURL` | `"/System/Library/CoreServices/Apple Diagnostics.app"` | Icon overlaid on the dialog banner; local paths and `file://` targets are used in place, while remote URLs download to a script-managed temporary file that is removed at exit | App path \| local path \| `file://` path \| `http(s)` URL |
-| `enableDockIntegration` | `"true"` | Show a Dock icon with countdown badge in non-`Silent` modes | `true` \| `false` |
+| `enableDockIntegration` | `"true"` | Show a Dock icon with countdown badge in non-`Silent` modes; the Dock-named swiftDialog copy is re-signed ad hoc (dropping swiftDialog's Team ID), so set `"false"` where PPPC or notification profiles key on that Team ID | `true` \| `false` |
 | `dockIcon` | Jamf Cloud icon URL | Icon source for Dock integration | `default` \| local path \| `file://` path \| `http(s)` URL |
 | `organizationDefaultsDomain` | `"org.churchofjesuschrist.external"` | Defaults domain shared with external check policies | Reverse-domain string |
 | `organizationColorScheme` | Follows the console user's appearance: light `"weight=semibold,colour1=#18181B,colour2=#4D4D56"`, dark `"weight=semibold,colour1=#D1D5DC,colour2=#F5F5F5"` | SF Symbol color scheme for list item icons | swiftDialog color string |
@@ -60,16 +61,24 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 | `vpnClientDataType` | `"extended"` | Level of VPN status detail to collect | `basic` \| `extended` |
 | `anticipationDuration` | `"2"` (or `"0"` in Silent mode) | Pause between checks, in seconds | Any integer string |
 | `previousMinorOS` | `"2"` | Number of older minor macOS releases considered compliant | Integer string (`"0"`–`"5"`) |
-| `allowedMinimumFreeDiskPercentage` | `"10"` | Free disk space below this percentage triggers an error | Integer string |
+| `allowedMinimumFreeDiskPercentage` | `"10"` | Free disk space below this percentage triggers a fail | Integer string |
 | `memoryPressureHistoryPath` | `${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl` | Root-only JSON Lines sample history | Local path in a root-owned directory |
 | `memoryPressureHistoryRetentionDays` | `"14"` | Days of retained memory-pressure samples | Positive integer string, at least the lookback |
 | `memoryPressureLookbackDays` | `"7"` | Rolling window used for pressure-pattern detection | Integer string of at least `2` |
 | `memoryPressureRequiredAdverseDays` | `"2"` | Distinct local days with yellow or red pressure required for warning | Integer string from `2` through `memoryPressureLookbackDays` |
 | `allowedMaximumDirectoryPercentage` | `"5"` | User directory (Desktop/Downloads/Trash) above this percentage of total disk triggers a warning | Integer string |
 | `networkQualityTestMaximumAge` | `"4H"` | Maximum age of a cached network quality result before re-running | `date -v-` suffix: `y`, `m`, `w`, `d`, `H`, `M`, `S` |
+| `sofaCacheMaximumAge` | `"1d"` | Maximum age of the cached SOFA feed before re-downloading | `date -v-` suffix: `y`, `m`, `w`, `d`, `H`, `M`, `S` |
 | `allowedUptimeMinutes` | `"10080"` | Uptime above this threshold triggers an alert (10,080 min = 7 days) | Integer string |
+| `maxUptimeMinutes` | `"43200"` | Uptime above this threshold triggers a fail (43,200 min = 30 days); disabled when blank, when below `allowedUptimeMinutes`, or when `excessiveUptimeAlertStyle="error"` | Positive integer string or `""` |
 | `excessiveUptimeAlertStyle` | `"warning"` | Severity when uptime exceeds `allowedUptimeMinutes` | `warning` \| `error` |
 | `completionTimer` | `"60"` | Seconds before the fallback final dialog countdown auto-closes | Integer string |
+| `inspectSummaryPreset` | `"on"` | Enables Preset 6 Inspect asset generation, `Self Service` launch and cached replay | `on` \| `off` |
+| `inspectReplayMaximumAgeSeconds` | `"900"` | Maximum Inspect handoff age (15 minutes) for healthy `Self Service` cached replay | Integer seconds |
+| `targetedRecheckMaximumAgeSeconds` | `"129600"` | Maximum full-baseline age (36 hours) for `Self Service` targeted rechecks | Integer seconds |
+| `allowParameterSecrets` | `"false"` | Accept the webhook URL (Parameter 5) and Splunk HEC token (Parameter 8) from policy parameters; otherwise use `MacHealthCheck-Secrets.plist` | `true` \| `false` (not recommended) |
+| `externalCheckTimeoutSeconds` | `"120"` | Maximum runtime for each Jamf Pro external-check policy trigger before it reports `Timed Out` | Integer seconds |
+| `inventorySubmissionTimeoutSeconds` | `"90"` | Maximum runtime for `jamf recon` in `updateComputerInventory()` before it reports `Timed Out` | Integer seconds |
 
 ---
 
@@ -109,7 +118,7 @@ The table below lists every health check function, its human-readable name, and 
 | System | `checkSSV()` | Signed System Volume | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | System | `checkGatekeeperXProtect()` | Gatekeeper / XProtect | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | System | `checkFirewall()` | Firewall | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| System | `checkFileVault()` | FileVault | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| System | `checkFileVault()` | FileVault Encryption | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | System | `checkMemoryPressure()` | Memory Pressure | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | User | `checkTouchID()` | Touch ID | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | User | `checkAirDropSettings()` | AirDrop | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ |
@@ -150,7 +159,7 @@ The table below lists every health check function, its human-readable name, and 
 | Apps | `checkInternal()` | Cortex | — | — | — | — | — | ✅ | — | — | — |
 | Apps | `checkInternal()` | Netskope | — | — | — | — | — | ✅ | — | — | — |
 | Apps | `checkInternal()` | Fleet Desktop | — | — | ✅ | — | — | — | — | — | — |
-| Apps | `checkInternal()` | Self-Service | — | — | — | — | — | — | — | ✅ | — |
+| Apps | `checkInternal()` | Mosyle Self-Service | — | — | — | — | — | — | — | ✅ | — |
 | External | `checkExternalJamfPro()` | BeyondTrust Privilege Management | — | — | — | ✅ | — | — | — | — | — |
 | External | `checkExternalJamfPro()` | Cisco Umbrella | — | — | — | ✅ | — | — | — | — | — |
 | External | `checkExternalJamfPro()` | CrowdStrike Falcon | — | — | — | ✅ | — | — | — | — | — |
@@ -181,9 +190,9 @@ The table below lists every health check function, its human-readable name, and 
 
 External checks require separate MDM policies using the scripts in the `external-checks/` directory. They are currently only invoked in the **Jamf Pro** check set.
 
-| Trigger Name | Tool | Required App Path | Plugin Script |
+| Trigger Name | Tool | App Path (icon / display name only) | Plugin Script |
 |---|---|---|---|
-| `symvBeyondTrustPMfM` | BeyondTrust Privileged Access Management | `/Applications/PrivilegeManagement.app` | `BeyondTrust Privileged Access Management.bash` |
+| `symvBeyondTrustPMfM` | BeyondTrust Privilege Management | `/Applications/PrivilegeManagement.app` | `BeyondTrust Privileged Access Management.bash` |
 | `symvCiscoUmbrella` | Cisco Umbrella | `/Applications/Cisco/Cisco Secure Client.app` | `Cisco Umbrella.bash` |
 | `symvCrowdStrikeFalcon` | CrowdStrike Falcon | `/Applications/Falcon.app` | `CrowdStrike Falcon Status.bash` |
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `/Applications/GlobalProtect.app` | `Palo Alto Networks GlobalProtect Status.bash` |
@@ -196,10 +205,10 @@ Each external check policy either writes results to `organizationDefaultsDomain`
 
 | Parameter | Variable | Default | Description |
 |---|---|---|---|
-| 4 | `operationMode` | `Self Service` | Operation mode: `Self Service`, `Silent`, `Debug`, `Development`, `Test` |
-| 5 | `webhookURL` | (blank) | Microsoft Teams or Slack webhook URL for unhealthy-run summaries; rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
+| 4 | `operationMode` | `Self Service` | Operation mode: `Self Service`, `Silent`, `Debug`, `Development`, `Test` (case-sensitive and not validated; any other value runs the full MDM suite with the dialog but without `Self Service`-only targeted rechecks, cached replay and Inspect summary) |
+| 5 | `webhookURL` | (blank) | Microsoft Teams or Slack webhook URL for unhealthy-run summaries; must use `https://` (other schemes are refused with a `[WARNING]`); delivery is effectively Jamf Pro-only (Mosyle payloads carry an empty `View in Jamf Pro` link and may be rejected; other MDMs send nothing); rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
 | 6 | `splunkOperationMode` | `test` | Reporting mode: `off` disables HEC delivery, `production` posts to Splunk when configured, and `test` skips transmission while still generating the JSON report; unrecognized values fall back to `test` |
-| 7 | `splunkHECURL` | (blank) | Splunk HTTP Event Collector URL; leave blank to disable transmission |
+| 7 | `splunkHECURL` | (blank) | Splunk HTTP Event Collector URL; must use `https://` (other schemes are refused with an `[ERROR]` and the payload is not sent); leave blank to disable transmission |
 | 8 | `splunkHECToken` | (blank) | Splunk HEC token; never logged by the script; rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
 | 9 | `splunkHECIndex` | (blank) | Optional Splunk HEC index value included in the transmission wrapper payload |
 | 10 | `splunkHECSourcetype` | (blank) | Optional Splunk HEC sourcetype value included in the transmission wrapper payload |

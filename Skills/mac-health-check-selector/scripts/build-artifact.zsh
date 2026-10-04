@@ -50,10 +50,14 @@
 # - Refuses a source script that is world-writable or owned by neither the current user nor root,
 #   because parts of it are `source`d and `eval`ed
 # - Added validation check 5d (sanitized copy defaults to `Silent`), mirroring the `installClientSideScript`
-#   gate; a 5a or 5d failure means the Client-Side Cache install would be refused
-# - Sidecar external-check note now covers `Not Running` (fail) and `Timed Out` (after
-#   `externalCheckTimeoutSeconds`, shipped 120 seconds); Client-Side Cache notes cover the nightly
-#   webhook suppression and the root-owned-path install condition
+#   gate; a 5a, 5c, or 5d failure (`zsh -n`, `jamf recon` text, `Silent` default) means the
+#   Client-Side Cache install would be refused
+# - Sidecar external-check note now follows `checkExternalJamfPro` order: `Timed Out` (after
+#   `externalCheckTimeoutSeconds`, shipped 120 seconds), then the defaults domain, then keywords
+#   (`Not Running` fails); Client-Side Cache notes cover the nightly webhook suppression and the
+#   root-owned-path install condition
+# - Added `[M2]` and `[H7]` sidecar notes; the `[generic]` M4 note covers the
+#   `APNs active; no MDM response` warning
 #
 ####################################################################################################
 
@@ -1229,15 +1233,17 @@ fi
 (( ${+selectedIdSet[C8]} )) && dependencyNotes+=( "[C8] Touch ID reports an error on Macs without Touch ID hardware (VMs, desktops without a Touch ID keyboard); drop C8 for those fleets." )
 (( ${+selectedIdSet[C13]} )) && dependencyNotes+=( "[C13] VPN Client follows \`vpnClientVendor\` (shipped \`${vpnVendorSetting}\`) and \`vpnClientDataType\`; it fails when that client is absent. Set both for your organization." )
 (( ${+selectedIdSet[H6]} )) && dependencyNotes+=( "[H6] Memory Pressure needs samples from two distinct days before it can warn; early runs show \`Insufficient data\`." )
+(( ${+selectedIdSet[H7]} )) && dependencyNotes+=( "[H7] Clock Skew queries \`time.apple.com\` with \`sntp\` (UDP 123); blocked NTP reports \`Unable to determine\` (warning), and skew over 300 seconds fails." )
+(( ${+selectedIdSet[M2]} )) && dependencyNotes+=( "[M2] Entra ID Registration passes as \`Not Applicable\` when no Entra artifacts exist; without the JamfAAD plist (the norm outside Jamf Pro), an MS-ORGANIZATION-ACCESS certificate reports \`Partial\` (warning)." )
 (( ${+selectedIdSet[M1]} )) && dependencyNotes+=( "[vendor] MDM Profile needs \`mdmVendorUuid\` or \`mdmProfileIdentifier\` for ${mdmDisplay}." )
 [[ "${slug}" == "addigy" ]] && (( ${+selectedIdSet[M1]} )) && dependencyNotes+=( "[Addigy] \`mdmVendorUuid\` ships blank; MDM Profile fails until you fill it in." )
 [[ "${slug}" == "kandji" ]] && dependencyNotes+=( "[Kandji] Detection needs \`serverURL\` to contain \`kandji\`; an Iru-branded URL without it runs the generic branch." )
 if [[ "${slug}" == "generic" ]]; then
     dependencyNotes+=( "[generic] No MDM Profile or MDM Certificate Expiration: no vendor profile or certificate name is known." )
-    (( ${+selectedIdSet[M4]} )) && dependencyNotes+=( "[generic] Apple Push Notification service (M4) fails on Macs with no MDM enrollment; expected on an unenrolled test Mac." )
+    (( ${+selectedIdSet[M4]} )) && dependencyNotes+=( "[generic] Apple Push Notification service (M4) warns (\`APNs active; no MDM response\`) or fails on Macs with no MDM enrollment; expected on an unenrolled test Mac." )
 fi
 [[ "${slug}" == "jamf-pro" ]] && dependencyNotes+=( "[Jamf] The script exits early when \`/private/var/log/jamf.log\` is missing." )
-[[ "${externalSelected}" == "true" ]] && dependencyNotes+=( "[Jamf] External checks need their \`external-checks/\` scripts saved in Jamf Pro and policies with matching custom triggers; output must include \`Running\`, \`Warning\`, \`Failed\`, or \`Error\` (\`Not Running\` fails; a policy still running after \`externalCheckTimeoutSeconds\`, shipped 120 seconds, reports \`Timed Out\`)." )
+[[ "${externalSelected}" == "true" ]] && dependencyNotes+=( "[Jamf] External checks need their \`external-checks/\` scripts saved in Jamf Pro and policies with matching custom triggers. Results resolve in order: a policy still running after \`externalCheckTimeoutSeconds\` (shipped 120 seconds) reports \`Timed Out\`; then \`checkType\` / \`checkStatus\` / \`checkExtended\` in \`organizationDefaultsDomain\`, when the script writes them (Microsoft Defender, TenableNessusAgent-Alternate); then keywords in the script result: \`Failed\` or \`Not Running\` (fail), \`Running\` (pass), \`Warning\`. \`Error\`, \`Not Installed\`, or unmatched output shows \`Error\`. \`Timed Out\`, \`Warning\`, and \`Error\` are recorded as \`warning\` in the JSON report." )
 (( ${+selectedIdSet[F1]} )) && dependencyNotes+=( "[Jamf] F1 runs \`jamf recon\` (90-second timeout); skipped in \`Silent\` + \`splunkOperationMode=production\` and removed from the Client-Side Cache copy." )
 if (( ${+selectedIdSet[A9]} )) && [[ "${selectionUnchanged}" == "false" ]]; then
     dependencyNotes+=( "[A9] Palo Alto GlobalProtect subtitle now reads \`<YOUR_ORGANIZATION_NETWORK>\`; replace it before deploying." )

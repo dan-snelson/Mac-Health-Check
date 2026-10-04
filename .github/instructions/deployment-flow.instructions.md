@@ -23,7 +23,7 @@ applyTo: "**/*.{zsh,md,yml,yaml}"
 After any script or runtime change:
 
 1. `zsh -n Mac-Health-Check.zsh` (zero errors).
-2. `sudo zsh ./Mac-Health-Check.zsh "" "" "" "Development"` (Parameter 4 sets `operationMode`; there is no `--mode` flag). `Development` runs a curated subset only.
+2. `sudo zsh --no-rcs ./Mac-Health-Check.zsh "" "" "" "Development"` (Parameter 4 sets `operationMode`; there is no `--mode` flag). `Development` runs a curated subset only.
 3. Repeat with `Debug`, `Test`, `Silent`, and `Self Service`; review every mode the change touches.
 4. `Silent`: confirm the JSON report and Inspect assets are written and no swiftDialog UI appears. With `splunkOperationMode=production`, confirm reporting-first behavior.
 5. `Self Service`: confirm the main dialog, the detached Inspect Summary, and cached replay within `inspectReplayMaximumAgeSeconds` (900 s).

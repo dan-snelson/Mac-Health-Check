@@ -46,11 +46,12 @@ function isTrustedRootPath() {
     [[ -f "${resolvedPath}" ]] || return 1
 
     # The resolved file and every parent directory must be root-owned and not group- or world-writable
-    # (a sticky directory such as `/private/var/tmp` is accepted because other users cannot replace root's entries)
+    # (a sticky directory such as `/private/var/tmp` is accepted because other users cannot replace root's entries;
+    # `%Mp%Lp` keeps the sticky bit, which `%Lp` alone drops)
     pathComponent="${resolvedPath}"
     while [[ -n "${pathComponent}" ]]; do
         [[ "$( stat -f %u "${pathComponent}" 2>/dev/null )" == "0" ]] || return 1
-        pathComponentMode="$( stat -f %Lp "${pathComponent}" 2>/dev/null )"
+        pathComponentMode="$( stat -f %Mp%Lp "${pathComponent}" 2>/dev/null )"
         [[ "${pathComponentMode}" == <-> ]] || return 1
         if (( ( 8#${pathComponentMode} & 8#022 ) != 0 )); then
             [[ -d "${pathComponent}" ]] && (( ( 8#${pathComponentMode} & 8#1000 ) != 0 )) || return 1
@@ -8880,19 +8881,6 @@ function getEntraPSSOBinaryPath() {
     echo "/Library/Application Support/JAMF/Jamf.app/Contents/MacOS/Jamf Conditional Access.app/Contents/MacOS/Jamf Conditional Access"
 }
 
-function getEntraPSSOStatusRaw() {
-
-    local pssoBinary="$( getEntraPSSOBinaryPath )"
-
-    if [[ -z "${loggedInUserID}" ]] || [[ ! -x "${pssoBinary}" ]]; then
-        echo ""
-        return
-    fi
-
-    launchctl asuser "${loggedInUserID}" "${pssoBinary}" getPSSOStatus 2>/dev/null
-
-}
-
 function getEntraPSSODeviceID() {
 
     local pssoStatusRaw="${1}"
@@ -8901,17 +8889,6 @@ function getEntraPSSODeviceID() {
         sed -E 's/AnyHashable\(|\)//g' | \
         tr ',' '\n' | \
         awk -F'=' '/primary_registration_metadata_device_id/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}'
-
-}
-
-function getEntraLegacyCertificateOutput() {
-
-    if [[ -z "${loggedInUserID}" ]]; then
-        echo ""
-        return
-    fi
-
-    launchctl asuser "${loggedInUserID}" /usr/bin/security find-certificate -a -c "MS-ORGANIZATION-ACCESS" 2>/dev/null
 
 }
 
@@ -9102,6 +9079,10 @@ function checkAPNs() {
     local courierDisconnectCount=0
     local apnsStatusEpoch=""
     local apnsStatus=""
+    local apnsMdmLabel="${mdmVendor}"
+
+    # Unenrolled Macs report `mdmVendor` as `None`
+    [[ -z "${apnsMdmLabel}" || "${apnsMdmLabel}" == "None" ]] && apnsMdmLabel="MDM"
 
     apnsLogEntries=$( command log show --last 24h --style compact --predicate '(processImagePath BEGINSWITH "/System/" || processImagePath BEGINSWITH "/usr/libexec/") && ((process == "apsd" && (eventMessage CONTAINS "Connected to courier" || eventMessage CONTAINS "acknowledges incoming message" || eventMessage CONTAINS "Disconnecting in response to connection failure")) || (process == "mdmclient" && eventMessage CONTAINS "-25304") || (subsystem == "com.apple.ManagedClient" && (eventMessage CONTAINS[c] "Received HTTP response (200) [Acknowledged" || eventMessage CONTAINS[c] "Received HTTP response (200) [NotNow")))' 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' )
 
@@ -9134,7 +9115,7 @@ function checkAPNs() {
 
     elif [[ -n "${lastApnsActivityTimestamp}" ]]; then
 
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: No ${mdmVendor} response in 24 hours; contact ${supportTeamName} if issues persist, status: error, statustext: APNs active; no MDM response"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: No ${apnsMdmLabel} response in 24 hours; contact ${supportTeamName} if issues persist, status: error, statustext: APNs active; no MDM response"
         footerStatusColor="${statusColorError}"
         warning "${humanReadableCheckName} (${1}): APNs active at ${lastApnsActivityTimestamp}; no MDM response in last 24 hours"
 
@@ -11354,7 +11335,7 @@ else
                 runConfiguredHealthCheck "20" checkNetworkHosts "Apple Certificate Validation"          "${certHosts[@]}"
                 runConfiguredHealthCheck "21" checkNetworkHosts "Apple Identity and Content Services"   "${idAssocHosts[@]}"
                 runConfiguredHealthCheck "22" checkInternal "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"
-                runConfiguredHealthCheck "23" checkInternal "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft OneDrive"
+                runConfiguredHealthCheck "23" checkInternal "/Applications/OneDrive.app" "/Applications/OneDrive.app" "Microsoft One Drive"
                 runConfiguredHealthCheck "24" checkInternal "/Applications/Microsoft Outlook.app" "/Applications/Microsoft Outlook.app" "Microsoft Outlook"
                 runConfiguredHealthCheck "25" checkInternal "/Applications/Company Portal.app" "/Applications/Company Portal.app" "Company Portal"
                 runConfiguredHealthCheck "26" checkInternal "/Applications/zoom.us.app" "/Applications/zoom.us.app" "Zoom"

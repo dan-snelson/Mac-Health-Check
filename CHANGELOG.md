@@ -12,9 +12,12 @@
 - **Security:** `checkExternalJamfPro()` now treats `Not Running` as a failure; previously it matched the `Running` success pattern, so stopped Zscaler, Nessus and Splunk forwarder agents were reported as healthy
     - Each external-check `jamf policy -event` call is now limited to `externalCheckTimeoutSeconds` (default `120`) and reports `Timed Out` instead of stalling the run
     - Sample external checks now print `Failed: Not Running` (Zscaler, Nessus, Splunk Universal Forwarder; `Nessus Agent Status.sh` no longer treats `not running` as `running` and reports `Not Installed` when the agent is absent), `Failed: …` / `Running` (Printer, Microsoft Office 365), and use `#!/bin/bash` instead of `#!/usr/bin/env bash`
+    - `Sophos Endpoint RTS.bash` (`0.0.2`) now prints `Failed: Real Time Scanning Disabled` (previously `Disabled`, reported as an error), and `CrowdStrike Falcon Status.bash` reports a missing Falcon agent (`No such file`) as `Failed: Not Installed` instead of `Not Installed`
+    - `Splunk Universal Forwarder Check.sh` (`1.1.3`) captures `splunk status` output before matching, so `pipefail` cannot report a running forwarder as `Failed: Not Running`
+    - `Check Printer Install.zsh` now runs with `--no-rcs` and a fixed system `PATH`
     - `TenableNessusAgent-Alternate.sh` no longer lets `Running: Yes` overwrite an authentication-error or not-linked result, and reports `Not Running` (fail) when the agent is installed but stopped
     - `CrowdStrike Falcon Status.bash` (`0.0.16`) now restores (or removes) the system and root `AppleLocale` values on exit or termination instead of permanently setting `en_US`; locales changed by earlier versions are not restored automatically
-    - `Microsoft Defender Check.sh` (`0.0.3`) now calls `mdatp` from `/Applications/Microsoft Defender.app/Contents/Resources/Tools/mdatp` instead of user-writable `/usr/local/bin/mdatp`
+    - `Microsoft Defender Check.sh` (`0.0.3`) now calls the first executable of `Tools/mdatp` or `Tools/wdavdaemonclient` inside `/Applications/Microsoft Defender.app/Contents/Resources/` instead of user-writable `/usr/local/bin/mdatp`
     - Removed `/usr/local/bin` from `PATH` in the BeyondTrust (`0.0.5`), Cisco Umbrella (`0.0.8`), CrowdStrike Falcon, GlobalProtect (`0.0.4`), Nessus Agent, Splunk Universal Forwarder and Zscaler Tunnel external checks
 - **Security:** user-writable logs can no longer make health checks look healthy
     - `checkAppAutoPatch()` now supports App Auto-Patch `4.0.0`, preferring root-written logs (4.x `/Library/Application Support/AppAutoPatch/logs/aap.log`, then 3.x `/Library/Management/AppAutoPatch/logs/aap.log`) and reading the per-user `~/Library/Logs/AppAutoPatch/aap.log` only when neither exists (logged as user-reported); uses the newest `Discovery complete` timestamp, ignores timestamps more than five minutes in the future, and reports `Unable to determine last run` when a 4.x log has no `Discovery complete` entry
@@ -38,11 +41,12 @@
     - The `/var/tmp/MacHealthCheck-Force-Fresh-Run` trigger is honored only when root-owned; triggers created by other users are ignored, logged and removed
 - **Security:** hardened code based on Monocle findings
     - Removed `/usr/local/bin` from the script and LaunchDaemon `PATH`; swiftDialog now runs from `Dialog.app/Contents/MacOS/dialogcli`, Jamf Pro from `/usr/local/jamf/bin/jamf`, and `jq` from `/usr/bin/jq` or a root-owned install only (user-owned Homebrew `jq` is rejected)
-    - Refactored `Resources/createSelfExtracting.zsh` so generated wrappers decode into a root-only `mktemp -d` directory, run `/bin/zsh --no-rcs` with all forwarded arguments (Jamf Pro Parameters 1-11) and remove the copy on exit, replacing the fixed, pre-plantable `/var/tmp/MHC.zsh` path; removed the `--target` option
+    - Refactored `Resources/createSelfExtracting.zsh` (now `#!/bin/zsh --no-rcs`) so generated wrappers decode into a root-only `mktemp -d` directory, run `/bin/zsh --no-rcs` with all forwarded arguments (Jamf Pro Parameters 1-11) and remove the copy on exit, replacing the fixed, pre-plantable `/var/tmp/MHC.zsh` path; removed the `--target` option
     - `Resources/Makefile` now installs the package payload to root-owned `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` instead of user-writable `/usr/local/bin/Mac-Health-Check`, stages packages under the per-user `$TMPDIR` and refuses a staging directory it does not own; `Resources/postInstall.zsh` runs the payload with `/bin/zsh --no-rcs` in `Self Service` mode
     - Pinned Semgrep to `1.177.0` in `.github/workflows/security-scan.yml`
 - Client-Side Cache
     - `installClientSideScript()` copies the running script into the root LaunchDaemon's path only when it is a root-owned file whose parent directories are root-owned and not group- or world-writable (new `isTrustedRootPath()`), and refuses to install a sanitized copy that fails `zsh -n` or lacks the `Silent` default
+    - `isTrustedRootPath()` reads the sticky bit (`stat -f %Mp%Lp`; `%Lp` alone drops it), so scripts decoded by self-extracting wrappers into a root-only directory under sticky `/var/tmp` install the Client-Side Cache copy instead of always logging `install skipped`
     - Installs or refreshes the client-side copy before the cached-upload shortcut, so content changes reach the nightly LaunchDaemon copy even without a `scriptVersion` bump
     - The nightly LaunchDaemon run no longer sends Microsoft Teams / Slack webhook messages (it refreshes the cached report only)
     - Cached-upload runs skip the two whole-disk `mdfind` queries and `system_profiler` (their values are only logged by full runs)
@@ -54,6 +58,7 @@
     - APNs activity without an MDM response in the last 24 hours now reports `APNs active; no MDM response` as a warning (previously `Failed`)
     - MDM identity error `-25304` newer than the last MDM response now reports `MDM identity error` as a failure
     - Logs the last APNs activity, last MDM response and courier connection-failure count
+    - The no-MDM-response warning reads `No MDM response in 24 hours` on unenrolled Macs (previously `No None response …`)
     - Added to the curated `Development` subset
 - Raised the minimum required swiftDialog version to `3.1.1.4997`
     - Updated the generated Preset 6 Inspect config to declare window options through swiftDialog `3.1.1.4997`'s JSON `options` block (`moveable`, `ontop`, `windowbuttons: "min"`), replacing an ignored top-level `moveable` key and adding a minimise button to the detached summary; `--ontop --moveable` launch flags remain for older swiftDialog builds
@@ -83,6 +88,8 @@
     - DDM Resolver logs explain non-zero resolver exits and show `build=unavailable` instead of `(null)`
     - Inspect Summary Replay logs one specific reason when falling back to a full run (removed the generic `no eligible cached summary` line)
     - Client-Side Cache logs `evaluating` (instead of `installing`) before checking whether the cached copy is current, and logs `generated LaunchDaemon plist validated` only when an install proceeds
+    - Kandji's `Microsoft One Drive` check logs its list-item title (previously `Microsoft OneDrive`)
+- Removed unused `getEntraPSSOStatusRaw()` and `getEntraLegacyCertificateOutput()` helpers
 - Reports from earlier versions (including 5.0.0 betas) do not match the `5.0.0` script version, so the first `5.0.0` `Self Service` run on each Mac is a full run
 - Agent Experience
     - Introduced the `mac-health-check-selector` AI Skill to assist Mac Admins with custom deployment; after the selection is confirmed, it asks whether to remove other MDMs' code from the artifact (default `no`)
@@ -90,8 +97,15 @@
     - `build-artifact.zsh` refuses a source script that is world-writable or owned by neither the current user nor root, and check 5d confirms the sanitized Client-Side Cache copy keeps the `Silent` default
     - `references/health-checks.md` documents the `Not Running` and timeout behavior and the three-check `Development` subset
     - `AGENTS.md` treats `scriptVersion` as canonical (`VERSION.txt` is git-ignored) and replaces the health-check template with a real single-argument `dialogUpdate` pattern
-    - `.github` Copilot agents and instructions rewritten for Mac Health Check (`reminder-*` files renamed to `inspect-*`)
+    - `.github` Copilot agents and instructions rewritten for Mac Health Check (`reminder-*` files renamed to `inspect-*`); bug reports add `Targeted remediation recheck` and `Reporting secrets` areas
+    - `AGENTS.md` uses branch-neutral release-state wording, adds a selector-skill step to the Add New Health Check skill, lists every selector file to keep synchronized, and uses `zsh --no-rcs` for test runs; added a tracked one-line `CLAUDE.md` (`@AGENTS.md`)
+    - Selector skill documents `checkAPNs()` warning-or-fail outcomes, the external-check parsing order (timeout, defaults domain, keywords), helper `--source` / `--out-dir` / `-h` options, and new `[H7]` / `[M2]` sidecar notes
+    - `.gitignore` now ignores built packages (`Resources/*.pkg`), self-extracting scripts (`*_self-extracting-*.sh`), `.claude/settings.local.json` and `.codex/` (`.codex/config.toml` is no longer tracked)
 - Documentation: README, `Diagrams/`, `Resources/`, `SECURITY.md`, `CONTRIBUTING.md` and issue templates refreshed for `5.0.0` (check counts per MDM, three-check `Development` subset, Client-Side Cache install order, report fields)
+    - README adds Script Parameters (noting that Parameter 4 is case-sensitive and not validated), Exit Codes and MDM Detection sections, documents that webhook messages are effectively Jamf Pro-only, describes `checkAPNs()` outcomes, notes that the four Jamf Pro sample external checks run by default, warns that the uninstall snippet also deletes `MacHealthCheck-Secrets.plist`, and regenerates the Policy Log Reporting sample from the current log line
+    - `SECURITY.md` adds 5.0.0 Security Notes (secrets file, Parameter 5 / 8 rejection, post-beta token rotation, transport and root-owned state); `CONTRIBUTING.md` adds a pre-submit checklist
+    - `Resources/README.md` documents what the package's post-install run does and that self-extracting runs install the Client-Side Cache; `Splunk-Dashboard-Reference.md` notes `gatekeeper__xprotect` and `_time` dedup caveats; `external-checks/README.md` shows the `runConfiguredHealthCheck` call form and how `Error` / `Timed Out` / `Not Installed` are recorded
+    - `Diagrams/` corrected for `Silent` swiftDialog gating, exit codes and paths, fail-versus-warning results, Jamf Pro-only webhooks, Mermaid node placement and missing organization defaults
 
 ### 4.1.0 (17-Aug-2026)
 - Refactored `checkBluetoothSharing()` to recognize the macOS 27 missing-domain response as the disabled default, preventing false-positive Bluetooth Sharing findings while preserving enabled-state detection on macOS 26 and macOS 27

@@ -25,7 +25,7 @@ Only artifacts that pass validation checks 1–8 are written here. The skill's h
 ## Before deploying
 
 1. Review the sidecar.
-2. Test on one Mac **enrolled in the artifact's MDM** with `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`. The script chooses its MDM branch from the enrolled server URL, so a Mac enrolled elsewhere runs that MDM's unedited checks.
+2. Test on one Mac **enrolled in the artifact's MDM** with `sudo zsh --no-rcs ./Artifacts/<file>.zsh "" "" "" "Self Service"`. The script chooses its MDM branch from the enrolled server URL, so a Mac enrolled elsewhere runs that MDM's unedited checks. Exception: an artifact built with `--prune-other-mdms` no longer has those branches, so a Mac enrolled in another MDM runs the generic fallback checks. For a `generic` (Other / MDM-agnostic) artifact, test on an unenrolled Mac or one whose MDM the script does not detect; Apple Push Notification service then warns or fails as expected.
 3. Repeat the test with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
 4. Mind the Client-Side Cache. The install runs only in `Self Service`, `Debug`, and `Silent` with `splunkOperationMode=production` (never `Test` or `Development`), and only from a root-owned script path. Run from a user-owned checkout such as `./Artifacts/`, the script logs `install skipped` and leaves the Mac's cached copy alone. Run from a root-owned path (as an MDM script is), it replaces the Mac's Client-Side Cache copy and LaunchDaemon with the artifact; re-run the production policy afterwards to restore them.
 

@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/zsh --no-rcs
 
 # Author: Bart Reardon
 # Date: 2023-11-23
