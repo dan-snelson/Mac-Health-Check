@@ -29,7 +29,7 @@ When the policy successfully executes, the returned output should include one of
 - `Warning` — service is installed but needs attention
 - `Error` (or anything else, including `Not Installed`) — service status could not be determined
 
-Beginning in `5.0.0b9`, `Not Running` is treated as a failure (earlier releases matched it as `Running` and reported stopped agents as healthy), and the sample checks print `Failed: Not Running`. Prefer the `Failed: <reason>` prefix in your own checks. Each `jamf policy -event <trigger>` call is limited to `externalCheckTimeoutSeconds` (default `120`); a policy that runs longer is terminated and reported as `Timed Out`.
+Beginning in `5.0.0`, `Not Running` is treated as a failure (earlier releases matched it as `Running` and reported stopped agents as healthy), and the sample checks print `Failed: Not Running`. Prefer the `Failed: <reason>` prefix in your own checks. Each `jamf policy -event <trigger>` call is limited to `externalCheckTimeoutSeconds` (default `120`); a policy that runs longer is terminated and reported as `Timed Out`.
 
 ```
 *"failed"* | *"not running"* )

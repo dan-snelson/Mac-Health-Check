@@ -13,7 +13,7 @@
 #   Version 0.0.1, 11-Oct-2025, Howard Griffith (@HowardGMac)
 #   - Intial version of this external check
 #
-#   Version 0.0.2, 03-Oct-2026, Dan K. Snelson (@dan-snelson)
+#   Version 0.0.2, 04-Oct-2026, Dan K. Snelson (@dan-snelson)
 #   - `Running: Yes` no longer overwrites an authentication-error or not-linked result
 #   - Reports `Not Running` (fail) when the agent is installed but not running
 #

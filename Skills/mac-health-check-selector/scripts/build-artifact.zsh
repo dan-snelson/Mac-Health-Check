@@ -46,7 +46,7 @@
 # - Added optional `--prune-other-mdms`, which removes other MDMs' arrays, `case` branches, detection,
 #   and unreferenced vendor-owned symbols (keeping the generic fallback), with validation checks 4b and 4c
 #
-# Version 5.0.0b9 03-Oct-2026, Dan K. Snelson (@dan-snelson)
+# Version 5.0.0 04-Oct-2026, Dan K. Snelson (@dan-snelson)
 # - Refuses a source script that is world-writable or owned by neither the current user nor root,
 #   because parts of it are `source`d and `eval`ed
 #
@@ -62,7 +62,7 @@
 
 setopt extendedglob pipefail
 
-helperVersion="5.0.0b9"
+helperVersion="5.0.0"
 healthCheckHeader="# Generate Health Checks based on Operation Mode and MDM Vendor"
 placeholderNetwork="<YOUR_ORGANIZATION_NETWORK>"
 inventoryTitle="Computer Inventory"

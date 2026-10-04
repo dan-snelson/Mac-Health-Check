@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 5.0.0b9 (03-Oct-2026)
+### 5.0.0 (04-Oct-2026)
 - **Security:** `checkElectronCornerMask()` no longer copies arbitrary file contents into user-readable output. A standard user could link `~/Applications/<App>.app/…/Electron Framework.framework/…/version` to any root-only file (including `MacHealthCheck-Secrets.plist`), and root then echoed its contents into the dialog, the Inspect compliance plist, the client log and the Splunk report. To prevent this:
     - Symlinked app bundles, frameworks and version files are skipped
     - Version files are read with a 64-byte cap
@@ -31,7 +31,7 @@
 - Fixed dark-mode detection for console usernames containing spaces, and replaced the undefined `result` call in `checkOS()` with a warning
 - Documented that the Dock-named swiftDialog copy is re-signed ad hoc (Team ID dropped); set `enableDockIntegration="false"` where PPPC or notification profiles key on swiftDialog's Team ID
 - `Resources/Makefile` stages packages under the per-user `$TMPDIR` and refuses a staging directory it does not own
-- `5.0.0b8` reports do not match the `5.0.0b9` script version, so the first `5.0.0b9` `Self Service` run on each Mac is a full run
+- `5.0.0b8` reports do not match the `5.0.0` script version, so the first `5.0.0` `Self Service` run on each Mac is a full run
 - Agent Experience: `build-artifact.zsh` refuses a source script that is world-writable or owned by neither the current user nor root; `references/health-checks.md` documents the `Not Running` and timeout behavior
 
 ### 5.0.0b8 (02-Oct-2026)
