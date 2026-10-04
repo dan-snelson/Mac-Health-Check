@@ -7,7 +7,7 @@ description: Interactively prompts a Mac Admin to select which health checks to 
 
 Guide a Mac Admin through choosing which Mac Health Check (MHC) health checks to show and run, then write an edited, MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/`, plus a sidecar `.md` that records the selection and validation results.
 
-Target: the `5.0.0b6` prerelease line and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
+Target: Mac Health Check `5.0.0` and later. Full per-check data (exact list-item JSON, function arguments, shipped default order per MDM, artifact anchors) lives in `references/health-checks.md`. The write-and-validate procedure lives in `references/artifact-procedure.md`. The tested build-and-validate helper is `scripts/build-artifact.zsh`. Read both reference files before generating output. When they disagree with the admin's copy of `Mac-Health-Check.zsh`, trust the script.
 
 ## Ground rules
 
@@ -209,7 +209,7 @@ After `yes` in 4a, send this question alone and wait:
 
 ### 4d. Write and validate the artifact
 
-- Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --slug <slug> --selection <file>`, adding `--prune-other-mdms` when the admin replied `yes` in 4b. Validation checks 1–8 each print `PASS`, `FAIL`, `SKIP`, or `INFO`:
+- Run `zsh Skills/mac-health-check-selector/scripts/build-artifact.zsh --slug <slug> --selection -` with the here-doc from 4c, adding `--prune-other-mdms` when the admin replied `yes` in 4b. Validation checks 1–8 each print `PASS`, `FAIL`, `SKIP`, or `INFO`:
   1. `zsh -n` on the artifact.
   2. The edited array, with the shell splices substituted, passes `jq`.
   3. Alignment:
@@ -221,7 +221,7 @@ After `yes` in 4a, send this question alone and wait:
   4. `diff` hunks fall only inside the two regions. With `--prune-other-mdms`, every line outside the two regions and the pruned ranges is unchanged.
      - 4b (prune only): no pruned array, `case` branch, or detection pattern remains; the chosen MDM and the generic fallback are intact.
      - 4c (prune only): no removed vendor-only symbol is still referenced.
-  5. Client-Side Cache replay (5a–5c), using the sanitizer extracted live from `installClientSideScript`: `zsh -n`, `jq`, and no `jamf recon` text.
+  5. Client-Side Cache replay (5a–5d), using the sanitizer extracted live from `installClientSideScript`: `zsh -n`, `jq`, no `jamf recon` text, and the `Silent` default (`operationMode="${4:-"Silent"}"`). A 5a, 5c, or 5d failure means the script's install gate would refuse the cached copy.
   6. `scriptVersion` is unchanged.
   7. The source is unchanged (SHA-256 before and after). `git diff --quiet` is reported as `INFO`.
   8. The artifact and sidecar paths are git-ignored.
@@ -246,7 +246,7 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 |---|---|---|
 | `[all]` | Always | swiftDialog `3.1.1.4997` or newer (`swiftDialogMinimumRequiredVersion`); pre-flight installs or updates it. |
 | `[all]` | Always | `jq` validates every array; an invalid array exits before any check runs. |
-| `[all]` | Always | Client-Side Cache / LaunchDaemon: the cached copy runs nightly in `Silent` and drops `updateComputerInventory`; H3–H5 fall back to the loginwindow `lastUserName`. |
+| `[all]` | Always | Client-Side Cache / LaunchDaemon: the cached copy runs nightly in `Silent`, drops `updateComputerInventory`, and never sends webhook messages; H3–H5 fall back to the loginwindow `lastUserName`. |
 | `[all]` | Always | `Silent` + `splunkOperationMode=production` is reporting-first; use `<YOUR_SPLUNK_HEC_URL>` and `<YOUR_SPLUNK_HEC_TOKEN>`. |
 | `[all]` | Always | Secrets: `webhookURL` and `splunkHECToken` go in root-only `MacHealthCheck-Secrets.plist`; Parameters 5 and 8 are rejected unless `allowParameterSecrets="true"`. |
 | `[all]` | Not pruned | Runtime MDM detection: the edits run only on Macs the script detects as the chosen MDM; others run their own unedited branch. |
@@ -261,7 +261,7 @@ Reply with the artifact path, the sidecar path, a one-line PASS/FAIL for each ch
 | `[Kandji]` | Kandji | Detection needs `serverURL` to contain `kandji`. |
 | `[generic]` | Other | No MDM Profile or MDM Certificate Expiration; M4 fails on unenrolled Macs. |
 | `[Jamf]` | Jamf Pro | Script exits early without `/private/var/log/jamf.log`. |
-| `[Jamf]` | External checks | Each `checkExternalJamfPro` call needs its `external-checks/` script in Jamf Pro and a policy with the matching custom trigger; output must include `Running`, `Warning`, `Failed`, or `Error`. See `external-checks/README.md`. |
+| `[Jamf]` | External checks | Each `checkExternalJamfPro` call needs its `external-checks/` script in Jamf Pro and a policy with the matching custom trigger; output must include `Running`, `Warning`, `Failed`, or `Error`. `Not Running` fails, and a policy still running after `externalCheckTimeoutSeconds` (shipped `120` seconds) reports `Timed Out`. See `external-checks/README.md`. |
 | `[Jamf]` | F1 enabled | `jamf recon` with a 90-second timeout; skipped in `Silent` + production; removed from the cached copy. |
 | `[A9]` | A9 rebuilt | Subtitle now `<YOUR_ORGANIZATION_NETWORK>`; replace it before deploying. |
 | `[A4]` | A4 enabled | Shows the `checkInternal` path and name; edit them if the required app differs. |
@@ -275,7 +275,7 @@ Close with these steps, then offer to adjust the selection or build another arti
    - Run `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`, then repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4.
    - `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
    - Confirm that the dropped checks do not appear in the log and that the row count matches.
-   - Non-`Silent` test runs install the artifact as the Mac's Client-Side Cache copy and LaunchDaemon. Re-run the production policy afterwards to restore them.
+   - The Client-Side Cache install runs only in `Self Service`, `Debug`, and `Silent` with `splunkOperationMode=production` (never `Test` or `Development`), and only from a root-owned script path. Run from a user-owned checkout such as `./Artifacts/`, it logs `install skipped` and leaves the Mac's cached copy alone. Run from a root-owned path, it replaces the Mac's Client-Side Cache copy and LaunchDaemon with the artifact; re-run the production policy afterwards to restore them.
    - Pruned artifact: optionally run it once on a Mac not enrolled in the chosen MDM (an unenrolled Mac qualifies) to confirm the generic fallback.
 3. Deploy the artifact as the MDM script. Keep `scriptVersion` unchanged, and keep Debug and Development out of the production policy.
 4. Expect the first Self Service run after deployment to be a full run (`check_set_mismatch`). Targeted rechecks resume after that.
@@ -297,7 +297,7 @@ Close with these steps, then offer to adjust the selection or build another arti
 ## Resources
 
 - Project: https://github.com/dan-snelson/Mac-Health-Check
-- Releases (5.0.0b6 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
+- Releases (5.0.0 and later): https://github.com/dan-snelson/Mac-Health-Check/releases
 - `README.md`, `CHANGELOG.md`, `external-checks/README.md`, `Artifacts/README.md`, and `AGENTS.md` in the repository
 - `references/health-checks.md`, `references/artifact-procedure.md`, and `scripts/build-artifact.zsh` in this skill
 
@@ -337,8 +337,8 @@ All other settings keep `Mac-Health-Check.zsh` defaults; edit the artifact manua
 | 4 | Every line outside the array, the `"Microsoft Intune" )` branch, and the pruned ranges unchanged | PASS |
 | 4b | 7 arrays, 30 branches, 4 emptied blocks removed; generic fallback intact | PASS |
 | 4c | 6 vendor-only symbols removed, none still referenced | PASS |
-| 5 | Client-Side Cache simulation (`zsh -n`, `jq`, no `jamf recon`) | PASS |
-| 6 | `scriptVersion` `5.0.0b6` unchanged | PASS |
+| 5 | Client-Side Cache simulation (`zsh -n`, `jq`, no `jamf recon`, `Silent` default) | PASS |
+| 6 | `scriptVersion` `5.0.0` unchanged | PASS |
 | 7 | Source unchanged | PASS |
 | 8 | Artifact and sidecar git-ignored | PASS |
 

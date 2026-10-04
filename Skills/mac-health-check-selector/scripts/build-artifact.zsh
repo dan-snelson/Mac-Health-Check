@@ -49,6 +49,11 @@
 # Version 5.0.0 04-Oct-2026, Dan K. Snelson (@dan-snelson)
 # - Refuses a source script that is world-writable or owned by neither the current user nor root,
 #   because parts of it are `source`d and `eval`ed
+# - Added validation check 5d (sanitized copy defaults to `Silent`), mirroring the `installClientSideScript`
+#   gate; a 5a or 5d failure means the Client-Side Cache install would be refused
+# - Sidecar external-check note now covers `Not Running` (fail) and `Timed Out` (after
+#   `externalCheckTimeoutSeconds`, shipped 120 seconds); Client-Side Cache notes cover the nightly
+#   webhook suppression and the root-owned-path install condition
 #
 ####################################################################################################
 
@@ -70,6 +75,7 @@ networkQualityTitle="Network Quality Test"
 
 # Client-Side Cache sanitizer expressions; must match installClientSideScript in the source
 operationModeSedExpression='s|operationMode="${4:-"Self Service"}"|operationMode="${4:-"Silent"}"|'
+silentDefaultLine='operationMode="${4:-"Silent"}"'
 networkQualitySedExpression='/"title" : "Network Quality Test"/ s/},$/}/'
 memoryPressureKeyLine='[[ "${title}" == "Memory Pressure" ]] && checkKeyByIndex[${i}]="memoryPressure"'
 
@@ -1047,7 +1053,7 @@ else
     if zsh -n "${sanitizedScript}" 2>/dev/null; then
         recordCheck 5a "Sanitized zsh -n" PASS ""
     else
-        recordCheck 5a "Sanitized zsh -n" FAIL "sanitized copy has a syntax error"
+        recordCheck 5a "Sanitized zsh -n" FAIL "sanitized copy has a syntax error; installClientSideScript would refuse to install"
     fi
     if loadMdmRegion "${sanitizedScript}" "${slug}"; then
         sanitizedJson=$( evaluateArrayJson "${sanitizedScript}" "${regionAStart}" "${regionAEnd}" )
@@ -1063,6 +1069,13 @@ else
         recordCheck 5c "Sanitized copy has no jamf recon" FAIL "installClientSideScript would refuse to install"
     else
         recordCheck 5c "Sanitized copy has no jamf recon" PASS ""
+    fi
+    # Mirrors the installClientSideScript gate: the cached nightly copy must default to `Silent`; matches the
+    # whole line, because the sanitizer's own `sed` and `grep` text also contains the Silent default
+    if grep -qxF -- "${silentDefaultLine}" "${sanitizedScript}"; then
+        recordCheck 5d "Sanitized copy defaults to Silent" PASS ""
+    else
+        recordCheck 5d "Sanitized copy defaults to Silent" FAIL "cached nightly copy would not default to Silent"
     fi
 fi
 
@@ -1193,7 +1206,7 @@ fi
 typeset -a dependencyNotes
 dependencyNotes+=( "[all] swiftDialog \`${swiftDialogMinimum}\` or newer (\`swiftDialogMinimumRequiredVersion\`); pre-flight installs or updates it." )
 dependencyNotes+=( "[all] \`jq\` validates every list-item array; an invalid array exits the script before any check runs." )
-dependencyNotes+=( "[all] Client-Side Cache / LaunchDaemon: the cached copy runs nightly in \`Silent\` and drops \`updateComputerInventory\`; H3–H5 fall back to the loginwindow \`lastUserName\` when no one is logged in." )
+dependencyNotes+=( "[all] Client-Side Cache / LaunchDaemon: the cached copy runs nightly in \`Silent\`, drops \`updateComputerInventory\`, and never sends webhook messages; H3–H5 fall back to the loginwindow \`lastUserName\` when no one is logged in." )
 dependencyNotes+=( "[all] \`Silent\` + \`splunkOperationMode=production\` is reporting-first; use \`<YOUR_SPLUNK_HEC_URL>\` and \`<YOUR_SPLUNK_HEC_TOKEN>\`." )
 dependencyNotes+=( "[all] Secrets: \`webhookURL\` and \`splunkHECToken\` go in root-only \`MacHealthCheck-Secrets.plist\`; Parameters 5 and 8 are rejected unless \`allowParameterSecrets=\"true\"\`." )
 if [[ "${pruneOtherMdms}" == "false" ]]; then
@@ -1224,7 +1237,7 @@ if [[ "${slug}" == "generic" ]]; then
     (( ${+selectedIdSet[M4]} )) && dependencyNotes+=( "[generic] Apple Push Notification service (M4) fails on Macs with no MDM enrollment; expected on an unenrolled test Mac." )
 fi
 [[ "${slug}" == "jamf-pro" ]] && dependencyNotes+=( "[Jamf] The script exits early when \`/private/var/log/jamf.log\` is missing." )
-[[ "${externalSelected}" == "true" ]] && dependencyNotes+=( "[Jamf] External checks need their \`external-checks/\` scripts saved in Jamf Pro and policies with matching custom triggers; output must include \`Running\`, \`Warning\`, \`Failed\`, or \`Error\`." )
+[[ "${externalSelected}" == "true" ]] && dependencyNotes+=( "[Jamf] External checks need their \`external-checks/\` scripts saved in Jamf Pro and policies with matching custom triggers; output must include \`Running\`, \`Warning\`, \`Failed\`, or \`Error\` (\`Not Running\` fails; a policy still running after \`externalCheckTimeoutSeconds\`, shipped 120 seconds, reports \`Timed Out\`)." )
 (( ${+selectedIdSet[F1]} )) && dependencyNotes+=( "[Jamf] F1 runs \`jamf recon\` (90-second timeout); skipped in \`Silent\` + \`splunkOperationMode=production\` and removed from the Client-Side Cache copy." )
 if (( ${+selectedIdSet[A9]} )) && [[ "${selectionUnchanged}" == "false" ]]; then
     dependencyNotes+=( "[A9] Palo Alto GlobalProtect subtitle now reads \`<YOUR_ORGANIZATION_NETWORK>\`; replace it before deploying." )
@@ -1306,7 +1319,7 @@ artifactDisplayPath="${finalArtifact#${sourceDirectory}/}"
     print -r -- ""
     print -r -- "## Next steps"
     print -r -- "1. Review this sidecar and the diff; add organization-specific notes below."
-    print -r -- "2. Run the five-mode test on ${testTarget}; re-run the production policy afterwards to restore the Client-Side Cache copy and LaunchDaemon."
+    print -r -- "2. Run the five-mode test on ${testTarget}; if it ran from a root-owned path, re-run the production policy afterwards to restore the Client-Side Cache copy and LaunchDaemon."
     print -r -- "3. Deploy the artifact as the MDM script; keep \`scriptVersion\` unchanged."
     nextStep=4
     if [[ "${selectionUnchanged}" == "false" ]]; then

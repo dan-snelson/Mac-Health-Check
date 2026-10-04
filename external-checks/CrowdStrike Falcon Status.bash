@@ -38,6 +38,7 @@ root_locale=$( /usr/bin/defaults read "${root_locale_plist}" AppleLocale 2>/dev/
 lib_locale_changed="false"
 root_locale_changed="false"
 
+# shellcheck disable=SC2329
 restore_locale(){
     # Restore (or remove) any AppleLocale value this script changed
     if [[ "${lib_locale_changed}" == "true" ]]; then

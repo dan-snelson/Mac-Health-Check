@@ -1338,6 +1338,7 @@ dialogBinaryDebugArgs=()
 
 # Dock-enabled launch defaults
 dialogDockNamedApp="/Library/Application Support/Dialog/${humanReadableScriptName}.app"
+dialogDockNamedAppCreatedByRun="false"
 dialogLaunchBinary="${dialogBinary}"
 dialogDockIcon="default"
 dialogDockIconFile="${runtimeTemporaryDirectory}/dockicon.png"
@@ -4272,7 +4273,8 @@ function installClientSideScript() {
 
     rm -f "${temporaryClientScript}"
 
-    if ! grep -qF 'operationMode="${4:-"Silent"}"' "${sanitizedClientScript}" 2>/dev/null \
+    # Whole-line match: the `sed` expression above also contains the Silent default text
+    if ! grep -qxF -- 'operationMode="${4:-"Silent"}"' "${sanitizedClientScript}" 2>/dev/null \
         || ! /bin/zsh -n "${sanitizedClientScript}" 2>/dev/null; then
         warning "Client-Side Cache: sanitized client-side script failed verification (Silent default or zsh -n); install failed."
         rm -f "${sanitizedClientScript}" "${temporaryLaunchDaemonPath}"
@@ -6706,6 +6708,12 @@ function quitScript() {
     local timeMachineSummary="${tmStatus}"
     local sendWebhook="${webhookConfigured}"
 
+    # The nightly Client-Side Cache LaunchDaemon run refreshes the cached report only; it never sends webhook messages
+    if [[ "${sendWebhook}" == "true" && "${launchDaemonRun}" == "true" ]]; then
+        sendWebhook="false"
+        info "Client-Side Cache: LaunchDaemon run; skipping webhook message."
+    fi
+
     [[ -n "${tmLastBackup}" ]] && timeMachineSummary+="; ${tmLastBackup}"
 
     rebuildOverallHealthFromRecordedResults
@@ -6839,12 +6847,16 @@ function quitScript() {
 
     rm -rf -- "${runtimeTemporaryDirectory}"
 
-    # Remove copied Dock-named swiftDialog app bundle (never remove source Dialog.app).
-    if [[ -n "${dialogDockNamedApp}" ]] && [[ "${dialogDockNamedApp}" != "${dialogAppBundle}" ]] && [[ -d "${dialogDockNamedApp}" ]]; then
+    # Remove copied Dock-named swiftDialog app bundle only when this run created it (never remove source Dialog.app
+    # or a concurrent run's copy)
+    if [[ "${dialogDockNamedAppCreatedByRun}" == "true" ]] && [[ -n "${dialogDockNamedApp}" ]] && [[ "${dialogDockNamedApp}" != "${dialogAppBundle}" ]] && [[ -d "${dialogDockNamedApp}" ]]; then
         rm -Rf "${dialogDockNamedApp}"
     fi
 
-    rm -f /var/tmp/dialog.log
+    # `Silent` never launches swiftDialog; leave a concurrent run's dialog log in place
+    if [[ "${operationMode}" != "Silent" ]]; then
+        rm -f /var/tmp/dialog.log
+    fi
 
     notice "Total Elapsed Time: $(printf '%dh:%dm:%ds\n' $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60)))"
 
@@ -7163,7 +7175,8 @@ function dialogCheck() {
             latestProductionDialogURL="$( getLatestSwiftDialogPkgURL )"
             latestProductionDialogVersion="$( getSwiftDialogVersionFromPkgURL "${latestProductionDialogURL}" )"
 
-            if [[ -n "${latestProductionDialogVersion}" ]] && is-at-least "${latestProductionDialogVersion}" "${dialogVersion}"; then
+            # `is-at-least` treats an empty version as the zsh version, so require a non-empty `dialogVersion`
+            if [[ -n "${dialogVersion}" && -n "${latestProductionDialogVersion}" ]] && is-at-least "${latestProductionDialogVersion}" "${dialogVersion}"; then
                 warning "swiftDialog version ${dialogVersion} found. Latest production release is ${latestProductionDialogVersion}; skipping automatic download because configured minimum ${swiftDialogMinimumRequiredVersion} targets a newer non-production build."
                 return 0
             fi
@@ -8046,12 +8059,14 @@ function checkAppAutoPatch() {
     local aap_log_path="" aap_log_format=""
     local canEvaluateLastRun="true"
 
-    # Prefer App Auto-Patch 4.0.0 logs; fall back to the 3.x log
-    if [[ -f "${aap_log_path_current}" || ( -n "${aap_log_path_user}" && -f "${aap_log_path_user}" ) ]]; then
+    # Prefer root-written logs (4.0.0 system log, then the 3.x log); use the user-writable per-user log only when neither exists
+    if [[ -f "${aap_log_path_current}" ]]; then
         aap_log_format="4"
     elif [[ -f "${aap_log_path_legacy}" ]]; then
         aap_log_format="3"
         aap_log_path="${aap_log_path_legacy}"
+    elif [[ -n "${aap_log_path_user}" && -f "${aap_log_path_user}" ]]; then
+        aap_log_format="4"
     fi
 
     # Check if log file exists
@@ -11036,6 +11051,7 @@ if [[ "${operationMode}" != "Silent" ]]; then
     if [[ "${enableDockIntegration:l}" == "true" ]]; then
         dialogDockIcon=$(resolveDockIcon "${dockIcon}")
         dialogLaunchBinary=$(prepareDockNamedDialogApp)
+        [[ -d "${dialogDockNamedApp}" ]] && dialogDockNamedAppCreatedByRun="true"
         dialogLaunchArgs=( "${dialogBinaryDebugArgs[@]}" --jsonfile "${dialogJSONFile}" --showdockicon --dockicon "${dialogDockIcon}" )
         if (( remainingChecks > 0 )); then
             dialogLaunchArgs+=( --dockiconbadge "${remainingChecks}" )

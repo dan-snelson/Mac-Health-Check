@@ -1,6 +1,6 @@
 # Mac Health Check — Health Check Reference
 
-Companion reference for the `mac-health-check-selector` skill. Derived from `Mac-Health-Check.zsh` `5.0.0b6`. When this file and the script disagree, the script wins. `scripts/build-artifact.zsh --list <slug>` prints the script's current rows and calls for any MDM.
+Companion reference for the `mac-health-check-selector` skill. Derived from `Mac-Health-Check.zsh` `5.0.0`. When this file and the script disagree, the script wins. `scripts/build-artifact.zsh --list <slug>` prints the script's current rows and calls for any MDM.
 
 ## How the pieces fit
 
@@ -113,7 +113,7 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 | C7 | Gatekeeper / XProtect | `checkGatekeeperXProtect` | All | |
 | C8 | Touch ID | `checkTouchID` | All | Reports `error` when Touch ID hardware is absent (VMs, desktops without a Touch ID keyboard) |
 | C9 | Password Hint | `checkPasswordHint` | All | Not in Jamf Pro or Kandji defaults |
-| C10 | AirDrop | `checkAirDropSettings` | All | Not in Kandji or generic defaults |
+| C10 | AirDrop | `checkAirDropSettings` | All | Not in Kandji default |
 | C11 | AirPlay Receiver | `checkAirPlayReceiver` | All | macOS 27 missing-key aware |
 | C12 | Bluetooth Sharing | `checkBluetoothSharing` | All | macOS 27 missing-domain aware |
 | C13 | VPN Client | `checkVPN` | All | Honors `vpnClientVendor` (shipped `paloalto`) and `vpnClientDataType`; fails when that client is absent |
@@ -154,7 +154,7 @@ Legend — **Avail**: `All` = safe on any MDM; `Jamf` = Jamf Pro only; `Vendor` 
 
 | ID | Title | Call | Avail | Notes |
 |---|---|---|---|---|
-| A1 | App Auto-Patch | `checkAppAutoPatch` | All | Expects App Auto-Patch installed |
+| A1 | App Auto-Patch | `checkAppAutoPatch` | All | Expects App Auto-Patch installed; reads the 4.x system log, then the 3.x root log, and the per-user log only when neither exists; fails when no log exists |
 | A2 | Homebrew Status | `checkHomebrewStatus` | All | Passes when Homebrew is absent |
 | A3 | Electron Corner Mask | `checkElectronCornerMask` | All | macOS 26 GPU slowdown detection |
 | A4 | Microsoft Teams | `checkInternal "/Applications/Microsoft Teams.app" "/Applications/Microsoft Teams.app" "Microsoft Teams"` | All | Template for any required app |
@@ -262,7 +262,7 @@ When building an artifact, copy rows verbatim from the chosen MDM's array in the
 
 ## Shipped default order per MDM
 
-Each list is the shipped order, index `0` first. Use it as the default selection (`defaults`) for that MDM. Verified against `5.0.0b6` with `scripts/build-artifact.zsh --list <slug>`; rerun it each session and trust the script if they differ.
+Each list is the shipped order, index `0` first. Use it as the default selection (`defaults`) for that MDM. Verified against `5.0.0` with `scripts/build-artifact.zsh --list <slug>`; rerun it each session and trust the script if they differ.
 
 Every list ends with `M14 H6 M15` (plus `F1` for Jamf Pro). Available non-default additions go immediately before the first remaining item of that tail (see **Reply grammar** in `SKILL.md`).
 
@@ -284,7 +284,8 @@ Shipped `developmentListitemJSON` (inside `if [[ "${operationMode}" == "Developm
     developmentListitemJSON='
     [
         {"title" : "Clock Skew", "subtitle" : "Checks local clock offset against time.apple.com", "icon" : "SF=01.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
-        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
+        {"title" : "Memory Pressure", "subtitle" : "Reviews memory pressure across recent days", "icon" : "SF=02.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5},
+        {"title" : "Apple Push Notification service", "subtitle" : "Validate communication between Apple, '${mdmVendor}' and your Mac", "icon" : "SF=03.circle,'"${organizationColorScheme}"'", "status" : "pending", "statustext" : "Pending …", "iconalpha" : 0.5}
     ]
     '
 ```
@@ -294,6 +295,7 @@ Matching calls:
 ```zsh
     checkClockSkew "0"
     checkMemoryPressure "1"
+    checkAPNs "2"
 ```
 
 Development is for fast iteration on the checks being changed, not a representative run. Artifacts leave this subset untouched; admins edit it manually.

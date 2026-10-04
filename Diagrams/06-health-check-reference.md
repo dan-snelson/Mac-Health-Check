@@ -6,10 +6,10 @@ This text-only reference documents key configurable defaults and the current run
 
 ## Runtime Notes
 
-- `operationMode` is documented for the `4.0.0` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
+- `operationMode` is documented for the `5.0.0` release as `Self Service` by default, with `Silent`, `Debug`, `Development`, and `Test` also supported.
 - `Self Service` and full `Silent` health-check runs now generate readable inspect-summary assets after the canonical report is written. `Self Service` launches a detached moveable swiftDialog Inspect Mode Preset 6 guided summary, separates recorded results into `Unhealthy` and `Healthy` sections, and retains the normal main-dialog completion countdown during full runs; `Silent` writes the assets without launching swiftDialog.
-- Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
-- `Development` mode currently runs `checkClockSkew()` and `checkMemoryPressure()` instead of the full vendor-specific suite.
+- Re-running in `Self Service` can replay the cached inspect summary after pre-flight and Client-Side Cache installation when the canonical report is healthy and the handoff assets are still valid and younger than `inspectReplayMaximumAgeSeconds`.
+- `Development` mode currently runs `checkClockSkew()`, `checkMemoryPressure()` and `checkAPNs()` instead of the full vendor-specific suite.
 - `checkMemoryPressure()` adds one observation whenever the check executes, including full runs and targeted rechecks, to root-only history under `organizationDirectory`; cached uploads, healthy Inspect replay, and synthetic `Test` runs do not sample.
 - `inspectSummaryPreset` is an `on` / `off` toggle: `on` enables Preset 6 asset generation, `Self Service` launch and cached replay, while `off` disables all three.
 - Non-`Silent` runs now distinguish warning-only results from failures in the final main-dialog state. In `Self Service` with `inspectSummaryPreset="on"`, the detached inspect summary remains the post-run issue-detail surface.
@@ -17,12 +17,13 @@ This text-only reference documents key configurable defaults and the current run
 - When `enableDockIntegration` is `true`, non-`Silent` runs show a Dock icon with a decreasing `dockiconbadge` count.
 - Client-Side Cache installs a client-side script at `/Library/Management/org.churchofjesuschrist/MHC.zsh` and a `org.churchofjesuschrist.MHC` LaunchDaemon for nightly `Silent` report refreshes.
 - The LaunchDaemon plist is validated before loading, does not include `RunAtLoad`, routes stdout/stderr to `/dev/null`, uses `launchDaemonRun=true`, and relies on deterministic per-Mac jitter so clients run across 00:53-01:53 instead of all starting at the 1:23 a.m. nominal target.
-- LaunchDaemon-triggered refreshes use loginwindow `lastUserName` for user-scoped checks when no GUI user is active.
-- Jamf Pro `Silent` + `splunkOperationMode=production` uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check. Beginning in `5.0.0`, Client-Side Cache assets are installed or refreshed (and the sanitized copy verified with `zsh -n`) before the cached-upload decision, so content changes reach the nightly copy without a version bump.
-- Parameter 11 `forceFreshRun` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` provide explicit fresh-run controls for bypassing `Self Service` targeted verification/replay and Jamf `Silent` + `production` cached upload.
+- LaunchDaemon-triggered refreshes use loginwindow `lastUserName` for user-scoped checks when no GUI user is active, and never send webhook messages.
+- `Silent` + `splunkOperationMode=production` (any MDM) uploads cached JSON only when client/server versions match and the report is valid and younger than 36 hours; otherwise it runs the full health check. Beginning in `5.0.0`, Client-Side Cache assets are installed or refreshed (and the sanitized copy verified with `zsh -n`) before the cached-upload decision, so content changes reach the nightly copy without a version bump.
+- Parameter 11 `forceFreshRun` and `/var/tmp/MacHealthCheck-Force-Fresh-Run` provide explicit fresh-run controls for bypassing `Self Service` targeted verification/replay and the `Silent` + `production` cached upload.
 - `checkAvailableSoftwareUpdates()` includes deferred and DDM-enforced OS update handling; beginning in `5.0.0`, DDM enforcement is read from the root-written `/var/db/softwareupdate/SoftwareUpdateDDMStatePersistence.plist`, falling back to `/var/log/install.log` only when that plist is missing or unrecognized.
 - `checkFreeDiskSpace()` prefers Finder-aligned available capacity and falls back to `diskutil info /` when needed.
 - `checkWiFiStrength()` uses `wdutil info` when available, falls back to the legacy `airport` binary, and treats Wi-Fi-inactive / Ethernet-primary systems as a non-failure skip.
+- `checkAppAutoPatch()` prefers root-written logs (App Auto-Patch 4.x system log, then the 3.x log) and uses the user-writable per-user log only when neither exists.
 - `checkHomebrewStatus()` compares the installed Homebrew release and local outdated package counts without auto-updating Homebrew metadata.
 - Help and support content is built dynamically from `supportLabelN` / `supportValueN` pairs, with legacy support fields used as a fallback.
 - `updateComputerInventory()` is the final Jamf Pro-specific check in the Jamf Pro check set.
@@ -44,7 +45,7 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 | `launchDaemonPath` | `"/Library/LaunchDaemons/${launchDaemonLabel}.plist"` | LaunchDaemon plist path | `/Library/LaunchDaemons/*.plist` |
 | `clientSideJitterEnabled` | `"true"` | Enables deterministic per-Mac LaunchDaemon jitter | `true` \| `false` |
 | `clientSideMaxJitterSeconds` | `"1800"` | Maximum signed jitter around 1:23 a.m.; LaunchDaemon wakes at window start and script sleeps a non-negative derived delay | Integer seconds |
-| `clientSideMaximumCacheAgeSeconds` | `"129600"` | Maximum cached report age before Jamf falls back to a full health check | Integer seconds |
+| `clientSideMaximumCacheAgeSeconds` | `"129600"` | Maximum cached report age before a `Silent` + `production` run falls back to a full health check | Integer seconds |
 | `organizationSelfServiceMarketingName` | `"Workforce App Store"` | Your MDM Self Service portal name | Any string |
 | `organizationBoilerplateComplianceMessage` | `"Meets organizational standards"` | Subtitle shown for passing checks | Any string |
 | `organizationBrandingBannerURL` | Freepik sample URL | Banner image displayed at the top of the dialog | HTTPS URL or local path |
@@ -52,7 +53,7 @@ Core UI and behavior defaults live in the **Organization Variables** section of 
 | `enableDockIntegration` | `"true"` | Show a Dock icon with countdown badge in non-`Silent` modes | `true` \| `false` |
 | `dockIcon` | Jamf Cloud icon URL | Icon source for Dock integration | `default` \| local path \| `file://` path \| `http(s)` URL |
 | `organizationDefaultsDomain` | `"org.churchofjesuschrist.external"` | Defaults domain shared with external check policies | Reverse-domain string |
-| `organizationColorScheme` | `"weight=semibold,colour1=#2E5B91,colour2=#4291C8"` | SF Symbol color scheme for list item icons | swiftDialog color string |
+| `organizationColorScheme` | Follows the console user's appearance: light `"weight=semibold,colour1=#18181B,colour2=#4D4D56"`, dark `"weight=semibold,colour1=#D1D5DC,colour2=#F5F5F5"` | SF Symbol color scheme for list item icons | swiftDialog color string |
 | `kerberosRealm` | `""` (blank) | Kerberos realm for SSO checks; leave blank to disable | REALM string or `""` |
 | `organizationFirewall` | `"socketfilterfw"` | Firewall type to evaluate | `socketfilterfw` \| `pf` |
 | `vpnClientVendor` | `"paloalto"` | VPN client to check; set to `none` to skip VPN check | `none` \| `paloalto` \| `cisco` \| `tailscale` |
@@ -81,12 +82,12 @@ The support/help experience uses both legacy support fields and dynamic `support
 | `supportTeamName` | `"IT Support"` | Heading shown in the help message |
 | `supportTeamPhone` | `"+1 (801) 555-1212"` | Legacy telephone fallback |
 | `supportTeamEmail` | `"rescue@domain.org"` | Legacy email fallback |
-| `supportTeamWebsite` | `"https://support.domain.org"` | Legacy website fallback and failure-notification support target |
+| `supportTeamWebsite` | `"https://support.domain.org"` | Legacy website fallback and Inspect summary support-button target |
 | `supportKB` | `"KB8675309"` | Knowledge base identifier used to build the legacy KB link |
 | `supportLabel1`–`supportLabel6` | Mixed defaults / blanks | Dynamic support labels shown in the help message |
 | `supportValue1`–`supportValue6` | Mixed defaults / blanks | Matching dynamic support values; empty pairs are skipped |
 
-**4.0.0 behavior notes**
+**Support behavior notes**
 
 - If all `supportLabelN` / `supportValueN` pairs are blank, the script falls back to the legacy `supportTeam*` and KB values.
 - The first URL-like `supportValueN` becomes the Info button action in the dialog.
@@ -140,7 +141,7 @@ The table below lists every health check function, its human-readable name, and 
 | Apps | `checkAppAutoPatch()` | App Auto-Patch | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | — |
 | Apps | `checkHomebrewStatus()` | Homebrew Status | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ |
 | Apps | `checkElectronCornerMask()` | Electron Corner Mask | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ |
-| Apps | `checkInternal()` | Microsoft Teams | ✅ | — | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| Apps | `checkInternal()` | Microsoft Teams | ✅ | — | — | ✅ | ✅ | ✅ | — | — | — |
 | Apps | `checkInternal()` | Microsoft One Drive | — | — | — | — | — | ✅ | — | — | — |
 | Apps | `checkInternal()` | Microsoft Outlook | — | — | — | — | — | ✅ | — | — | — |
 | Apps | `checkInternal()` | Company Portal | — | — | — | — | — | ✅ | — | — | — |
@@ -162,15 +163,15 @@ The table below lists every health check function, its human-readable name, and 
 
 | MDM Vendor | Total Checks |
 |---|---|
-| Jamf Pro | 40 |
-| Mosyle | 33 |
-| Addigy | 32 |
-| Filewave | 31 |
-| Fleet | 32 |
-| JumpCloud | 32 |
-| Kandji | 31 |
-| Microsoft Intune | 32 |
-| Generic / None | 28 |
+| Jamf Pro | 42 |
+| Mosyle | 34 |
+| Addigy | 33 |
+| Filewave | 32 |
+| Fleet | 33 |
+| JumpCloud | 33 |
+| Kandji | 32 |
+| Microsoft Intune | 33 |
+| Generic / None | 29 |
 
 > **Note:** `checkNetworkHosts()` is called once per host group; the five Apple host groups plus the Jamf-specific host group each count as one check. `checkUserDirectorySizeItems()` is called three times (Desktop, Downloads, Trash) and each counts as one check.
 
@@ -187,7 +188,7 @@ External checks require separate MDM policies using the scripts in the `external
 | `symvCrowdStrikeFalcon` | CrowdStrike Falcon | `/Applications/Falcon.app` | `CrowdStrike Falcon Status.bash` |
 | `symvGlobalProtect` | Palo Alto GlobalProtect | `/Applications/GlobalProtect.app` | `Palo Alto Networks GlobalProtect Status.bash` |
 
-Each external check policy either writes results to `organizationDefaultsDomain` using three keys — `checkStatus`, `checkType` (`fail` / `success` / `warning` / `error`), and `checkExtended` — or prints a keyword result. The main script reads these keys (or matches `Failed` / `Not Running` → fail, then `Running`, `Warning`, otherwise error) after invoking the policy trigger, which is limited to `externalCheckTimeoutSeconds` (default `120`; longer runs report `Timed Out`).
+Each external check policy either writes results to `organizationDefaultsDomain` using three keys — `checkStatus`, `checkType` (`fail` / `success` / `warning` / `error`), and `checkExtended` — or prints a keyword result. The main script reads these keys (or matches `Failed` / `Not Running` → fail, then `Running`, `Warning`, otherwise error) after invoking the policy trigger, which is limited to `externalCheckTimeoutSeconds` (default `120`; longer runs report `Timed Out`). Results shown with dialog status `error` — `Timed Out`, a bare `Not Installed`, or any other unmatched keyword — are recorded as `warning` in the JSON report; `Failed` / `Not Running` (including `Failed: Not Installed`) remain `fail`.
 
 ---
 
@@ -202,6 +203,6 @@ Each external check policy either writes results to `organizationDefaultsDomain`
 | 8 | `splunkHECToken` | (blank) | Splunk HEC token; never logged by the script; rejected unless `allowParameterSecrets="true"`, so leave blank and use `MacHealthCheck-Secrets.plist` |
 | 9 | `splunkHECIndex` | (blank) | Optional Splunk HEC index value included in the transmission wrapper payload |
 | 10 | `splunkHECSourcetype` | (blank) | Optional Splunk HEC sourcetype value included in the transmission wrapper payload |
-| 11 | `forceFreshRun` | `false` | One-shot fresh-run override; bypasses `Self Service` targeted verification/replay and Jamf `Silent` + `splunkOperationMode=production` cached upload |
+| 11 | `forceFreshRun` | `false` | One-shot fresh-run override; bypasses `Self Service` targeted verification/replay and the `Silent` + `splunkOperationMode=production` cached upload (any MDM) |
 
 `reportDebug` remains a source-level variable with default `false`; it is no longer supplied as an MDM runtime parameter.

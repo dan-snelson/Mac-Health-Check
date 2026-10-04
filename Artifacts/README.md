@@ -16,6 +16,8 @@ Each artifact differs from `Mac-Health-Check.zsh` in exactly two regions:
 - the chosen MDM's list-item array, and
 - that MDM's branch in the health-check `case ${mdmVendor} in` block.
 
+Exception: an artifact built with `--prune-other-mdms` also drops every other named MDM's list-item array, its branches in each vendor `case` block (including `serverURL` detection), and vendor-only functions the selection no longer calls. The generic fallback always stays.
+
 Only artifacts that pass validation checks 1–8 are written here. The skill's helper, [`scripts/build-artifact.zsh`](../Skills/mac-health-check-selector/scripts/build-artifact.zsh), builds and validates in a temporary work directory first.
 
 `developmentListitemJSON`, `operationMode`, and every other setting keep the source defaults; edit the artifact manually to change them. `scriptVersion` stays unchanged.
@@ -25,7 +27,7 @@ Only artifacts that pass validation checks 1–8 are written here. The skill's h
 1. Review the sidecar.
 2. Test on one Mac **enrolled in the artifact's MDM** with `sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"`. The script chooses its MDM branch from the enrolled server URL, so a Mac enrolled elsewhere runs that MDM's unedited checks.
 3. Repeat the test with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
-4. Re-run the production policy afterwards. Non-`Silent` test runs replace the Mac's Client-Side Cache copy and LaunchDaemon with the artifact.
+4. Mind the Client-Side Cache. The install runs only in `Self Service`, `Debug`, and `Silent` with `splunkOperationMode=production` (never `Test` or `Development`), and only from a root-owned script path. Run from a user-owned checkout such as `./Artifacts/`, the script logs `install skipped` and leaves the Mac's cached copy alone. Run from a root-owned path (as an MDM script is), it replaces the Mac's Client-Side Cache copy and LaunchDaemon with the artifact; re-run the production policy afterwards to restore them.
 
 ## Version control
 

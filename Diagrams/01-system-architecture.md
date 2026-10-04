@@ -1,11 +1,11 @@
 # Mac Health Check: System Architecture
 
-This diagram shows the `4.0.0` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
+This diagram shows the `5.0.0` Mac Health Check ecosystem, from administrator customization through MDM deployment, client-side execution, user interaction, and results output.
 
 ```mermaid
 graph TB
     subgraph Admin["⚙️ Administrator Configuration"]
-        SCRIPT["Mac-Health-Check.zsh<br>Core script (9,500+ lines)"]
+        SCRIPT["Mac-Health-Check.zsh<br>Core script (~11,500 lines)"]
         ORGVARS["Organization + Support Defaults<br>Branding, Dock, thresholds,<br>VPN / firewall, support links"]
         EXTCHECKS["external-checks/<br>Optional third-party plugins<br>(BeyondTrust, CrowdStrike, etc.)"]
         RESOURCES["Resources/<br>Build utilities & Makefile"]
@@ -43,8 +43,8 @@ graph TB
     subgraph Client["💻 Client Mac"]
         TRIGGER["Policy Trigger<br>User via Self Service<br>or scheduled run"]
         PREFLIGHT["Pre-flight Checks<br>• Running as root?<br>• jq available?<br>• swiftDialog ≥ 3.1.1.4997 installed?<br>• Kill existing Dialog instances"]
-        MDMDETECT["MDM Vendor Detection<br>Auto-detect from installed profiles:<br>Jamf Pro / Kandji / Intune / Mosyle<br>JumpCloud / Addigy / Filewave / Fleet"]
-        CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(28–41 checks)"]
+        MDMDETECT["MDM Vendor Detection<br>Auto-detect from enrollment ServerURL:<br>Jamf Pro / Kandji / Intune / Mosyle<br>JumpCloud / Addigy / Filewave / Fleet"]
+        CHECKLIST["Check Set Selection<br>Vendor-specific list<br>(29–42 checks)"]
 
         POLICY -->|Executes script| TRIGGER
         SILENT -.->|Executes script| TRIGGER
@@ -61,7 +61,7 @@ graph TB
     subgraph Runtime["▶️ Runtime Execution"]
         DIALOG["swiftDialog<br>Interactive health check dialog<br>with live status updates<br>and optional Dock integration"]
         CHECKLOOP["Health Check Loop<br>System · User · Disk · MDM<br>Network · Apps · External"]
-        STATUSES["Check Statuses<br>✅ pass · ⚠️ warning<br>❌ error · ⏭️ skipped"]
+        STATUSES["Check Statuses<br>✅ success · ❌ fail<br>⚠️ error (warning in report)"]
         FINAL["Final Main Dialog State<br>Healthy / Unhealthy title / icon"]
         INSPECT["Detached Inspect Summary<br>Self Service only when inspectSummaryPreset=on<br>moveable swiftDialog Preset 6"]
 
@@ -88,13 +88,12 @@ graph TB
         FINAL --> LOG
         FINAL --> REPORT
         INSPECT -.->|reads| INSPECTFILES
-        FINAL -.->|if webhookURL set & issues| WEBHOOK
+        FINAL -.->|"if webhookURL set & issues<br>(never LaunchDaemon runs)"| WEBHOOK
         CHECKLOOP -.->|Jamf Pro only| INVENTORY
 
         style LOG fill:#c8e6c9
         style REPORT fill:#c8e6c9
         style INSPECTFILES fill:#c8e6c9
-        style FAILNOTE fill:#c8e6c9
         style WEBHOOK fill:#c8e6c9
         style INVENTORY fill:#c8e6c9
     end
@@ -109,7 +108,7 @@ graph TB
 ### Administrator Configuration
 
 **`Mac-Health-Check.zsh`**
-The single deployable artifact (9,500+ lines). Contains the health check logic, swiftDialog UI layer, Dock handling, logging helpers, webhook delivery, and vendor-specific branching. Administrators typically customize the **Organization Variables** and **IT Support Variables** sections before uploading it to MDM.
+The single deployable artifact (~11,500 lines). Contains the health check logic, swiftDialog UI layer, Dock handling, logging helpers, webhook delivery, and vendor-specific branching. Administrators typically customize the **Organization Variables** and **IT Support Variables** sections before uploading it to MDM.
 
 **Organization + Support Defaults**
 Key settings administrators configure before deployment:
@@ -123,7 +122,7 @@ Key settings administrators configure before deployment:
 - `completionTimer` — Dialog auto-close delay for the fallback countdown path
 
 **`external-checks/`**
-Optional plugin scripts for third-party tools (BeyondTrust, Cisco Umbrella, CrowdStrike Falcon, GlobalProtect). Each plugin is uploaded to MDM as a separate policy and writes results to a shared defaults domain (`organizationDefaultsDomain`) for the main script to read.
+Optional plugin scripts for third-party tools (BeyondTrust, Cisco Umbrella, CrowdStrike Falcon, GlobalProtect, and others). Each plugin is uploaded to Jamf Pro as a separate policy. Most plugins print a keyword result (for example `Running` or `Failed`) that the main script parses; only the Microsoft Defender and Tenable (Alternate) samples write results to the shared defaults domain (`organizationDefaultsDomain`).
 
 ---
 
@@ -134,7 +133,7 @@ Mac Health Check is MDM-agnostic and has been tested with eight MDM platforms. T
 - **Parameter 4 (`operationMode`)** — Intended production default is `Self Service`; other supported modes are `Silent`, `Debug`, `Development`, and `Test`
 - **Parameter 5 (`webhookURL`)** — Optional Microsoft Teams or Slack webhook URL used when runs with health issues need to post an issue summary; rejected unless `allowParameterSecrets="true"` (prefer `webhookURL` in the root-only `MacHealthCheck-Secrets.plist`)
 - **Parameters 6-10** — Optional Splunk reporting inputs for reporting mode, HEC URL, HEC token, HEC index, and HEC sourcetype
-- **Parameter 11 (`forceFreshRun`)** — Optional one-shot override that bypasses `Self Service` targeted verification / replay and Jamf `Silent` cached Splunk upload, forcing a complete fresh health-check run
+- **Parameter 11 (`forceFreshRun`)** — Optional one-shot override that bypasses `Self Service` targeted verification / replay and the `Silent` + `splunkOperationMode=production` cached Splunk upload, forcing a complete fresh health-check run
 
 ---
 
@@ -148,7 +147,7 @@ The script validates its environment before running any health checks:
 4. Kills any existing swiftDialog instances
 
 **MDM Vendor Detection**
-The script inspects installed configuration profiles to identify the MDM vendor, then selects the appropriate health check set (28–41 checks depending on vendor capabilities).
+The script reads the MDM `ServerURL` from installed configuration profiles to identify the MDM vendor, then selects the appropriate health check set (29–42 checks depending on vendor capabilities).
 
 ---
 
@@ -166,10 +165,10 @@ Health checks execute sequentially, with each result posted to the swiftDialog d
 
 **Memory Pressure History** — Full health-check runs and targeted memory-pressure rechecks append a root-only observation to `${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl`, retaining 14 days by default. Two distinct local days with yellow or red pressure within seven days produce a warning-only `memoryPressure` check result. Cached Splunk uploads and healthy Inspect replay use existing observations without sampling.
 
-**Client-Side Cache** — `Self Service`, `Debug` and full Jamf production runs (never `Test` or `Development`, and only when the running script is a root-owned file in root-controlled directories) install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `/Library/LaunchDaemons/org.churchofjesuschrist.MHC.plist`. The script validates the generated plist, loads it as a root LaunchDaemon without `RunAtLoad`, routes daemon stdout/stderr to `/dev/null`, and sets `launchDaemonRun=true` for scheduled executions. The LaunchDaemon starts at 00:53; the client-side copy applies deterministic hardware-derived jitter so runs land in the 00:53-01:53 window centered on 1:23 a.m. It runs in `Silent` mode with `splunkOperationMode=test`, refreshing the JSON report without sending it to Splunk (Splunk secrets live in the root-only `MacHealthCheck-Secrets.plist`; Jamf Pro policy Parameters 5 and 8 are rejected unless `allowParameterSecrets="true"`). If no GUI user is active during a LaunchDaemon refresh, user-scoped checks fall back to loginwindow `lastUserName`. Jamf `Silent` + `splunkOperationMode=production` normally uploads that cached JSON when the client/server versions match and the report is younger than 36 hours, but operators can bypass that shortcut with Parameter 11 `forceFreshRun=true` or `/var/tmp/MacHealthCheck-Force-Fresh-Run` to force a complete fresh run and overwrite the local report before Splunk delivery.
+**Client-Side Cache** — `Self Service`, `Debug` and `Silent` + `splunkOperationMode=production` runs on any MDM (never `Test` or `Development`, and only when the running script is a root-owned file in root-controlled directories) install `/Library/Management/org.churchofjesuschrist/MHC.zsh` plus `/Library/LaunchDaemons/org.churchofjesuschrist.MHC.plist`. The script validates the generated plist, loads it as a root LaunchDaemon without `RunAtLoad`, routes daemon stdout/stderr to `/dev/null`, and sets `launchDaemonRun=true` for scheduled executions. The LaunchDaemon starts at 00:53; the client-side copy applies deterministic hardware-derived jitter so runs land in the 00:53-01:53 window centered on 1:23 a.m. It runs in `Silent` mode with `splunkOperationMode=test`, refreshing the JSON report without sending it to Splunk (Splunk secrets live in the root-only `MacHealthCheck-Secrets.plist`; Jamf Pro policy Parameters 5 and 8 are rejected unless `allowParameterSecrets="true"`). If no GUI user is active during a LaunchDaemon refresh, user-scoped checks fall back to loginwindow `lastUserName`. The install runs before the cached-upload decision. A later `Silent` + `splunkOperationMode=production` run (any MDM) normally uploads that cached JSON when the client/server versions match and the report is younger than 36 hours, but operators can bypass that shortcut with Parameter 11 `forceFreshRun=true` or `/var/tmp/MacHealthCheck-Force-Fresh-Run` to force a complete fresh run and overwrite the local report before Splunk delivery.
 
 **Inspect Summary** — `Self Service` and full `Silent` health-check runs generate readable handoff files at `/Library/Application Support/org.churchofjesuschrist/Inspect/MacHealthCheck-Inspect-Config.json` and `/Library/Application Support/org.churchofjesuschrist/Inspect/MacHealthCheck-Inspect-Compliance.plist`. Targeted runs hydrate these assets from the merged full-state report and identify the recent recheck versus older full baseline. `Self Service` launches the detached, moveable Preset 6 summary during the retained main-dialog countdown and replays it only when the canonical report is healthy and the handoff is younger than `inspectReplayMaximumAgeSeconds`. `Silent` writes assets without launching swiftDialog.
 
-**Webhook** — When configured, a summary of warning, failed, or errored checks is posted to Microsoft Teams or Slack at the end of each run with health issues. Jamf Pro deployments include a direct link to the computer record.
+**Webhook** — When configured, a summary of warning, failed, or errored checks is posted to Microsoft Teams or Slack at the end of each run with health issues. Client-Side Cache LaunchDaemon runs never send webhooks, and targeted rechecks whose results are unchanged from the previous report skip them. Jamf Pro deployments include a direct link to the computer record.
 
 **MDM Inventory** — Jamf Pro full check runs include `updateComputerInventory()` as the final Jamf-specific check. Jamf `Silent` + Splunk production runs and Client-Side Cache LaunchDaemon runs skip inventory submission.

@@ -1,6 +1,6 @@
 # Mac Health Check — Artifact Procedure
 
-Companion reference for the `mac-health-check-selector` skill. It describes how to write an MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/` and how to validate it. Derived from `Mac-Health-Check.zsh` `5.0.0b6`. When this file and the script disagree, the script wins.
+Companion reference for the `mac-health-check-selector` skill. It describes how to write an MDM-specific, date-stamped copy of `Mac-Health-Check.zsh` into `Artifacts/` and how to validate it. Derived from `Mac-Health-Check.zsh` `5.0.0`. When this file and the script disagree, the script wins.
 
 The procedure is deterministic: find anchor lines, replace line ranges, validate. Prefer the tested helper `scripts/build-artifact.zsh`, which implements every step below. The manual snippets are the fallback for environments that cannot run it.
 
@@ -220,7 +220,7 @@ Every check prints `PASS <n> …` or `FAIL <n> …`; `fail` ends non-zero if any
 | 4 | Every `diff` hunk falls inside source Region A or Region B; pruned: every line outside A, B, and the pruned ranges unchanged |
 | 4b | Pruned only: no pruned array, `case` branch, or detection pattern remains; chosen MDM and generic fallback intact |
 | 4c | Pruned only: no removed vendor-only symbol still referenced |
-| 5a–5c | Client-Side Cache replay: sanitized `zsh -n` · sanitized `jq` · no `jamf recon` text |
+| 5a–5d | Client-Side Cache replay: sanitized `zsh -n` · sanitized `jq` · no `jamf recon` text · sanitized copy defaults to `Silent` |
 | 6 | `scriptVersion` equal in source and artifact |
 | 7 | Source unchanged (SHA-256); `git diff --quiet -- Mac-Health-Check.zsh` as info |
 | 8 | Artifact and sidecar paths git-ignored (`git check-ignore`) |
@@ -274,7 +274,7 @@ if awk -v a1="${srcAStart}" -v a2="${srcAEnd}" -v b1="${srcBStart}" -v b2="${src
     END { exit bad }' "${work}/artifact.diff"; then passCheck 4 "diff scope"; else failCheck 4 "hunk outside the two regions"; fi
 grep -E '^[0-9]' "${work}/artifact.diff"   # hunk headers for the sidecar diff summary
 
-# 5. Client-Side Cache replay (copied from installClientSideScript in 5.0.0b6; the helper extracts it live)
+# 5. Client-Side Cache replay (copied from installClientSideScript in 5.0.0; the helper extracts it live)
 cp "${artifact}" "${work}/client.zsh"
 sed -i '' 's|operationMode="${4:-"Self Service"}"|operationMode="${4:-"Silent"}"|' "${work}/client.zsh"
 awk '
@@ -290,6 +290,8 @@ sed -i '' '/"title" : "Network Quality Test"/ s/},$/}/' "${work}/sanitized.zsh" 
 if zsh -n "${work}/sanitized.zsh"; then passCheck 5a "sanitized zsh -n"; else failCheck 5a "sanitized zsh -n"; fi
 if arrayJsonFrom "${work}/sanitized.zsh" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then passCheck 5b "sanitized jq"; else failCheck 5b "sanitized jq"; fi
 if grep -q "jamf recon" "${work}/sanitized.zsh"; then failCheck 5c "jamf recon text remains"; else passCheck 5c "no jamf recon"; fi
+# Whole-line match: the sanitizer's own sed and grep text also contains the Silent default
+if grep -qxF 'operationMode="${4:-"Silent"}"' "${work}/sanitized.zsh"; then passCheck 5d "sanitized copy defaults to Silent"; else failCheck 5d "sanitized copy does not default to Silent"; fi
 
 # 6. scriptVersion
 if [[ "$( grep -m1 '^scriptVersion=' "${source}" )" == "$( grep -m1 '^scriptVersion=' "${artifact}" )" ]]; then passCheck 6 "scriptVersion unchanged"; else failCheck 6 "scriptVersion differs"; fi
@@ -305,7 +307,7 @@ if git check-ignore -q "${finalArtifact}" && git check-ignore -q "${finalSidecar
 if (( fail == 0 )); then mv "${artifact}" "${finalArtifact}" && print "RESULT: PASS ${finalArtifact}"; else print "RESULT: FAIL; failed build kept at ${artifact}"; fi
 ```
 
-A failure in check 5 means the cached nightly `Silent` copy would exit on invalid JSON. Fix the row order (M15 last, or directly before F1), then rebuild. Remove `${work}` once the artifact passes.
+A failure in check 5 means the cached nightly copy is unusable. `installClientSideScript` refuses to install a sanitized copy that fails `zsh -n` (5a) or still contains `jamf recon` (5c), and its gate also expects the `Silent` default (5d). A 5b failure means the cached nightly `Silent` copy would exit on invalid JSON; fix the row order (M15 last, or directly before F1), then rebuild. Remove `${work}` once the artifact passes.
 
 ## Test run (check 9; admin, on one Mac)
 
@@ -316,7 +318,7 @@ sudo zsh ./Artifacts/<file>.zsh "" "" "" "Self Service"
 - Use a Mac **enrolled in the chosen MDM**. For Other / MDM-agnostic, use a Mac whose `serverURL` matches no known MDM; an unenrolled Mac qualifies, logs `Unknown MDM vendor: None`, and fails M4 Apple Push Notification service as expected. The script sets `mdmVendor` from the enrolled `serverURL` at runtime. On a Mac enrolled elsewhere, the artifact runs that MDM's unedited branch; for example, an Intune artifact on a Jamf Pro Mac still runs Electron Corner Mask, Jamf Hosts, and `jamf recon`.
 - Repeat with `Silent`, `Debug`, `Development`, and `Test` as Parameter 4. `Development` runs the shipped `developmentListitemJSON` subset, not the selection.
 - Confirm that the dropped checks do not appear in the log and that the dialog row count matches the sidecar.
-- Non-`Silent` runs call `installClientSideScript`. They replace the test Mac's `/Library/Management/<reverseDomainNameNotation>/MHC.zsh` and LaunchDaemon with a sanitized copy of the artifact. Re-run the production policy afterwards to restore them.
+- `installClientSideScript` runs only in `Self Service`, `Debug`, and `Silent` with `splunkOperationMode=production`; never in `Test` or `Development`. It installs only from a root-owned script path whose parent directories are root-owned and not group- or world-writable. A copy run from a user-owned checkout (for example `./Artifacts/`) logs `Client-Side Cache: current script path is not a root-owned file … install skipped.` and leaves the Mac's cached copy alone. When the artifact runs from a root-owned path (as an MDM script does), those modes replace the test Mac's `/Library/Management/<reverseDomainNameNotation>/MHC.zsh` and LaunchDaemon with a sanitized copy of the artifact; re-run the production policy afterwards to restore them.
 - The first `Self Service` run after a check-set change is a full run (`check_set_mismatch`); that is expected.
 
 ## Sidecar template
@@ -377,7 +379,7 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 | 4 | Diff limited to two regions *(pruned: and pruned ranges)* | PASS/FAIL |
 | 4b | Pruned MDMs absent *(pruned only)* | PASS/FAIL |
 | 4c | Pruned symbols unreferenced *(pruned only)* | PASS/FAIL |
-| 5a–5c | Client-Side Cache simulation | PASS/FAIL |
+| 5a–5d | Client-Side Cache simulation | PASS/FAIL |
 | 6 | scriptVersion unchanged | PASS/FAIL |
 | 7 | Source unchanged | PASS/FAIL |
 | 8 | Artifacts git-ignored | PASS/FAIL/SKIP |
@@ -390,7 +392,7 @@ Other MDMs' A5 agent apps are grouped into one A5 row. A10 is listed as `Jamf Pr
 
 ## Next steps
 1. Review this sidecar and the diff; add organization-specific notes below.
-2. Run the five-mode test on one Mac enrolled in <MDM>; re-run the production policy afterwards to restore the Client-Side Cache copy and LaunchDaemon.
+2. Run the five-mode test on one Mac enrolled in <MDM>; if it ran from a root-owned path, re-run the production policy afterwards to restore the Client-Side Cache copy and LaunchDaemon.
 3. Deploy the artifact as the MDM script; keep `scriptVersion` unchanged.
 4. Expect the first Self Service run to be a full run (`check_set_mismatch`).
 5. *(pruned only)* Optionally run once on a Mac not enrolled in <MDM> (an unenrolled Mac qualifies) to confirm the generic fallback.

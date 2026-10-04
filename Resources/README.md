@@ -1,11 +1,14 @@
-# Mac Health Check (3.2.0)
+# Mac Health Check (5.0.0)
 
 ## Resources Build Utilities
 
-This directory contains two helper tools used to package or wrap `Mac-Health-Check.zsh`:
+This directory contains three helper files used to package or wrap `Mac-Health-Check.zsh`:
 
 - `createSelfExtracting.zsh`: Creates a self-extracting shell script that embeds a Base64 copy of a source file.
 - `Makefile`: Builds (and optionally signs) a macOS installer package (`.pkg`).
+- `postInstall.zsh`: The package's `postinstall` script; runs the installed payload in `Self Service` mode.
+
+It also holds reference material: [`Splunk-Dashboard-Reference.md`](Splunk-Dashboard-Reference.md) and its exported Splunk dashboard JSON, `mac-health-check-fleet-policies.yml` (sample Fleet policies), [`MacHealthCheck-Inspect-Mode/`](MacHealthCheck-Inspect-Mode/README.md) (Inspect Mode screenshots and demo assets), and `projectPlan.md` (historical `3.0.0` architecture notes).
 
 ### Prerequisites
 
@@ -26,7 +29,7 @@ This directory contains two helper tools used to package or wrap `Mac-Health-Che
 3. Execute it with `/bin/zsh --no-rcs`, forwarding all arguments (for example, Jamf Pro Parameters 1-11)
 4. Remove the directory on exit
 
-Beginning in `5.0.0b6`, the wrapper no longer writes to the fixed `/var/tmp/MHC.zsh` path (which a local user could pre-create and rewrite before root executed it) and the `--target` option has been removed. Regenerate any previously deployed self-extracting scripts.
+Beginning in `5.0.0`, the wrapper no longer writes to the fixed `/var/tmp/MHC.zsh` path (which a local user could pre-create and rewrite before root executed it) and the `--target` option has been removed. Regenerate any previously deployed self-extracting scripts.
 
 #### Default behavior
 
@@ -39,7 +42,7 @@ Beginning in `5.0.0b6`, the wrapper no longer writes to the fixed `/var/tmp/MHC.
 Run from this directory:
 
 ```zsh
-cd /Users/dan/Documents/GitHub/dan-snelson/Mac-Health-Check/Resources
+cd /path/to/Mac-Health-Check/Resources
 ```
 
 Use defaults:
@@ -68,7 +71,7 @@ Show help:
 
 The `Makefile` packages `../Mac-Health-Check.zsh` as:
 
-- Install path: `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` (root-owned; beginning in `5.0.0b6`, the payload no longer uses `/usr/local/bin`, which Homebrew can make user-writable)
+- Install path: `/Library/Management/org.churchofjesuschrist/Mac-Health-Check.zsh` (root-owned; beginning in `5.0.0`, the payload no longer uses `/usr/local/bin`, which Homebrew can make user-writable)
 - Package name format: `Mac-Health-Check-<scriptVersion>-<YYYY-MM-DD-HHMMSS>.pkg`
 - Post-install behavior: runs `postInstall.zsh` (copied as `postinstall`), which executes the payload with `/bin/zsh --no-rcs` in `Self Service` mode
 
@@ -77,7 +80,7 @@ The `Makefile` packages `../Mac-Health-Check.zsh` as:
 Run from this directory:
 
 ```zsh
-cd /Users/dan/Documents/GitHub/dan-snelson/Mac-Health-Check/Resources
+cd /path/to/Mac-Health-Check/Resources
 ```
 
 Show available targets:

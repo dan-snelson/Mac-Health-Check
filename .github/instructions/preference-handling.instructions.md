@@ -1,54 +1,48 @@
 ---
 name: Preference & Organization Handling
-description: Rules for managing organization variables, MDM detection, branding, and user-facing text in Mac-Health-Check. Emphasizes clarity, graceful degradation, and MDM independence.
+description: Rules for organization variables, script parameters, reporting secrets, MDM vendor detection, branding, and support text in Mac-Health-Check.zsh. Emphasizes graceful degradation and MDM independence.
 applyTo: "Mac-Health-Check.zsh"
 ---
 
 # Preference & Organization Handling Instructions
 
-**Core Principle**: Organization-specific values and MDM detection must be flexible, clearly documented, and never break the script when values are missing or unknown.
+`AGENTS.md` takes precedence. When this file and `Mac-Health-Check.zsh` disagree, the script wins.
 
-## 1. Organization Variables
+**Core Principle**: Organization-specific values must be easy to find, safe when empty, and never break MDM-agnostic behavior.
 
-- All organization-specific values (branding, colors, support contacts, thresholds, etc.) **must** be defined at the top of the script with clear comments.
-- Use descriptive variable names (e.g., `organizationColorScheme`, `supportTeamName`, `allowedMinimumFreeDiskPercentage`).
-- **Empty or invalid values**: 
-  - For support contact pairs (`supportLabel1`/`supportValue1` through `supportLabel6`/`supportValue6`): **gracefully skip** any pair where either value is empty.
-  - For thresholds and colors: Fall back to safe defaults (e.g., 10% disk space, system appearance-based color scheme).
-  - Never hardcode secrets or sensitive data.
+## 1. Organization Variables and Parameters
 
-## 2. MDM Vendor Detection (Dynamic & Agnostic)
+- Keep organization values in the existing configuration sections (Script Parameters, **Organization Variables**, and the support/help-message variables), not inside functions. Comment each one.
+- Parameters: 4 `operationMode`, 5 webhook URL, 6 `splunkOperationMode` (`off` | `test` | `production`), 7 HEC URL, 8 HEC token, 9 index, 10 sourcetype, 11 force fresh run.
+- `reverseDomainNameNotation` drives root-only state in `/Library/Management/<RDNN>/` (report, secrets, client-side copy) and user-readable Inspect assets in `/Library/Application Support/<RDNN>/Inspect/`.
+- Color scheme follows the logged-in user's appearance (`organizationColorScheme`: light `#18181B/#4D4D56`, dark `#D1D5DC/#F5F5F5`).
+- Never hardcode secrets, tokens, or real organization data in new code or docs; use placeholders.
 
-**Definition of Terms**:
-- **Dynamic**: Detection occurs at runtime by querying the system (`profiles list`, `mdmVendorUuid`, etc.). It is **not** hardcoded at the top of the script.
-- **MDM-agnostic**: The core health checks, reporting, and UI logic work independently of any specific MDM. Vendor-specific code is strictly optional and isolated.
+## 2. Reporting Secrets
 
-**Rules**:
-- Detection must use runtime commands (never static lists).
-- Core functionality (health checks, JSON reporting, Inspect Summary) **must work** even if no MDM is detected.
-- When an unknown or unsupported MDM is detected:
-  - Log a clear warning: `"Unsupported MDM vendor detected: <vendor>. Falling back to generic behavior."`
-  - Use the `genericMdmListitemJSON` list.
-  - Continue execution without crashing.
+- The webhook URL and Splunk HEC token belong in root-only `MacHealthCheck-Secrets.plist` (`reportingSecretsPath`, root:wheel, mode 600).
+- Values passed through Parameters 5 or 8 are rejected unless `allowParameterSecrets="true"` (not recommended); keep that log wording intact.
 
-## 3. Support Contact & User-Facing Text
+## 3. MDM Vendor Detection
 
-- Dynamic support fields (`supportLabel1`–`supportLabel6`) must be processed in a loop that skips empty pairs.
-- Legacy fallback fields (Telephone, Email, Website, KB Article) are only used if the dynamic fields are completely empty.
-- All user-facing text (help message, remediation guidance, footer) must be constructed dynamically from available variables.
+- Detection is runtime-only: the enrolled `ServerURL` from `profiles list` is matched in `case "${serverURL}" in` (Addigy, Filewave, Fleet, Jamf Pro, JumpCloud, Kandji, Microsoft Intune, Mosyle). No match sets `mdmVendor="None"`.
+- Each vendor sets `mdmVendorUuid` or `mdmProfileIdentifier` for the MDM Profile check. Jamf Pro additionally requires `/private/var/log/jamf.log`.
+- An unknown vendor logs `warning "Unknown MDM vendor: ${mdmVendor}"`, merges `genericMdmListitemJSON`, and continues.
+- Health checks, JSON reporting, Splunk, and Inspect Summary must work with the generic list. Keep vendor-specific code inside vendor `case` branches or vendor-owned functions.
+- When vendor branches, list-item arrays, or vendor-owned functions change, keep `Skills/mac-health-check-selector/` in sync (see `AGENTS.md`).
 
-## 4. Error Handling
+## 4. Support Contact & User-Facing Text
 
-- **Missing or empty organization values**: Skip gracefully (especially support contacts). Never crash.
-- **Unknown MDM vendor**: Log warning + fall back to generic list + continue.
-- **Invalid color scheme or threshold values**: Apply safe defaults and log a warning.
-- **Branding image failures** (missing icon path): Fall back to default swiftDialog icon.
+- `supportLabel1`/`supportValue1` through `supportLabel6`/`supportValue6` are read in a loop; a pair shows only when both values are non-empty.
+- Legacy `supportTeamPhone`, `supportTeamEmail`, `supportTeamWebsite`, and `supportKBURL` are used only when every dynamic label and value is empty.
+- The first URL-like dynamic value (`http(s)://`, `slack://`, `msteams://`, `teams://`, `zoommtg://`, `mailto:`) becomes the info button.
+- Keep remediation subtitles concise and action-oriented.
 
 ## 5. Post-Edit Checklist
 
-- Confirm support contact pairs are skipped when empty.
-- Test with no MDM profile installed (should use generic list).
-- Verify unknown MDM vendor produces a warning but does not break execution.
-- Ensure all organization variables have clear comments explaining their purpose.
+- `zsh -n Mac-Health-Check.zsh`.
+- Empty support pairs are skipped; an all-empty set falls back to the legacy fields.
+- An unenrolled Mac (or unknown `serverURL`) logs `Unknown MDM vendor: None` and runs the generic list.
+- No secrets or organization-specific values added.
 
-**Reference**: See `AGENTS.md` for boundaries and `zsh-coding.instructions.md` for variable naming conventions.
+**Reference**: `AGENTS.md` for boundaries; `zsh-coding.instructions.md` for naming and logging.
