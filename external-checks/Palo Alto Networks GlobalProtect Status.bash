@@ -25,6 +25,10 @@
 #   Version 0.0.4, 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 #   - Removed `/usr/local/bin` from `PATH` (Monocle S3)
 #
+#   Version 0.0.5, 08-Oct-2026, Dan K. Snelson (@dan-snelson)
+#   - Updated based on Mac Health Check (5.0.1b1)
+#   - Detect live tunnel interface IPv4 before trusting DEM keys, which can report "disconnected" while connected
+#
 ###########################################################################################
 
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
@@ -34,6 +38,24 @@ function readPlistValue() {
     local plistKey="${2}"
 
     /usr/libexec/PlistBuddy -c "Print ${plistKey}" "${plistPath}" 2>/dev/null
+}
+
+function getDemTunnelIPv4() {
+    # DEM tunnel-ip is stored as "ipv4=<address>,ipv6=<address>"; print IPv4 only
+    readPlistValue "${globalProtectSettingsPlist}" ':"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p'
+}
+
+function getPreferredIPv4List() {
+    # PanGPS keeps per-portal "PreferredIP_<hash>" values; pattern excludes "PreferredIPV6_<hash>" keys
+    readPlistValue "${globalProtectSettingsPlist}" ":'Palo Alto Networks':GlobalProtect:PanGPS" | awk '$1 ~ /^PreferredIP_/ && $3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print $3 }'
+}
+
+function getTunnelInterfaceIPv4List() {
+    # IPv4 addresses bound to tunnel interfaces (utun* for current clients; gpd* for legacy kext)
+    ifconfig 2>/dev/null | awk '
+        /^[^[:space:]]/ { interface = $1; sub(/:$/, "", interface) }
+        interface ~ /^(utun|gpd)[0-9]+$/ && $1 == "inet" { print $2 }
+    '
 }
 
 function getGlobalProtectUserStatus() {
@@ -62,25 +84,49 @@ if [[ -d "${vpnAppPath}" ]]; then
     vpnStatus="Running: Installed"
 
     if [[ -e "/var/db/.AppleSetupDone" ]] && [[ -n $( find /var/db/.AppleSetupDone -mmin +60 2>/dev/null ) ]]; then
-        globalProtectTunnelStatus=$( readPlistValue "${globalProtectSettingsPlist}" ":'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" )
+        globalProtectDemTunnelIPv4=$( getDemTunnelIPv4 )
+        globalProtectKnownIPv4List=$( { echo "${globalProtectDemTunnelIPv4}"; getPreferredIPv4List; } | sed '/^$/d' )
+        globalProtectTunnelIPv4List=$( getTunnelInterfaceIPv4List )
+        globalProtectTunnelIPv4Count=$( printf '%s\n' "${globalProtectTunnelIPv4List}" | grep -c . )
+        globalProtectVpnIP=""
 
-        case "${globalProtectTunnelStatus}" in
-            "connected" | "connected-non-pa" )
-                globalProtectVpnIP=$( readPlistValue "${globalProtectSettingsPlist}" ':"Palo Alto Networks":GlobalProtect:DEM:"tunnel-ip"' | sed -nE 's/.*ipv4=([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' )
-                globalProtectUserResult=$( getGlobalProtectUserStatus )
-                vpnStatus="Running: Connected ${globalProtectVpnIP:-<no-IP>}; ${globalProtectUserResult}"
-                ;;
-            "internal" )
-                globalProtectUserResult=$( getGlobalProtectUserStatus )
-                vpnStatus="Running: Internal; ${globalProtectUserResult}"
-                ;;
-            "disconnected" )
-                vpnStatus="Warning: Disconnected"
-                ;;
-            *)
-                vpnStatus="Error: Unknown"
-                ;;
-        esac
+        # Live tunnel IPv4 matching a known GlobalProtect address wins, regardless of (possibly stale) DEM status
+        for globalProtectTunnelIPv4 in ${globalProtectTunnelIPv4List}; do
+            if printf '%s\n' "${globalProtectKnownIPv4List}" | grep -Fxq "${globalProtectTunnelIPv4}"; then
+                globalProtectVpnIP="${globalProtectTunnelIPv4}"
+                break
+            fi
+        done
+
+        # Gateway may assign an address outside the known list; accept only an unambiguous single tunnel
+        if [[ -z "${globalProtectVpnIP}" ]] && [[ "${globalProtectTunnelIPv4Count}" -eq 1 ]] && pgrep -x PanGPS >/dev/null 2>&1; then
+            globalProtectVpnIP="${globalProtectTunnelIPv4List}"
+        fi
+
+        if [[ -n "${globalProtectVpnIP}" ]]; then
+            globalProtectUserResult=$( getGlobalProtectUserStatus )
+            vpnStatus="Running: Connected ${globalProtectVpnIP}; ${globalProtectUserResult}"
+        else
+            # Fall back to DEM status
+            globalProtectTunnelStatus=$( readPlistValue "${globalProtectSettingsPlist}" ":'Palo Alto Networks':GlobalProtect:DEM:'tunnel-status'" )
+
+            case "${globalProtectTunnelStatus}" in
+                "connected"* )
+                    globalProtectUserResult=$( getGlobalProtectUserStatus )
+                    vpnStatus="Running: Connected ${globalProtectDemTunnelIPv4:-<no-IP>}; ${globalProtectUserResult}"
+                    ;;
+                "internal" )
+                    globalProtectUserResult=$( getGlobalProtectUserStatus )
+                    vpnStatus="Running: Internal; ${globalProtectUserResult}"
+                    ;;
+                "disconnected" )
+                    vpnStatus="Warning: Disconnected"
+                    ;;
+                *)
+                    vpnStatus="Error: Unknown"
+                    ;;
+            esac
+        fi
     fi
 fi
 

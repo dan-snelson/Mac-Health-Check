@@ -2,6 +2,12 @@
 
 ## CHANGELOG
 
+### 5.0.1b1 (08-Oct-2026)
+- Fixed Palo Alto Networks GlobalProtect VPN detection reporting `Disconnected` while connected when DEM keys in `com.paloaltonetworks.GlobalProtect.settings.plist` are stale (e.g., `dem-agent` not installed: `tunnel-status` stays `disconnected` with no `tunnel-ip`); applies to the built-in VPN block and `Palo Alto Networks GlobalProtect Status.bash` (`0.0.5`)
+    - A live `utun*` / `gpd*` tunnel IPv4 matching the DEM `tunnel-ip` or a PanGPS `PreferredIP_<hash>` value now reports `Connected <ip>`, regardless of DEM status
+    - Otherwise, a single tunnel IPv4 while `PanGPS` is running reports `Connected <ip>` (multiple tunnels are never guessed)
+    - Otherwise, falls back to DEM `tunnel-status`; status strings are unchanged
+
 ### 5.0.0 (04-Oct-2026)
 - **Security:** `checkElectronCornerMask()` no longer copies arbitrary file contents into user-readable output. A standard user could link `~/Applications/<App>.app/…/Electron Framework.framework/…/version` to any root-only file (including `MacHealthCheck-Secrets.plist`), and root then echoed its contents into the dialog, the Inspect compliance plist, the client log and the Splunk report. To prevent this:
     - Symlinked app bundles, frameworks and `version` / `version.txt` files are skipped
