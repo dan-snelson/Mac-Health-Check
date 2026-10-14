@@ -1,8 +1,8 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag) ![GitHub pre-release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Mac-Health-Check?display_name=tag&include_prereleases) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Mac-Health-Check) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Mac-Health-Check) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Mac-Health-Check) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Mac-Health-Check) [![swiftDialog](https://img.shields.io/badge/swiftDialog-Enabled-blue)](https://swiftdialog.app) [![Semgrep Security Scan](https://img.shields.io/badge/security%20scanned%20by-Semgrep-00C7B7?style=flat&logo=semgrep&logoColor=white)](https://semgrep.dev)
 
-# Mac Health Check (5.0.0)
+# Mac Health Check (5.0.1)
 
-> Mac Health Check 5.0.0 adds a dedicated AI skill for easier Mac Admin customization, historical Memory Pressure warnings, targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements
+> Mac Health Check 5.0.1 corrects Palo Alto Networks GlobalProtect VPN detection; 5.0.0 added a dedicated AI skill for easier Mac Admin customization, historical Memory Pressure warnings, targeted post-remediation verification, Jamf Pro clock-skew detection and macOS 27 compatibility improvements
 
 <img src="images/MHC_5.0.0.png" alt="Mac Health Check Hero" width="800"/>
 
@@ -43,7 +43,7 @@ Mac Health Check is particularly valuable in IT support workflows, serving as an
 
 ### Enterprise Reporting
 
-The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and does not remediate or enforce device configuration. It does make a few deliberate local changes: outside `Silent`, it installs or updates swiftDialog when it is missing, reports no version, or is older than `3.1.1.4997` (unless it already matches the latest production release) and quits other running swiftDialog windows; it installs the Client-Side Cache copy and LaunchDaemon, sets the client log (`/var/log/org.churchofjesuschrist.log`) to `root:admin` mode `640`, appends a root-only Memory Pressure history sample, clears `organizationDefaultsDomain` before each Jamf Pro external check, briefly enables `ipconfig` verbose mode to read the Wi-Fi SSID (restored only when it changed it), and the sample CrowdStrike external check temporarily sets `AppleLocale` to `en_US` (restored on exit). In `Self Service`, `5.0.0` launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.1.4997` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
+The tool logs results for review, writes a structured JSON health report locally, can optionally forward that report to Splunk HEC, and does not remediate or enforce device configuration. It does make a few deliberate local changes: outside `Silent`, it installs or updates swiftDialog when it is missing, reports no version, or is older than `3.1.1.4997` (unless it already matches the latest production release) and quits other running swiftDialog windows; it installs the Client-Side Cache copy and LaunchDaemon, sets the client log (`/var/log/org.churchofjesuschrist.log`) to `root:admin` mode `640`, appends a root-only Memory Pressure history sample, clears `organizationDefaultsDomain` before each Jamf Pro external check, briefly enables `ipconfig` verbose mode to read the Wi-Fi SSID (restored only when it changed it), and the sample CrowdStrike external check temporarily sets `AppleLocale` to `en_US` (restored on exit). In `Self Service`, Mac Health Check launches a detached swiftDialog Inspect Mode `preset6` guided summary built from finalized results plus a live compliance plist for swiftDialog `3.1.1.4997` compliance findings. When a valid full-run baseline less than 36 hours old contains warnings, failures, or errors, the next `Self Service` run automatically rechecks only those findings, merges the new results into the prior full report by stable check key, and records per-check timestamps. Healthy reruns within 15 minutes can still replay the cached summary without re-running health checks. Full `Silent` health-check runs generate the same Inspect Mode config and compliance plist artifacts without launching swiftDialog.
 
 - Structured JSON health report with optional Splunk HEC delivery (see [JSON / Splunk Reporting](#json--splunk-reporting))
 - Beginning in `5.0.0`, persistent runtime state (canonical report and lock, SOFA and `networkQuality` caches) lives in root-owned `/Library/Management/org.churchofjesuschrist` instead of world-writable `/var/tmp`, while user-facing Inspect assets (config and compliance plist) live in a root-owned `0755` tree at `/Library/Application Support/org.churchofjesuschrist/Inspect`, with per-user control files under `Inspect/Users/<user>`; cached reports are trusted only when they are root-owned regular files, and root-owned pre-`5.0.0` leftovers in `/var/tmp` are removed automatically
@@ -66,7 +66,7 @@ See: [Resources/Splunk-Dashboard-Reference.md](Resources/Splunk-Dashboard-Refere
 
 The `inspectSummaryPreset` is now an `on` / `off` toggle: `on` generates the Preset 6 inspect-summary assets, launches the summary in `Self Service`, and enables healthy-result cached replay; `off` disables asset generation, launch, and replay. Unresolved findings take precedence over replay and trigger targeted verification when the canonical report is eligible.
 
-The current `5.0.0` release targets swiftDialog `3.1.1.4997` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements plus the JSON `options` block (`moveable`, `ontop`, minimise button) for the detached summary. Older compatible swiftDialog builds retain their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
+The current `5.0.1` release targets swiftDialog `3.1.1.4997` or newer so `Self Service` can use the PR #684 Preset 6 spacing and highlight refinements plus the JSON `options` block (`moveable`, `ontop`, minimise button) for the detached summary. Older compatible swiftDialog builds retain their prior visual treatment. PR #684 also tolerates quoted scalar values from MDM templating tools; Mac Health Check continues to emit native JSON numbers and booleans.
 
 User-facing report:
 
@@ -206,9 +206,9 @@ Other settings, including `externalCheckTimeoutSeconds` (default `120`; a Jamf P
 The MDM branch (list items, checks and webhook support) is chosen from the enrolled MDM server URL, matched case-sensitively in this order: `addigy` (Addigy), `filewave` (Filewave), `fleet` (Fleet), `jamf` or `jss` (Jamf Pro), `jumpcloud` (JumpCloud), `kandji` (Kandji / Iru), `microsoft` (Microsoft Intune) and `mosyle` (Mosyle). Any other URL, including Iru URLs that do not contain `kandji` and unenrolled Macs, runs the MDM-agnostic fallback (`Unknown MDM vendor: None`).
 
 ## Features
-The following health checks and information reporting are included in version `5.0.0`, which operates in `Self Service` mode by default. (Use `Debug`, `Development` or `Test` while testing; deploy with `Self Service` or `Silent`.)
+The following health checks and information reporting are included in version `5.0.1`, which operates in `Self Service` mode by default. (Use `Debug`, `Development` or `Test` while testing; deploy with `Self Service` or `Silent`.)
 
-> Mac Health Check version `5.0.0` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for cached Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.1.4997` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
+> Mac Health Check version `5.0.1` corrects Palo Alto Networks GlobalProtect VPN detection when stale DEM keys report `Disconnected` while connected. Version `5.0.0` retains secure JSON report generation and optional Splunk HEC delivery, Client-Side Cache nightly report caching for cached Splunk uploads, Inspect Mode summary assets for swiftDialog `3.1.1.4997` PR #684 refinements, `Quick Actions`, a conditional `Remediation Guide`, status-aware 12-point bento-grid spacing, full `Silent` Inspect asset generation without launching UI, healthy-result 15-minute cached summary replay, `Wi-Fi Strength`, and warning-only final dialog handling via `Computer Needs Attention`, while adding targeted remediation rechecks, Jamf Pro clock skew detection, historical Memory Pressure warnings, and improved macOS 27 compatibility, Bluetooth Sharing, staged-update, uptime, and detached-summary behavior.
 
 
 
@@ -276,6 +276,8 @@ Jamf Pro runs check `Clock Skew` with `/usr/bin/sntp -n 1 -t 3 time.apple.com` b
 History defaults to `${organizationDirectory}/MacHealthCheck-MemoryPressure-History.jsonl`, owned by root with `600` permissions. Each JSON Lines record contains ISO8601 and epoch timestamps, local sample date, hostname, script version, pressure level, free-memory percentage, and used swap in human-readable and byte forms. `memoryPressureHistoryPath`, `memoryPressureHistoryRetentionDays` (default `14`), `memoryPressureLookbackDays` (default `7`), and `memoryPressureRequiredAdverseDays` (default `2`) are configurable in `Mac-Health-Check.zsh`. Invalid or unavailable readings stay unknown; history failures affect only this check. The JSON report and Inspect summary use stable check key `memoryPressure`.
 
 `App Auto-Patch` prefers root-written logs: the 4.x system log (`/Library/Application Support/AppAutoPatch/logs/aap.log`), then the 3.x log (`/Library/Management/AppAutoPatch/logs/aap.log`). It reads the user-writable per-user `~/Library/Logs/AppAutoPatch/aap.log` only when neither exists (logged as a user-reported log), and ignores 4.x `Discovery complete` timestamps more than 5 minutes in the future.
+
+Beginning in `5.0.1`, the `VPN Client` check (with `vpnClientVendor="paloalto"`, the default) and the sample `Palo Alto Networks GlobalProtect Status.bash` external check (`0.0.5`) no longer trust only the DEM keys in `com.paloaltonetworks.GlobalProtect.settings.plist`, which can stay `disconnected` while connected (for example, when `dem-agent` is not installed). A live `utun*` / `gpd*` tunnel IPv4 that matches the DEM `tunnel-ip` or a PanGPS `PreferredIP_<hash>` value reports `Connected <ip>`; otherwise, a single tunnel IPv4 while `PanGPS` is running reports `Connected <ip>` (multiple tunnels are never guessed); otherwise, the DEM `tunnel-status` decides, with unchanged status strings.
 
 Jamf Pro inventory submission is a final follow-up action. In full Jamf Pro runs, `updateComputerInventory()` now surfaces failed or timed-out `jamf recon` submissions to the end-user, and times out that submission after `90` seconds.
 
@@ -410,14 +412,14 @@ Example Preset 6 JSON fragments used by generated inspect assets:
 At the end of each run, Mac Health Check logs a one-line summary (wrapped below for readability), plus a second line on Jamf Pro:
 
 ```
-MHC (5.0.0): 2026-10-04 08:15:42 - [NOTICE]          WARNING: 'localadmin' IS A MEMBER OF 'admin';
+MHC (5.0.1): 2026-10-14 08:15:42 - [NOTICE]          WARNING: 'localadmin' IS A MEMBER OF 'admin';
 User: macOS Server Administrator (localadmin) [503]; Security Mode: Full;
 DEP-allowed MDM Control: Enabled; Activation Lock: Disabled; Bootstrap Token supported on server: YES;
 Bootstrap Token escrowed to server: YES; Location Services: Enabled; SSH: On;
 Microsoft OneDrive Sync Date: Not Configured; Time Machine Backup Date: Not configured;
 Battery Cycle Count: 12; Rosetta-required apps: None detected; Wi-Fi: Liahona; VPN: None;
 Network Time Server: time.apple.com
-MHC (5.0.0): 2026-10-04 08:15:42 - [NOTICE]          Jamf Pro Computer ID: 007; Site: Servers
+MHC (5.0.1): 2026-10-14 08:15:42 - [NOTICE]          Jamf Pro Computer ID: 007; Site: Servers
 ```
 
 1. Warning when logged-in user is a member of `admin`
@@ -481,7 +483,7 @@ Deployment of Mac Health Check involves configuring organizational defaults, upl
 
 The "Development" Operation Mode (introduced in `3.0.0`) aids in developing Health Checks, allowing quick runs against a small curated subset instead of the full suite.
 
-When `operationMode` is set to `Development`, `5.0.0` uses a dedicated `developmentListitemJSON` for `Clock Skew`, `Memory Pressure` and `Apple Push Notification service` instead of running the entire suite.
+When `operationMode` is set to `Development`, `5.0.1` uses a dedicated `developmentListitemJSON` for `Clock Skew`, `Memory Pressure` and `Apple Push Notification service` instead of running the entire suite.
 
 ```zsh
 ####################################################################################################

@@ -25,8 +25,8 @@
 #   Version 0.0.4, 30-Sep-2026, Dan K. Snelson (@dan-snelson)
 #   - Removed `/usr/local/bin` from `PATH` (Monocle S3)
 #
-#   Version 0.0.5, 08-Oct-2026, Dan K. Snelson (@dan-snelson)
-#   - Updated based on Mac Health Check (5.0.1b1)
+#   Version 0.0.5, 14-Oct-2026, Dan K. Snelson (@dan-snelson)
+#   - Updated based on Mac Health Check (5.0.1)
 #   - Detect live tunnel interface IPv4 before trusting DEM keys, which can report "disconnected" while connected
 #
 ###########################################################################################

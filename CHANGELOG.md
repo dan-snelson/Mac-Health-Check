@@ -2,7 +2,7 @@
 
 ## CHANGELOG
 
-### 5.0.1b1 (08-Oct-2026)
+### 5.0.1 (14-Oct-2026)
 - Fixed Palo Alto Networks GlobalProtect VPN detection reporting `Disconnected` while connected when DEM keys in `com.paloaltonetworks.GlobalProtect.settings.plist` are stale (e.g., `dem-agent` not installed: `tunnel-status` stays `disconnected` with no `tunnel-ip`); applies to the built-in VPN block and `Palo Alto Networks GlobalProtect Status.bash` (`0.0.5`)
     - A live `utun*` / `gpd*` tunnel IPv4 matching the DEM `tunnel-ip` or a PanGPS `PreferredIP_<hash>` value now reports `Connected <ip>`, regardless of DEM status
     - Otherwise, a single tunnel IPv4 while `PanGPS` is running reports `Connected <ip>` (multiple tunnels are never guessed)
