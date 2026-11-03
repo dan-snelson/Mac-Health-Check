@@ -2,10 +2,10 @@
 
 ## CHANGELOG
 
-### Unreleased
-- Fixed `checkMosyleCheckIn()` exiting the script (`bad math expression: operand expected at end of string`) when `com.mosyle.macos.manager.mdm` has no `MacCommandsReplyResultsSuccessDate`, which left `Self Service` stuck on the Mosyle Check-In step
+### 5.0.2 (03-Nov-2026)
+- Fixed `checkMosyleCheckIn()` exiting the script (`bad math expression: operand expected at end of string`) when `com.mosyle.macos.manager.mdm` has no `MacCommandsReplyResultsSuccessDate`, which left `Self Service` stuck on the Mosyle Check-In step (thanks for PR #110, @bigdoodr!)
     - Reads `MacCommandsReplyResultsSuccessDate` from both root's `com.mosyle.macos.mdm.daemon` preferences (where current Mosyle agents keep it) and `com.mosyle.macos.manager.mdm`, keeps the newest, and logs which source it used
-    - Reports `Unknown` (warning) and continues when neither has a value
+    - Reports `Unknown` (warning) and continues when neither has a value; the local report's `mdm.lastCheckIn` is then also `Unknown`
 
 ### 5.0.1 (14-Oct-2026)
 - Fixed Palo Alto Networks GlobalProtect VPN detection reporting `Disconnected` while connected when DEM keys in `com.paloaltonetworks.GlobalProtect.settings.plist` are stale (e.g., `dem-agent` not installed: `tunnel-status` stays `disconnected` with no `tunnel-ip`); applies to the built-in VPN block and `Palo Alto Networks GlobalProtect Status.bash` (`0.0.5`)
